@@ -1,0 +1,84 @@
+{
+  "company_id": 18,
+  "exported_at": "2026-04-07T17:30:03.137819",
+  "tables": {
+    "sales": [
+      {
+        "id": 165,
+        "date": "2026-04-07T11:52:17.983588",
+        "customer": "Walk-in Customer",
+        "total": 2950.0,
+        "payment": "Cash",
+        "cash_given": 3000.0,
+        "balance": 50.0,
+        "discount": 0.0,
+        "tax": 450.0,
+        "user_id": 18,
+        "company_id": 18
+      }
+    ],
+    "sale_items": [
+      {
+        "id": 212,
+        "sale_id": 165,
+        "product_id": 166,
+        "quantity": 1.0,
+        "price": 2500.0,
+        "discount": 0.0,
+        "tax": 450.0,
+        "company_id": 18
+      }
+    ],
+    "products": [
+      {
+        "id": 166,
+        "name": "Product 1",
+        "price": 2500.0,
+        "cost_price": 0.0,
+        "stock": 9.0,
+        "unit_type": "unit",
+        "category": "Phone",
+        "low_stock_threshold": 5.0,
+        "barcode": "",
+        "description": "",
+        "image_path": null,
+        "last_updated": "2026-04-07T11:47:08.506705",
+        "warehouse_id": null,
+        "supplier_id": null,
+        "company_id": 18,
+        "price_per_kg": null,
+        "product_code": null
+      }
+    ],
+    "inventory_transactions": [
+      {
+        "id": 267,
+        "product_id": 166,
+        "transaction_type": "sale",
+        "quantity": 1.0,
+        "previous_stock": 10.0,
+        "new_stock": 9.0,
+        "reference_id": 165,
+        "date": "2026-04-07T11:52:17.998955",
+        "notes": "Sold to Walk-in Customer",
+        "company_id": 18
+      }
+    ],
+    "audit_logs": [
+      {
+        "id": 94,
+        "user_id": 18,
+        "entity_type": "Product",
+        "entity_id": 166,
+        "action": "create",
+        "old_values": null,
+        "new_values": "{\"name\": \"Product 1\", \"price\": 2500.0, \"cost_price\": 0.0, \"stock\": 10.0, \"category\": \"Phone\"}",
+        "timestamp": "2026-04-07T11:47:08.561176",
+        "ip_address": "127.0.0.1",
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+        "company_id": 18,
+        "description": "Product 'Product 1' created with price \u20a82500.0"
+      }
+    ]
+  }
+}

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipt #{{ sale.id }}</title>
+    <style>
+        /* Base styles + Print CSS */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace, sans-serif;
+            font-size: 12px;
+            line-height: 1.3;
+            color: black;
+            background: white;
+            padding: 10px;
+            max-width: 80mm;
+            margin: 0 auto;
+        }
+        /* Load external print stylesheet */
+        @import url('/static/css/print-receipt.css') print;
+        .container {
+            max-width: 76mm;
+            margin: 0 auto;
+        }
+        .center { text-align: center; }
+        .right { text-align: right; }
+        .bold { font-weight: bold; }
+        .large { font-size: 16px; }
+        .xlarge { font-size: 20px; }
+        .small { font-size: 10px; }
+        .header { margin-bottom: 8px; }
+        .divider { 
+            border-bottom: 1px dashed black; 
+            margin: 6px 0; 
+        }
+        .divider-thick { 
+            border-bottom: 2px solid black; 
+            margin: 8px 0; 
+        }
+        .table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 6px 0;
+        }
+        .table th, .table td { 
+            padding: 2px 0; 
+            text-align: left;
+        }
+        .table td.name { 
+            width: 55%; 
+        }
+        .table td.qty { 
+            width: 12%; 
+            text-align: center;
+        }
+        .table td.price, .table td.total { 
+            width: 16%; 
+            text-align: right;
+        }
+        .summary { 
+            margin: 10px 0;
+        }
+        .summary .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+        }
+        .grand-total {
+            border-top: 2px double black;
+            padding-top: 6px;
+            font-size: 14px;
+        }
+        .payment-info {
+            margin: 10px 0;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 11px;
+        }
+        .logo {
+            max-width: 150px;
+            max-height: 50px;
+            margin-bottom: 5px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        img { max-width: 100%; height: auto; }
+
+        /* Print styles for 80mm thermal (8.27cm = ~315px at 96dpi) */
+        @media print {
+            body {
+                margin: 0;
+                padding: 2mm;
+                font-size: 11pt;
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+            .container {
+                max-width: 76mm !important;
+                width: 76mm !important;
+            }
+            @page {
+                size: 80mm auto;
+                margin: 2mm;
+            }
+            .no-print { display: none !important; }
+        }
+
+        /* A4 fallback */
+        @media print and (min-width: 210mm) {
+            body {
+                font-size: 12pt;
+                padding: 10mm;
+            }
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header center">
+            {% if logo_path %}
+                <img src="{{ logo_path }}" alt="Logo" class="logo">
+            {% endif %}
+            <div class="bold xlarge">{{ business_name or 'POS SYSTEM' }}</div>
+            {% if business_address %}<div>{{ business_address }}</div>{% endif %}
+            {% if business_phone %}<div>Phone: {{ business_phone }}</div>{% endif %}
+            {% if business_email %}<div>Email: {{ business_email }}</div>{% endif %}
+            {% if business_gst %}<div class="small">GST/Tax: {{ business_gst }}</div>{% endif %}
+        </div>
+
+        <div class="divider-thick"></div>
+
+        <!-- Receipt Info -->
+        <table class="table">
+            <tr><td class="bold">Receipt #:</td><td class="right">{{ sale.id }}</td></tr>
+            <tr><td class="bold">Date:</td><td class="right">{{ sale_date }}</td></tr>
+            <tr><td class="bold">Time:</td><td class="right">{{ sale_time }}</td></tr>
+            {% if cashier_name %}<tr><td class="bold">Cashier:</td><td class="right">{{ cashier_name }}</td></tr>{% endif %}
+            {% if payment_method %}<tr><td class="bold">Payment:</td><td class="right">{{ payment_method }}</td></tr>{% endif %}
+            {% if customer %}<tr><td class="bold">Customer:</td><td class="right">{{ customer }}</td></tr>{% endif %}
+        </table>
+
+        <div class="divider"></div>
+
+        <!-- Items Table -->
+        <table class="table">
+            <thead>
+                <tr>
+                    <th class="bold">Item Name</th>
+                    <th class="bold center">Qty</th>
+                    <th class="bold right">Price</th>
+                    <th class="bold right">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td class="name">{{ item.name[:28] }}{% if item.name|length > 28 %}...{% endif %}</td>
+                    <td class="qty center">{{ "%.1f"|format(item.quantity) }}</td>
+                    <td class="price right">{{ "%.2f"|format(item.unit_price) }}</td>
+                    <td class="total right bold">{{ "%.2f"|format(item.total) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="divider"></div>
+
+        <!-- Summary -->
+        <div class="summary">
+            <div class="row">
+                <span>Subtotal:</span>
+                <span class="right">{{ "%.2f"|format(subtotal) }}</span>
+            </div>
+            {% if discount > 0 %}
+            <div class="row">
+                <span>Discount:</span>
+                <span class="right">-{{ "%.2f"|format(discount) }}</span>
+            </div>
+            {% endif %}
+            {% if tax_amount > 0 %}
+            <div class="row">
+                <span>Tax ({{ tax_rate }}%):</span>
+                <span class="right">{{ "%.2f"|format(tax_amount) }}</span>
+            </div>
+            {% endif %}
+            <div class="row grand-total">
+                <span class="bold">GRAND TOTAL:</span>
+                <span class="right bold">{{ "%.2f"|format(total) }}</span>
+            </div>
+        </div>
+
+        {% if payment_method == 'Cash' and cash_given > 0 %}
+        <div class="payment-info">
+            <div class="row">
+                <span>Cash Tendered:</span>
+                <span class="right">{{ "%.2f"|format(cash_given) }}</span>
+            </div>
+            {% if change > 0 %}
+            <div class="row">
+                <span class="bold">Change:</span>
+                <span class="right bold">{{ "%.2f"|format(change) }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if balance > 0 %}
+        <div class="divider"></div>
+        <div class="row bold">
+            <span>Balance Due:</span>
+            <span class="right">{{ "%.2f"|format(balance) }}</span>
+        </div>
+        {% endif %}
+
+        <div class="divider-thick"></div>
+
+        <!-- Footer -->
+        <div class="footer center">
+            <div class="bold">{{ thank_you_message or 'Thank you for your business!' }}</div>
+            {% if warranty_info %}
+            <div class="small" style="margin-top: 8px;">{{ warranty_info }}</div>
+            {% endif %}
+            <div class="small" style="margin-top: 12px;">{{ footer_text or 'Generated by Web POS System' }}</div>
+        </div>
+    </div>
+</body>
+</html>
