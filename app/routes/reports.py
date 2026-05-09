@@ -8,6 +8,7 @@ from sqlalchemy import func, desc, and_, or_
 import calendar
 import io
 import xlsxwriter
+import pandas as pd
 import pytz
 
 reports_bp = Blueprint('reports', __name__, template_folder='../../templates')
