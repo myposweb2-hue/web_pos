@@ -10,7 +10,11 @@ from sqlalchemy import desc, case, or_
 import json
 from app.utils.email_sender import send_email
 from app.utils.whatsapp_sender import generate_whatsapp_link
-from app.utils.whatsapp_twilio import send_whatsapp_via_twilio
+# Optional Twilio import - only if available
+try:
+    from app.utils.whatsapp_twilio import send_whatsapp_via_twilio
+except ImportError:
+    send_whatsapp_via_twilio = None
 from app.utils.receipt_generator import ReceiptGenerator
 from app import csrf
 
@@ -945,8 +949,11 @@ Balance:     Rs.{sale.balance:>9.2f}
 Thank you for shopping!
 View: http://localhost:5000/sales/{sale.id}/receipt/html"""
 
-    # Prefer Twilio if configured
-    twilio_enabled = current_app.config.get('TWILIO_ACCOUNT_SID') and current_app.config.get('TWILIO_AUTH_TOKEN') and current_app.config.get('TWILIO_WHATSAPP_FROM')
+    # Prefer Twilio if configured and available
+    twilio_enabled = (send_whatsapp_via_twilio is not None and 
+                     current_app.config.get('TWILIO_ACCOUNT_SID') and 
+                     current_app.config.get('TWILIO_AUTH_TOKEN') and 
+                     current_app.config.get('TWILIO_WHATSAPP_FROM'))
     if twilio_enabled:
         ok, res = send_whatsapp_via_twilio(phone_digits, text)
         if ok:
