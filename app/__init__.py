@@ -53,7 +53,7 @@ def create_app(config_class=None):
     from app.routes.purchases import purchases_bp
     from app.routes.warehouse_api import warehouse_api_bp
     from app.routes.suppliers import suppliers_bp
-    from app.routes.scale import scale_bp
+    # from app.routes.scale import scale_bp  # Disabled - requires serial module
     from app.routes.companies import companies_bp
     from app.routes.cheques import cheques_bp
     from app.routes.audit import audit_bp
@@ -69,7 +69,7 @@ def create_app(config_class=None):
     app.register_blueprint(purchases_bp)
     app.register_blueprint(warehouse_api_bp)
     app.register_blueprint(suppliers_bp, url_prefix='/suppliers')
-    app.register_blueprint(scale_bp)
+    # app.register_blueprint(scale_bp)  # Disabled - requires serial module
     app.register_blueprint(companies_bp, url_prefix='/companies')
     app.register_blueprint(cheques_bp, url_prefix='/cheques')
     app.register_blueprint(audit_bp, url_prefix='/audit')
