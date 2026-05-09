@@ -1,7 +1,14 @@
 import os
 import uuid
 import io
-import pandas as pd
+# Optional pandas import - only load when needed for Excel operations
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except (ImportError, ValueError):
+    # ValueError can occur due to numpy/pandas version incompatibility
+    PANDAS_AVAILABLE = False
+    pd = None
 from flask import Blueprint, render_template, request, jsonify, flash, send_file
 from flask_login import login_required
 from flask_wtf.csrf import CSRFProtect
@@ -498,14 +505,25 @@ def export_products():
         )
         
     except Exception as e:
+        import traceback
+        from flask import current_app
+        current_app.logger.error(f"Import error: {str(e)}\n{traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
-@inventory_bp.route('/api/products/import', methods=['POST'])
+@inventory_bp.route('/api/products/import', methods=['POST', 'OPTIONS'])
 @csrf.exempt
 @login_required
 @require_permission('can_edit_inventory')
 def import_products():
     """Import products from Excel file."""
+    # Handle OPTIONS requests (browser preflight)
+    if request.method == 'OPTIONS':
+        return '', 204
+    
+    # Check if pandas is available
+    if not PANDAS_AVAILABLE:
+        return jsonify({'error': 'Pandas library not available. Cannot import products.'}), 500
+    
     try:
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
@@ -652,4 +670,8 @@ def import_products():
         
     except Exception as e:
         db.session.rollback()
+        import traceback
+        from flask import current_app
+        error_msg = f"Products import error: {str(e)}\n{traceback.format_exc()}"
+        current_app.logger.error(error_msg)
         return jsonify({'error': str(e)}), 500

@@ -7,8 +7,21 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, desc, and_, or_
 import calendar
 import io
-import xlsxwriter
-import pandas as pd
+# Optional export libraries - may have compatibility issues
+try:
+    import xlsxwriter
+    XLSXWRITER_AVAILABLE = True
+except (ImportError, ValueError):
+    XLSXWRITER_AVAILABLE = False
+    xlsxwriter = None
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except (ImportError, ValueError):
+    PANDAS_AVAILABLE = False
+    pd = None
+
 import pytz
 
 reports_bp = Blueprint('reports', __name__, template_folder='../../templates')
