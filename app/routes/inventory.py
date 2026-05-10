@@ -1,14 +1,7 @@
 import os
 import uuid
 import io
-# Optional pandas import - only load when needed for Excel operations
-try:
-    import pandas as pd
-    PANDAS_AVAILABLE = True
-except (ImportError, ValueError):
-    # ValueError can occur due to numpy/pandas version incompatibility
-    PANDAS_AVAILABLE = False
-    pd = None
+import pandas as pd
 from flask import Blueprint, render_template, request, jsonify, flash, send_file
 from flask_login import login_required
 from flask_wtf.csrf import CSRFProtect
@@ -519,10 +512,6 @@ def import_products():
     # Handle OPTIONS requests (browser preflight)
     if request.method == 'OPTIONS':
         return '', 204
-    
-    # Check if pandas is available
-    if not PANDAS_AVAILABLE:
-        return jsonify({'error': 'Pandas library not available. Cannot import products.'}), 500
     
     try:
         if 'file' not in request.files:
