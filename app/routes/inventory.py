@@ -619,8 +619,10 @@ def import_products():
                     updated_count += 1
                 else:
                     # Create new product
+                    company_id = get_company_id()
                     product = Product(
                         name=product_name,
+                        company_id=company_id,
                         price=float(row['Price']) if not pd.isna(row['Price']) else 0.0,
                         cost_price=float(row['Cost Price']) if not pd.isna(row.get('Cost Price')) else 0.0,
                         stock=float(row['Stock']) if not pd.isna(row.get('Stock')) else 0.0,
