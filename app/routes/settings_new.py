@@ -1148,16 +1148,21 @@ def create_user():
         user.set_password(data['password'])
 
         # Assign current company to user (unless Super Admin)
-        current_company_id = get_company_id()
-        if current_company_id:
-            company = Company.query.get(current_company_id)
-            if company:
-                user.companies.append(company)
-                # Validate single-company assignment
-                is_valid, error_msg = validate_single_company_assignment(user, len(user.companies))
-                if not is_valid:
-                    db.session.rollback()
-                    return jsonify({'error': error_msg}), 400
+        try:
+            current_company_id = get_company_id()
+            if current_company_id:
+                company = Company.query.get(current_company_id)
+                if company:
+                    user.companies.append(company)
+                    # Validate single-company assignment
+                    is_valid, error_msg = validate_single_company_assignment(user, len(user.companies))
+                    if not is_valid:
+                        db.session.rollback()
+                        return jsonify({'error': error_msg}), 400
+        except Exception as company_error:
+            # If company assignment fails, continue anyway - user can work without company assignment
+            current_app.logger.warning(f"Failed to assign company to user: {str(company_error)}")
+            pass
 
         if user.role == 'Admin' or user.role == 'Super Admin':
             user.can_access_sales = True
