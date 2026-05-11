@@ -15,6 +15,81 @@
     }
 }
 
+/* Medium-Large Desktop (1200px - 1399px) - SPECIAL HANDLING */
+@media (min-width: 1200px) and (max-width: 1399px) {
+    :root {
+        --sidebar-width: 200px;
+        --content-padding: 16px;
+    }
+    
+    .sidebar {
+        width: 200px;
+    }
+    
+    .main-content {
+        margin-left: 200px;
+        overflow-y: auto;
+        height: calc(100vh - 64px);
+    }
+    
+    .sidebar.collapsed {
+        width: 70px;
+    }
+    
+    .sidebar.collapsed ~ .main-content {
+        margin-left: 70px;
+    }
+    
+    /* Reduce table font size slightly */
+    .table {
+        font-size: 13px;
+    }
+    
+    .table th,
+    .table td {
+        padding: 0.5rem;
+    }
+    
+    /* Compact forms */
+    .form-control,
+    .form-select {
+        padding: 0.375rem;
+        font-size: 13px;
+    }
+    
+    /* Compact buttons */
+    .btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 13px;
+    }
+    
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 11px;
+    }
+    
+    /* Card spacing */
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    /* Allow content to scroll if needed */
+    .main-content {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* Make container scrollable */
+    .container-fluid {
+        overflow-y: auto;
+        padding-bottom: 2rem;
+    }
+}
+
 /* Large desktop (1200px - 1399px) */
 @media (max-width: 1399px) and (min-width: 1200px) {
     .main-content {
