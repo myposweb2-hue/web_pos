@@ -359,7 +359,7 @@
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('settings.profile') }}"><i class="fas fa-user-circle me-2 text-muted"></i>My Profile</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('settings.settings') }}"><i class="fas fa-cog me-2 text-muted"></i>Settings</a></li>
-                            {% if current_user.role and current_user.role.lower() in ['admin', 'super admin'] %}
+                            {% if current_user.role and current_user.role.lower() == 'super admin' %}
                             <li><a class="dropdown-item" href="{{ url_for('companies.companies') }}"><i class="fas fa-building me-2 text-muted"></i>Manage Companies</a></li>
                             {% endif %}
                             <li><hr class="dropdown-divider"></li>
