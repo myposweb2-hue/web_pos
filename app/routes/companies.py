@@ -25,23 +25,27 @@ companies_bp = Blueprint('companies', __name__, template_folder='../../templates
 @companies_bp.route('/companies')
 @login_required
 def companies():
-    """List all companies - admins see all, others see their own."""
-    # Only admins and super admins can see all companies
-    if current_user.role and current_user.role.lower() in ['admin', 'super admin']:
-        all_companies = Company.query.all()
-    else:
-        all_companies = get_user_companies(current_user.id)
+    """List all companies - SUPER ADMIN ONLY."""
+    # SECURITY: Only super admin can manage companies
+    if not (current_user.role and current_user.role.lower() == 'super admin'):
+        return jsonify({'error': 'Only Super Admin can manage companies'}), 403
+    
+    all_companies = Company.query.all()
     return render_template('companies/companies.html', companies=all_companies)
 
 @companies_bp.route('/api/companies')
 @csrf.exempt
 @login_required
 def get_companies():
-    """Get companies for current user."""
-    user_companies = get_user_companies(current_user.id)
+    """Get companies - SUPER ADMIN ONLY for management interface."""
+    # SECURITY: Only super admin can manage companies
+    if not (current_user.role and current_user.role.lower() == 'super admin'):
+        return jsonify({'error': 'Only Super Admin can manage companies'}), 403
+    
+    all_companies = Company.query.all()
     
     result = []
-    for company in user_companies:
+    for company in all_companies:
         result.append({
             'id': company.id,
             'name': company.name,
@@ -58,13 +62,12 @@ def get_companies():
 @csrf.exempt
 @login_required
 def get_company(company_id):
-    """Get single company details. Accessible to company members and admins."""
-    company = Company.query.get_or_404(company_id)
+    """Get single company details - SUPER ADMIN ONLY."""
+    # SECURITY: Only super admin can manage companies
+    if not (current_user.role and current_user.role.lower() == 'super admin'):
+        return jsonify({'error': 'Only Super Admin can manage companies'}), 403
     
-    # Check access: Allow if user is member of company or is global admin/super admin
-    user_companies = [c.id for c in get_user_companies(current_user.id)]
-    if company.id not in user_companies and not (current_user.role and current_user.role.lower() in ['admin', 'super admin']):
-        return jsonify({'error': 'Access denied'}), 403
+    company = Company.query.get_or_404(company_id)
     
     return jsonify({
         'id': company.id,
@@ -133,11 +136,6 @@ def update_company(company_id):
     company = Company.query.get_or_404(company_id)
     data = request.get_json()
     
-    # Check access
-    user_companies = [c.id for c in get_user_companies(current_user.id)]
-    if company.id not in user_companies and not (current_user.role and current_user.role.lower() in ['admin', 'super admin']):
-        return jsonify({'error': 'Access denied'}), 403
-    
     try:
         if 'name' in data:
             # Check uniqueness
@@ -182,10 +180,6 @@ def delete_company(company_id):
     Hard delete requires admin password verification.
     """
     company = Company.query.get_or_404(company_id)
-    
-    # Only admin and super admin can delete (case-insensitive check)
-    if not (current_user.role and current_user.role.lower() in ['admin', 'super admin']):
-        return jsonify({'error': 'Only admins can delete companies'}), 403
     
     # Check if hard delete is requested
     data = request.get_json(silent=True) or {}
