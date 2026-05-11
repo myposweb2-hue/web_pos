@@ -1815,3 +1815,24 @@ def get_loyalty_points_settings():
             'enable_loyalty_points': True,
             'loyalty_points_conversion_rate': 1.0
         })
+
+@settings_bp.route('/api/debug/reload-modules', methods=['POST'])
+@csrf.exempt
+@login_required
+def reload_modules():
+    """Debug endpoint to reload Python modules. Admin only."""
+    if not current_user.role or current_user.role.lower() not in ['admin', 'super admin']:
+        return jsonify({'error': 'Admin only'}), 403
+    
+    import importlib
+    try:
+        # Reload the settings_new module
+        import app.routes.settings_new as sn
+        importlib.reload(sn)
+        
+        import app.models as models
+        importlib.reload(models)
+        
+        return jsonify({'success': True, 'message': 'Modules reloaded'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
