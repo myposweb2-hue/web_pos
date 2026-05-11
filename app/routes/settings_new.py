@@ -1035,24 +1035,12 @@ def validate_single_company_assignment(user, num_companies):
 @login_required
 @require_permission('can_access_settings')
 def get_users():
-    # Get users for current company only
-    user_companies = get_user_companies(current_user.id)
-    company_id = get_company_id()
+    """Get users (excluding ALL super admin users - they are hidden from management)."""
+    # SECURITY: Super admin users are NEVER shown in user management interface
+    # This ensures admins cannot see, edit, or delete super admin accounts
     
-    # If super admin, get all non-super-admin users; if admin, get company-specific users
-    if current_user.role and current_user.role.lower() == 'super admin':
-        # Super admin can see all users EXCEPT other super admins
-        users = User.query.filter(User.role != 'Super Admin').all()
-    elif current_user.role and current_user.role.lower() == 'admin':
-        # Regular admin can only see users in their company (excluding super admin)
-        users = []
-        for company in user_companies:
-            for user in company.users:
-                if user not in users and (not user.role or user.role.lower() != 'super admin'):
-                    users.append(user)
-    else:
-        # Non-admins shouldn't see user list
-        users = []
+    # Get all users EXCEPT super admins
+    users = User.query.filter(User.role != 'Super Admin').all()
     
     result = []
     for user in users:
@@ -1142,8 +1130,9 @@ def create_user():
                 role = 'Admin'
             elif role_str == 'manager':
                 role = 'Manager'
+            # SECURITY: Never allow setting role to Super Admin through API
             elif role_str == 'super admin':
-                role = 'Super Admin'
+                return jsonify({'error': 'Super Admin role cannot be assigned through this interface'}), 403
 
         user = User(
             username=data['username'],
@@ -1255,11 +1244,14 @@ def update_user(user_id):
         if 'role' in data and data.get('role') != user.role:
             role_input = data.get('role')
             if role_input:
-                role_str = str(role_input).strip()
+                role_str = str(role_input).strip().lower()
+                # SECURITY: Prevent role change to Super Admin
+                if role_str == 'super admin':
+                    return jsonify({'error': 'Super Admin role cannot be assigned through this interface'}), 403
                 if role_str:
                     new_role = 'Cashier'
-                    if role_str.lower() == 'admin': new_role = 'Admin'
-                    elif role_str.lower() == 'manager': new_role = 'Manager'
+                    if role_str == 'admin': new_role = 'Admin'
+                    elif role_str == 'manager': new_role = 'Manager'
                     user.role = new_role
 
         if 'permissions' in data and isinstance(data['permissions'], dict):
