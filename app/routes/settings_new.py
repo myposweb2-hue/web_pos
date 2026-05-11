@@ -1039,16 +1039,21 @@ def get_users():
     user_companies = get_user_companies(current_user.id)
     company_id = get_company_id()
     
-    # If admin or super admin, get all users; otherwise get company-specific users
-    if current_user.role and current_user.role.lower() in ['admin', 'super admin']:
-        users = User.query.all()
-    else:
-        # Get users from the current user's companies
+    # If super admin, get all non-super-admin users; if admin, get company-specific users
+    if current_user.role and current_user.role.lower() == 'super admin':
+        # Super admin can see all users EXCEPT other super admins
+        users = User.query.filter(User.role != 'Super Admin').all()
+    elif current_user.role and current_user.role.lower() == 'admin':
+        # Regular admin can only see users in their company (excluding super admin)
         users = []
         for company in user_companies:
             for user in company.users:
-                if user not in users:
+                if user not in users and (not user.role or user.role.lower() != 'super admin'):
                     users.append(user)
+    else:
+        # Non-admins shouldn't see user list
+        users = []
+    
     result = []
     for user in users:
         result.append({
@@ -1222,6 +1227,10 @@ def update_user(user_id):
 
     if not data:
         return jsonify({'error': 'No data provided'}), 400
+
+    # SECURITY: Prevent regular admins from modifying super admin users
+    if user.role and user.role.lower() == 'super admin' and current_user.role.lower() != 'super admin':
+        return jsonify({'error': 'Super admin users cannot be modified by regular admins'}), 403
 
     try:
         if 'username' in data and data['username'] != user.username:
