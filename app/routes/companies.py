@@ -383,32 +383,30 @@ def switch_company():
 @require_permission('can_access_settings')
 def get_company_users(company_id):
     """Get users associated with a company."""
-    company = Company.query.get_or_404(company_id)
-    
-    # Check access
-    user_companies = [c.id for c in get_user_companies(current_user.id)]
-    if company.id not in user_companies and not (current_user.role and current_user.role.lower() in ['admin', 'super admin']):
-        return jsonify({'error': 'Access denied'}), 403
-    
-    # Get users from association table
-    result = []
-    for user in company.users:
-        # Find the association to check is_admin
-        is_admin = False
-        for assoc in user.companies:
-            if assoc.id == company.id:
-                is_admin = True
-                break
+    try:
+        company = Company.query.get_or_404(company_id)
         
-        result.append({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'role': user.role,
-            'is_admin': is_admin
-        })
+        # Check access
+        user_companies = [c.id for c in get_user_companies(current_user.id)]
+        if company.id not in user_companies and not (current_user.role and current_user.role.lower() in ['admin', 'super admin']):
+            return jsonify({'error': 'Access denied'}), 403
+        
+        # Get users from association table
+        result = []
+        if company.users:
+            for user in company.users:
+                result.append({
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role,
+                    'is_admin': True  # Users in the company are admins by association
+                })
+        
+        return jsonify(result)
     
-    return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @companies_bp.route('/api/companies/<int:company_id>/users', methods=['POST'])
 @login_required
