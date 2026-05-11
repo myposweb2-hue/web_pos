@@ -1150,7 +1150,7 @@ def create_user():
         # Assign current company to user (unless Super Admin)
         current_company_id = get_company_id()
         if current_company_id:
-            company = db.session.query(db.Model.registry.mappers[0].class_).get(current_company_id) if hasattr(db, 'Model') else None
+            company = Company.query.get(current_company_id)
             if company:
                 user.companies.append(company)
                 # Validate single-company assignment
