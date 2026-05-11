@@ -380,16 +380,14 @@ def switch_company():
 
 @companies_bp.route('/api/companies/<int:company_id>/users')
 @login_required
-@require_permission('can_access_settings')
 def get_company_users(company_id):
-    """Get users associated with a company."""
+    """Get users associated with a company - SUPER ADMIN ONLY."""
+    # SECURITY: Only super admin can manage company users
+    if not (current_user.role and current_user.role.lower() == 'super admin'):
+        return jsonify({'error': 'Only Super Admin can manage company users'}), 403
+    
     try:
         company = Company.query.get_or_404(company_id)
-        
-        # Check access
-        user_companies = [c.id for c in get_user_companies(current_user.id)]
-        if company.id not in user_companies and not (current_user.role and current_user.role.lower() in ['admin', 'super admin']):
-            return jsonify({'error': 'Access denied'}), 403
         
         # Get users from association table
         result = []
@@ -410,28 +408,26 @@ def get_company_users(company_id):
 
 @companies_bp.route('/api/companies/<int:company_id>/users', methods=['POST'])
 @login_required
-@require_permission('can_access_settings')
 def add_user_to_company(company_id):
-    """Add a user to a company."""
-    company = Company.query.get_or_404(company_id)
-    data = request.get_json()
-    
-    # Check access
-    user_companies = [c.id for c in get_user_companies(current_user.id)]
-    if company.id not in user_companies and not (current_user.role and current_user.role.lower() in ['admin', 'super admin']):
-        return jsonify({'error': 'Access denied'}), 403
-    
-    user_id = data.get('user_id')
-    is_admin = data.get('is_admin', False)
-    
-    if not user_id:
-        return jsonify({'error': 'User ID is required'}), 400
-    
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
+    """Add a user to a company - SUPER ADMIN ONLY."""
+    # SECURITY: Only super admin can manage company users
+    if not (current_user.role and current_user.role.lower() == 'super admin'):
+        return jsonify({'error': 'Only Super Admin can manage company users'}), 403
     
     try:
+        company = Company.query.get_or_404(company_id)
+        data = request.get_json()
+        
+        user_id = data.get('user_id')
+        is_admin = data.get('is_admin', False)
+        
+        if not user_id:
+            return jsonify({'error': 'User ID is required'}), 400
+        
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
         # ✅ SECURITY: Non-super-admin users can only be assigned to ONE company
         is_super_admin = user.role and user.role.lower() == 'super admin'
         
@@ -441,10 +437,6 @@ def add_user_to_company(company_id):
             if active_companies and company_id not in active_companies:
                 # User already assigned to other active companies
                 existing_names = [c.name for c in user.companies if c.is_active]
-                current_app.logger.error(
-                    f"SECURITY: Attempt to assign non-super-admin user {user.username} to multiple companies. "
-                    f"Already assigned to: {existing_names}. Rejected."
-                )
                 return jsonify({
                     'error': f'User {user.username} is already assigned to another company ({", ".join(existing_names)}). '
                              f'Non-super-admin users can only be assigned to one company at a time.',
@@ -455,9 +447,6 @@ def add_user_to_company(company_id):
             # If user was in other companies and is not super admin, remove them first
             if not is_super_admin and user.companies:
                 user.companies.clear()
-                current_app.logger.info(
-                    f"Reassigning non-super-admin user {user.username} from other companies to {company.name}"
-                )
             
             company.users.append(user)
             db.session.commit()
@@ -469,26 +458,22 @@ def add_user_to_company(company_id):
     
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error adding user to company: {e}")
         return jsonify({'error': str(e)}), 500
 
 @companies_bp.route('/api/companies/<int:company_id>/users/<int:user_id>', methods=['DELETE'])
 @login_required
-@require_permission('can_access_settings')
 def remove_user_from_company(company_id, user_id):
-    """Remove a user from a company."""
-    company = Company.query.get_or_404(company_id)
-    
-    # Check access
-    user_companies = [c.id for c in get_user_companies(current_user.id)]
-    if company.id not in user_companies and not (current_user.role and current_user.role.lower() in ['admin', 'super admin']):
-        return jsonify({'error': 'Access denied'}), 403
-    
-    user = User.query.get(user_id)
-    if not user:
-        return jsonify({'error': 'User not found'}), 404
+    """Remove a user from a company - SUPER ADMIN ONLY."""
+    # SECURITY: Only super admin can manage company users
+    if not (current_user.role and current_user.role.lower() == 'super admin'):
+        return jsonify({'error': 'Only Super Admin can manage company users'}), 403
     
     try:
+        company = Company.query.get_or_404(company_id)
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
         if user in company.users:
             company.users.remove(user)
             db.session.commit()
