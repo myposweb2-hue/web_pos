@@ -428,26 +428,9 @@ def add_user_to_company(company_id):
         if not user:
             return jsonify({'error': 'User not found'}), 404
         
-        # ✅ SECURITY: Non-super-admin users can only be assigned to ONE company
-        is_super_admin = user.role and user.role.lower() == 'super admin'
-        
-        if not is_super_admin and user.companies:
-            # Check if user already has active companies
-            active_companies = [c.id for c in user.companies if c.is_active]
-            if active_companies and company_id not in active_companies:
-                # User already assigned to other active companies
-                existing_names = [c.name for c in user.companies if c.is_active]
-                return jsonify({
-                    'error': f'User {user.username} is already assigned to another company ({", ".join(existing_names)}). '
-                             f'Non-super-admin users can only be assigned to one company at a time.',
-                    'existing_companies': existing_names
-                }), 400
-        
+        # ✅ Super Admin can assign ANY user (including admins) to MULTIPLE companies
+        # Users can switch between assigned companies
         if user not in company.users:
-            # If user was in other companies and is not super admin, remove them first
-            if not is_super_admin and user.companies:
-                user.companies.clear()
-            
             company.users.append(user)
             db.session.commit()
         
