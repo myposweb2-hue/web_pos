@@ -128,18 +128,18 @@
 /* Tablet landscape (768px - 991px) */
 @media (max-width: 991px) and (min-width: 768px) {
     .sidebar {
-        transform: translateX(-100%);
+        position: relative;
         width: 260px;
-        z-index: 1050;
-    }
-    
-    .sidebar.show {
-        transform: translateX(0);
+        height: calc(100vh - 56px);
+        z-index: 900;
+        overflow-y: auto;
     }
     
     .main-content {
-        margin-left: 0;
-        transition: margin-left 0.3s ease;
+        margin-left: 260px;
+        padding: 12px;
+        height: calc(100vh - 56px);
+        overflow-y: auto;
     }
     
     .sidebar-overlay {
@@ -199,42 +199,24 @@
 /* Tablet portrait (481px - 767px) */
 @media (max-width: 767px) and (min-width: 481px) {
     :root {
-        --sidebar-width: 100%;
+        --sidebar-width: 260px;
         --content-padding: 12px;
         --header-height: 56px;
     }
     
     .sidebar {
-        width: 100%;
-        max-width: 260px;
-        transform: translateX(-100%);
-        top: 56px;
+        position: relative;
+        width: 260px;
         height: calc(100vh - 56px);
-        z-index: 1050;
-    }
-    
-    .sidebar.show {
-        transform: translateX(0);
-    }
-    
-    .sidebar-overlay {
-        display: none;
-        position: fixed;
-        top: 56px;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 1040;
-    }
-    
-    .sidebar.show ~ .sidebar-overlay {
-        display: block;
+        z-index: 900;
+        overflow-y: auto;
     }
     
     .main-content {
-        margin-left: 0;
+        margin-left: 260px;
         padding: 12px;
+        height: calc(100vh - 56px);
+        overflow-y: auto;
     }
     
     /* Stack charts vertically */
@@ -290,7 +272,7 @@
 /* Mobile (up to 480px) */
 @media (max-width: 480px) {
     :root {
-        --sidebar-width: 100%;
+        --sidebar-width: 280px;
         --content-padding: 8px;
         --header-height: 48px;
     }
@@ -300,22 +282,23 @@
     }
     
     .sidebar {
-        width: 100%;
-        transform: translateX(-100%);
-        top: 48px;
+        position: relative;
+        width: 280px;
         height: calc(100vh - 48px);
-        z-index: 1050;
-        transition: transform 0.3s ease;
+        z-index: 900;
+        overflow-y: auto;
     }
     
-    .sidebar.show {
-        transform: translateX(0);
+    .main-content {
+        margin-left: 280px;
+        padding: 8px;
+        height: calc(100vh - 48px);
+        overflow-y: auto;
     }
     
     .sidebar-overlay {
         display: none;
-        position: fixed;
-        top: 48px;
+    }
         left: 0;
         right: 0;
         bottom: 0;
