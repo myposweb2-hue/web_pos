@@ -1018,16 +1018,16 @@ def validate_single_company_assignment(user, num_companies):
     
     Returns tuple: (is_valid, error_message)
     """
-    from app.models import UserRole
-    
     # Super Admin can have any number of companies
-    if user.is_super_admin():
+    if user.role and user.role.lower() == 'super admin':
         return (True, None)
     
     # Regular users must be in exactly ONE company
     if num_companies != 1:
         return (False, "Non-admin users must be assigned to exactly ONE company. Current: {}".format(num_companies))
     
+    return (True, None)
+
     return (True, None)
 
 @settings_bp.route('/api/settings/users', methods=['GET'])
