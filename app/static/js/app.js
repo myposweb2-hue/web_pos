@@ -761,14 +761,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Close sidebar on window resize if width > 989px
     window.addEventListener('resize', function() {
-        updateCloseButtonVisibility();
-        initializeSidebarForDevice();
         if (window.innerWidth > 989) {
-            closeSidebar();
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
         }
     });
-    
-    // Initialize on page load
-    initializeSidebarForDevice();
-    updateCloseButtonVisibility();
 })();
