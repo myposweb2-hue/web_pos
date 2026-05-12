@@ -750,8 +750,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sidebar Visibility Toggle Handler
     // ============================================
     const sidebarVisibilityToggle = document.getElementById('sidebarVisibilityToggle');
-    const sidebar = document.getElementById('sidebar');
-    const mainWrapper = document.querySelector('.main-wrapper');
+    // Note: `sidebar` already declared in sidebarToggle handler above
+    // Using existing: const sidebar = document.getElementById('sidebar');
     
     if (sidebarVisibilityToggle && sidebar && mainWrapper) {
         // Restore state on page load (before anything else)
@@ -759,8 +759,10 @@ document.addEventListener('DOMContentLoaded', function() {
             sidebar.classList.add('sidebar-hidden');
             mainWrapper.classList.add('sidebar-hidden');
             const icon = sidebarVisibilityToggle.querySelector('i');
-            icon.classList.remove('fa-chevron-left');
-            icon.classList.add('fa-chevron-right');
+            if (icon) {
+                icon.classList.remove('fa-chevron-left');
+                icon.classList.add('fa-chevron-right');
+            }
         }
         
         sidebarVisibilityToggle.addEventListener('click', function(e) {
@@ -773,16 +775,18 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Update icon
             const icon = sidebarVisibilityToggle.querySelector('i');
-            if (sidebar.classList.contains('sidebar-hidden')) {
-                icon.classList.remove('fa-chevron-left');
-                icon.classList.add('fa-chevron-right');
-                // Save state
-                localStorage.setItem('sidebarHidden', 'true');
-            } else {
-                icon.classList.remove('fa-chevron-right');
-                icon.classList.add('fa-chevron-left');
-                // Save state
-                localStorage.setItem('sidebarHidden', 'false');
+            if (icon) {
+                if (sidebar.classList.contains('sidebar-hidden')) {
+                    icon.classList.remove('fa-chevron-left');
+                    icon.classList.add('fa-chevron-right');
+                    // Save state
+                    localStorage.setItem('sidebarHidden', 'true');
+                } else {
+                    icon.classList.remove('fa-chevron-right');
+                    icon.classList.add('fa-chevron-left');
+                    // Save state
+                    localStorage.setItem('sidebarHidden', 'false');
+                }
             }
         });
     }

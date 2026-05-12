@@ -90,17 +90,21 @@ body {
 
 /* Sidebar hidden state */
 .sidebar.sidebar-hidden {
+    display: none !important;
     width: 0 !important;
     left: -280px !important;
     opacity: 0 !important;
     visibility: hidden !important;
     pointer-events: none !important;
+    overflow: hidden !important;
+    position: fixed !important;
 }
 
 /* Adjust main content when sidebar is hidden */
 .main-wrapper.sidebar-hidden .main-content {
     margin-left: 0;
     padding-left: 0;
+    width: 100%;
 }
 
 .sidebar-header {
@@ -406,6 +410,24 @@ body {
 }
 
 .sidebar-toggle:hover {
+    background: var(--bg-body);
+    color: var(--text-primary);
+}
+
+/* Sidebar Visibility Toggle Button */
+#sidebarVisibilityToggle {
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 20px;
+    border-radius: var(--border-radius-sm);
+    transition: all var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#sidebarVisibilityToggle:hover {
     background: var(--bg-body);
     color: var(--text-primary);
 }
