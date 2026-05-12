@@ -662,6 +662,15 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.appendChild(overlay);
     }
     
+    // Helper function to update close button visibility
+    function updateCloseButtonVisibility() {
+        if (window.innerWidth > 989) {
+            sidebarClose.style.display = 'none';
+        } else {
+            sidebarClose.style.display = 'block';
+        }
+    }
+    
     // Helper function to close sidebar
     function closeSidebar() {
         sidebar.classList.remove('show');
@@ -707,8 +716,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Close sidebar on window resize if width > 989px
     window.addEventListener('resize', function() {
+        updateCloseButtonVisibility();
         if (window.innerWidth > 989) {
             closeSidebar();
         }
     });
+    
+    // Initialize close button visibility on page load
+    updateCloseButtonVisibility();
 })();

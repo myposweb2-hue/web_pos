@@ -136,6 +136,11 @@
         transform: none !important;
     }
     
+    /* Override collapsed state on mobile */
+    .sidebar.collapsed {
+        width: 280px !important;
+    }
+    
     .sidebar.show {
         left: 0 !important;
     }
@@ -195,6 +200,11 @@
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
         transform: none !important;
+    }
+    
+    /* Override collapsed state on mobile */
+    .sidebar.collapsed {
+        width: 280px !important;
     }
     
     .sidebar.show {
