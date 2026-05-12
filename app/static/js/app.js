@@ -662,6 +662,19 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.appendChild(overlay);
     }
     
+    // Initialize sidebar state for mobile
+    function initializeSidebarForDevice() {
+        if (window.innerWidth <= 989) {
+            // Mobile/Tablet: remove collapsed class, ensure drawer behavior
+            sidebar.classList.remove('collapsed');
+            sidebar.classList.remove('show');
+        } else {
+            // Desktop: can have collapsed if needed
+            // but ensure show class is removed
+            sidebar.classList.remove('show');
+        }
+    }
+    
     // Helper function to update close button visibility
     function updateCloseButtonVisibility() {
         if (window.innerWidth > 989) {
@@ -717,11 +730,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Close sidebar on window resize if width > 989px
     window.addEventListener('resize', function() {
         updateCloseButtonVisibility();
+        initializeSidebarForDevice();
         if (window.innerWidth > 989) {
             closeSidebar();
         }
     });
     
-    // Initialize close button visibility on page load
+    // Initialize on page load
+    initializeSidebarForDevice();
     updateCloseButtonVisibility();
 })();

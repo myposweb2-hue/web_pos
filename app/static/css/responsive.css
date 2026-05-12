@@ -75,6 +75,12 @@
         transform: none !important;
     }
     
+    /* Override collapsed state on mobile */
+    .sidebar.collapsed {
+        width: 280px !important;
+        left: -280px !important;
+    }
+    
     .sidebar.show {
         left: 0 !important;
     }
@@ -139,6 +145,7 @@
     /* Override collapsed state on mobile */
     .sidebar.collapsed {
         width: 280px !important;
+        left: -280px !important;
     }
     
     .sidebar.show {
@@ -205,6 +212,7 @@
     /* Override collapsed state on mobile */
     .sidebar.collapsed {
         width: 280px !important;
+        left: -280px !important;
     }
     
     .sidebar.show {
