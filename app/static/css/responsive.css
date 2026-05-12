@@ -4,12 +4,16 @@
 
 /* MOBILE-FIRST BASE STATE (default for all screens < 990px) */
 @media (max-width: 989px) {
+    .top-header {
+        display: none !important;
+    }
+    
     .sidebar {
         position: fixed !important;
-        top: 56px !important;
+        top: 0 !important;
         left: -280px !important;
         width: 280px !important;
-        height: calc(100vh - 56px) !important;
+        height: 100vh !important;
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
         transform: none !important;
@@ -31,7 +35,7 @@
     .sidebar-overlay {
         display: none !important;
         position: fixed;
-        top: 56px;
+        top: 0;
         left: 0;
         right: 0;
         bottom: 0;
@@ -50,11 +54,16 @@
     .main-wrapper {
         width: 100%;
         margin-left: 0;
+        padding-top: 0;
     }
 }
 
-/* Desktop (>= 1200px): Sidebar always visible */
+/* Desktop (>= 1200px): Sidebar always visible, NAVBAR VISIBLE */
 @media (min-width: 1200px) {
+    .top-header {
+        display: flex !important;
+    }
+    
     .sidebar {
         position: static !important;
         left: auto !important;
@@ -83,8 +92,12 @@
     }
 }
 
-/* Large Tablet (990px - 1199px): Sidebar always visible */
+/* Large Tablet (990px - 1199px): Sidebar always visible, NAVBAR VISIBLE */
 @media (min-width: 990px) and (max-width: 1199px) {
+    .top-header {
+        display: flex !important;
+    }
+    
     .sidebar {
         position: static !important;
         left: auto !important;
