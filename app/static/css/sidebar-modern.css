@@ -71,25 +71,25 @@
     
     .sidebar.collapsed {
         width: var(--sidebar-width-collapsed);
-        
-        .sidebar-header .brand-text,
-        .sidebar-nav .nav-text,
-        .sidebar-footer .user-details,
-        .sidebar-footer .logout-btn span {
-            display: none;
-        }
-        
-        .sidebar-header .brand {
-            justify-content: center;
-        }
-        
-        .sidebar-nav .nav-link {
-            justify-content: center;
-        }
-        
-        .nav-dropdown-menu {
-            display: none;
-        }
+    }
+    
+    .sidebar.collapsed .sidebar-header .brand-text,
+    .sidebar.collapsed .sidebar-nav .nav-text,
+    .sidebar.collapsed .sidebar-footer .user-details,
+    .sidebar.collapsed .sidebar-footer .logout-btn span {
+        display: none;
+    }
+    
+    .sidebar.collapsed .sidebar-header .brand {
+        justify-content: center;
+    }
+    
+    .sidebar.collapsed .sidebar-nav .nav-link {
+        justify-content: center;
+    }
+    
+    .sidebar.collapsed .nav-dropdown-menu {
+        display: none;
     }
 }
 
@@ -121,10 +121,10 @@
     transition: all var(--sidebar-transition);
     padding: 8px 12px;
     border-radius: 8px;
-    
-    &:hover {
-        background: var(--sidebar-hover-bg);
-    }
+}
+
+.brand:hover {
+    background: var(--sidebar-hover-bg);
 }
 
 .brand i {
@@ -165,15 +165,15 @@
     border-radius: 6px;
     transition: all 200ms ease;
     font-size: 14px;
-    
-    &:hover {
-        background: var(--sidebar-hover-bg);
-        color: #fff;
-    }
-    
-    &:active {
-        transform: scale(0.95);
-    }
+}
+
+.header-actions button:hover {
+    background: var(--sidebar-hover-bg);
+    color: #fff;
+}
+
+.header-actions button:active {
+    transform: scale(0.95);
 }
 
 /* Hide collapse button on mobile */
@@ -199,24 +199,24 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 12px 8px;
-    
-    /* Custom scrollbar for modern look */
-    &::-webkit-scrollbar {
-        width: 6px;
-    }
-    
-    &::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    
-    &::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 3px;
-        
-        &:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-    }
+}
+
+/* Custom scrollbar for modern look */
+.sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .nav-list {
@@ -252,35 +252,35 @@
     background: none;
     width: 100%;
     text-align: left;
-    
-    &:hover {
-        background: var(--sidebar-hover-bg);
-        color: #fff;
-        padding-left: 20px;
-    }
-    
-    &::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 4px;
-        background: var(--sidebar-active-border);
-        transform: scaleY(0);
-        transform-origin: center;
-        transition: transform 200ms ease;
-        border-radius: 0 2px 2px 0;
-    }
+}
+
+.nav-link:hover {
+    background: var(--sidebar-hover-bg);
+    color: #fff;
+    padding-left: 20px;
+}
+
+.nav-link::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--sidebar-active-border);
+    transform: scaleY(0);
+    transform-origin: center;
+    transition: transform 200ms ease;
+    border-radius: 0 2px 2px 0;
 }
 
 .nav-link.active {
     background: var(--sidebar-active-bg);
     color: #fff;
-    
-    &::before {
-        transform: scaleY(1);
-    }
+}
+
+.nav-link.active::before {
+    transform: scaleY(1);
 }
 
 .nav-icon {
@@ -340,11 +340,6 @@
     max-height: 0;
     overflow: hidden;
     transition: max-height var(--sidebar-transition), padding var(--sidebar-transition);
-    
-    @media (max-width: 1023px) {
-        border-left: 2px solid var(--sidebar-active-border);
-        background: rgba(0, 0, 0, 0.2);
-    }
 }
 
 .nav-dropdown.open .nav-dropdown-menu {
@@ -364,12 +359,12 @@
     font-size: 13px;
     font-weight: 500;
     margin-bottom: 4px;
-    
-    &:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
-        padding-left: 20px;
-    }
+}
+
+.nav-dropdown-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    padding-left: 20px;
 }
 
 .nav-dropdown-link.active {
@@ -399,10 +394,10 @@
     border-radius: 8px;
     transition: all var(--sidebar-transition);
     cursor: pointer;
-    
-    &:hover {
-        background: rgba(255, 255, 255, 0.1);
-    }
+}
+
+.user-info:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .user-avatar {
@@ -470,11 +465,11 @@
     cursor: pointer;
     width: 100%;
     text-align: left;
-    
-    &:hover {
-        background: rgba(239, 68, 68, 0.1);
-        color: #fca5a5;
-    }
+}
+
+.logout-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #fca5a5;
 }
 
 /* ============================================
@@ -511,42 +506,6 @@
 }
 
 /* ============================================
-   LAYOUT ADJUSTMENTS
-   ============================================ */
-
-/* Desktop Layout - Sidebar visible */
-@media (min-width: 1024px) {
-    body {
-        padding-left: var(--sidebar-width);
-    }
-    
-    .main-wrapper {
-        margin-left: 0;
-        width: calc(100% - var(--sidebar-width));
-    }
-    
-    body.sidebar-collapsed {
-        padding-left: var(--sidebar-width-collapsed);
-        
-        .main-wrapper {
-            width: calc(100% - var(--sidebar-width-collapsed));
-        }
-    }
-}
-
-/* Mobile/Tablet Layout - Sidebar off-canvas */
-@media (max-width: 1023px) {
-    body {
-        padding-left: 0;
-    }
-    
-    .main-wrapper {
-        width: 100%;
-        margin-left: 0;
-    }
-}
-
-/* ============================================
    HEADER TOGGLE BUTTON
    ============================================ */
 
@@ -561,15 +520,15 @@
     padding: 6px 12px;
     transition: all 200ms ease;
     border-radius: 6px;
-    
-    &:hover {
-        color: var(--text-primary, #1E293B);
-        background: rgba(0, 0, 0, 0.05);
-    }
-    
-    &:active {
-        transform: scale(0.95);
-    }
+}
+
+.sidebar-toggle:hover {
+    color: var(--text-primary, #1E293B);
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-toggle:active {
+    transform: scale(0.95);
 }
 
 @media (max-width: 1023px) {

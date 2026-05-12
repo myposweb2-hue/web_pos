@@ -77,28 +77,28 @@ body * {
 
 /* Ensure content doesn't overflow */
 .main-wrapper {
-    max-width: 100vw;
+    max-width: 100%;
 }
 
 /* Desktop: Sidebar visible */
 @media (min-width: 1024px) {
     .main-wrapper {
-        width: calc(100vw - var(--sidebar-width));
-        max-width: calc(100vw - var(--sidebar-width));
+        width: 100%;
+        max-width: 100%;
         padding-left: 0;
     }
     
     body.sidebar-collapsed .main-wrapper {
-        width: calc(100vw - var(--sidebar-width-collapsed));
-        max-width: calc(100vw - var(--sidebar-width-collapsed));
+        width: 100%;
+        max-width: 100%;
     }
 }
 
 /* Mobile/Tablet: Full width */
 @media (max-width: 1023px) {
     .main-wrapper {
-        width: 100vw;
-        max-width: 100vw;
+        width: 100%;
+        max-width: 100%;
         padding-left: 0;
     }
 }
