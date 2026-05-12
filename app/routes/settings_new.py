@@ -1393,8 +1393,7 @@ def reset_system():
             return jsonify({'error': 'Only administrators can reset the system.'}), 403
         
         # Get company ID
-        try:
-            company_id = get_company_id()
+        company_id = get_company_id()
         
         # Fallback: if no company_id in session, try to get from user's companies
         if not company_id and hasattr(current_user, 'companies') and current_user.companies:
@@ -1402,8 +1401,6 @@ def reset_system():
         
         if not company_id:
             return jsonify({'error': 'No company selected for reset'}), 400
-        
-        print(f"[RESET] Starting reset for Company ID: {company_id}")
         
         # Now import models and utilities
         try:
