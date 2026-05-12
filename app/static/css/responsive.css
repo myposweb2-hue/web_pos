@@ -2,6 +2,57 @@
    RESPONSIVE LAYOUT - MOBILE SIDEBAR DRAWER
    ============================================ */
 
+/* MOBILE-FIRST BASE STATE (default for all screens < 990px) */
+@media (max-width: 989px) {
+    .sidebar {
+        position: fixed !important;
+        top: 56px !important;
+        left: -280px !important;
+        width: 280px !important;
+        height: calc(100vh - 56px) !important;
+        z-index: 1050 !important;
+        transition: left 0.3s ease !important;
+        transform: none !important;
+    }
+    
+    .sidebar.collapsed {
+        width: 280px !important;
+        left: -280px !important;
+    }
+    
+    .sidebar.show {
+        left: 0 !important;
+    }
+    
+    .sidebar-close {
+        display: block !important;
+    }
+    
+    .sidebar-overlay {
+        display: none !important;
+        position: fixed;
+        top: 56px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1040;
+    }
+    
+    .sidebar-overlay.show {
+        display: block !important;
+    }
+    
+    body {
+        display: block;
+    }
+    
+    .main-wrapper {
+        width: 100%;
+        margin-left: 0;
+    }
+}
+
 /* Desktop (>= 1200px): Sidebar always visible */
 @media (min-width: 1200px) {
     .sidebar {
