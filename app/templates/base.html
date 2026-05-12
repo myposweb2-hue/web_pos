@@ -463,14 +463,10 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Modern Sidebar System -->
-    <script src="{{ url_for('static', filename='js/sidebar-modern.js', v='1.0.0') }}"></script>
     <!-- Custom JS -->
-    <script src="{{ url_for('static', filename='js/app.js', v='13.0.1') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     
     <script>
-        // NOTE: Sidebar collapse handler is in app.js to avoid duplication
-        // All sidebar toggle/close logic is managed centrally in app.js
         
         document.addEventListener('DOMContentLoaded', function() {
             // Load and replace currency symbols globally

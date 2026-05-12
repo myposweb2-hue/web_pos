@@ -647,14 +647,49 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ============================================
-    // Sidebar Toggle Handler (DEPRECATED - See sidebar-modern.js)
+    // Sidebar Toggle Handler
     // ============================================
-    // All sidebar functionality is now handled by app/static/js/sidebar-modern.js
-    // This includes:
-    //   - Toggle/collapse functionality
-    //   - Mobile drawer behavior
-    //   - Keyboard shortcuts (Ctrl+B, Escape)
-    //   - Dropdown menu handling
-    //   - Responsive behavior
-    // The modern sidebar system provides better performance and cleaner code.
+    // Basic sidebar open/close functionality
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarCollapse = document.getElementById('sidebarCollapse');
+    const sidebarClose = document.getElementById('sidebarClose');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const mainWrapper = document.querySelector('.main-wrapper');
+    
+    if (sidebarToggle) {
+        sidebarToggle.addEventListener('click', function() {
+            if (sidebar) {
+                sidebar.classList.toggle('open');
+            }
+            if (sidebarOverlay) {
+                sidebarOverlay.classList.toggle('active');
+            }
+        });
+    }
+    
+    if (sidebarClose) {
+        sidebarClose.addEventListener('click', function() {
+            if (sidebar) {
+                sidebar.classList.remove('open');
+            }
+            if (sidebarOverlay) {
+                sidebarOverlay.classList.remove('active');
+            }
+        });
+    }
+    
+    if (sidebarOverlay) {
+        sidebarOverlay.addEventListener('click', function() {
+            if (sidebar) {
+                sidebar.classList.remove('open');
+            }
+            sidebarOverlay.classList.remove('active');
+        });
+    }
+    
+    // Disable collapse button styling (should not be visible in original)
+    if (sidebarCollapse) {
+        sidebarCollapse.style.display = 'none';
+    }
 })();
