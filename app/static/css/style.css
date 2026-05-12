@@ -378,28 +378,33 @@ body {
     transition: all 0.3s ease;
 }
 
-/* Navbar collapsed state - hide all content inside */
+/* Navbar collapsed state - hide all content but keep structure for button */
 .top-header.collapsed {
-    position: fixed !important;
-    width: 0 !important;
     height: 0 !important;
     min-height: 0 !important;
-    max-height: 0 !important;
     padding: 0 !important;
     border: none !important;
     overflow: hidden !important;
     visibility: hidden !important;
     opacity: 0 !important;
     box-shadow: none !important;
-    z-index: -9999 !important;
-    left: -9999px !important;
-    top: -9999px !important;
 }
 
-/* Force hide all children when collapsed */
-.top-header.collapsed > * {
+/* Hide all navbar children when collapsed */
+.top-header.collapsed > div,
+.top-header.collapsed .d-flex,
+.top-header.collapsed .header-search,
+.top-header.collapsed .quick-nav-buttons,
+.top-header.collapsed .btn-primary,
+.top-header.collapsed .vr,
+.top-header.collapsed .header-actions-btn,
+.top-header.collapsed .dropdown {
     display: none !important;
-    visibility: hidden !important;
+}
+
+/* Ensure sidebar adjusts */
+.main-wrapper.navbar-collapsed .sidebar {
+    top: 0 !important;
 }
 
 .sidebar-toggle {
