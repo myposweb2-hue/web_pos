@@ -25,39 +25,6 @@ def customers():
     """Main customers page."""
     return render_template('customers/customers.html')
 
-@customers_bp.route('/api/customers/debug/status')
-@login_required
-def debug_customer_status():
-    """Debug endpoint to check customer statuses"""
-    company_id = get_company_id()
-    from sqlalchemy import text
-    
-    active_count = 0
-    inactive_count = 0
-    total_count = 0
-    
-    if hasattr(Customer, 'is_active'):
-        active_count = Customer.query.filter(
-            Customer.is_active == True,
-            Customer.company_id == company_id
-        ).count()
-        inactive_count = Customer.query.filter(
-            Customer.is_active == False,
-            Customer.company_id == company_id
-        ).count()
-    
-    total_count = Customer.query.filter(
-        Customer.company_id == company_id
-    ).count()
-    
-    return jsonify({
-        'total_customers': total_count,
-        'active_customers': active_count,
-        'inactive_customers': inactive_count,
-        'has_is_active_column': hasattr(Customer, 'is_active'),
-        'message': f'Total: {total_count}, Active: {active_count}, Inactive: {inactive_count}'
-    })
-
 @customers_bp.route('/api/customers')
 @login_required
 @require_company_context

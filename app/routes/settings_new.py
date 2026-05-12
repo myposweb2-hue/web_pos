@@ -5,7 +5,6 @@ from app.utils.permissions import require_permission
 from app.utils.security import get_company_id
 from app.utils.company import get_user_companies
 from datetime import datetime
-from sqlalchemy import or_
 import os
 import shutil
 import subprocess
@@ -156,7 +155,7 @@ def import_company_data_from_sql(company_id, sql_data):
     
     # CRITICAL: Delete existing company data FIRST to avoid PRIMARY KEY conflicts
     # Delete in reverse dependency order (child tables before parent tables)
-    print(f"[RESTORE] Clearing existing data for company {company_id}...")
+    current_app.logger.info(f"[RESTORE] Clearing existing data for company {company_id}...")
     deletion_order = [
         (AuditLog, "AuditLog"),
         (SaleItem, "SaleItem"),
@@ -196,19 +195,19 @@ def import_company_data_from_sql(company_id, sql_data):
                 ).delete(synchronize_session=False)
                 if count > 0:
                     deleted_records[table_name] = count
-                    print(f"[RESTORE] Deleted {count} existing {table_name} records")
+                    current_app.logger.info(f"[RESTORE] Deleted {count} existing {table_name} records")
         except Exception as e:
             current_app.logger.warning(f"Warning: Could not delete {table_name}: {e}")
             # Continue anyway - might not have this table
     
     db.session.commit()
-    print(f"[RESTORE] Existing data cleared. Now importing backup...")
+    current_app.logger.info(f"[RESTORE] Existing data cleared. Now importing backup...")
     
     # Reset sequences/autoincrement AFTER deletion and BEFORE import
     try:
         db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
         if db_uri.startswith('postgresql:') or db_uri.startswith('postgres:'):
-            print(f"[RESTORE] Resetting PostgreSQL sequences...")
+            current_app.logger.info(f"[RESTORE] Resetting PostgreSQL sequences...")
             sequence_info = []
             for table_name, table_data in data.get('tables', {}).items():
                 if not table_data or 'id' not in table_data[0]:
@@ -225,10 +224,10 @@ def import_company_data_from_sql(company_id, sql_data):
                     pass  # Ignore missing sequences
             
             db.session.commit()
-            print(f"[RESTORE] PostgreSQL sequences reset")
+            current_app.logger.info(f"[RESTORE] PostgreSQL sequences reset")
         
         elif db_uri.startswith('sqlite:'):
-            print(f"[RESTORE] Resetting SQLite autoincrement...")
+            current_app.logger.info(f"[RESTORE] Resetting SQLite autoincrement...")
             for table_name, table_data in data.get('tables', {}).items():
                 if not table_data or 'id' not in table_data[0]:
                     continue
@@ -241,7 +240,7 @@ def import_company_data_from_sql(company_id, sql_data):
                         pass  # Ignore errors
             
             db.session.commit()
-            print(f"[RESTORE] SQLite autoincrement reset")
+            current_app.logger.info(f"[RESTORE] SQLite autoincrement reset")
     except Exception as seq_error:
         current_app.logger.warning(f"Warning: Sequence reset not critical: {seq_error}")
     
@@ -277,16 +276,14 @@ def import_company_data_from_sql(company_id, sql_data):
             
             tables_imported += 1
             records_imported += len(table_data)
-            print(f"[RESTORE] Imported {len(table_data)} records into {table_name}")
-            current_app.logger.info(f"Imported {len(table_data)} records from {table_name}")
+            current_app.logger.info(f"[RESTORE] Imported {len(table_data)} records into {table_name}")
         
         except Exception as e:
-            print(f"[RESTORE] Error importing {table_name}: {e}")
-            current_app.logger.error(f"Error importing {table_name}: {e}")
+            current_app.logger.error(f"[RESTORE] Error importing {table_name}: {e}")
             raise
     
     db.session.commit()
-    print(f"[RESTORE] Restore complete. Imported {records_imported} records into {tables_imported} tables")
+    current_app.logger.info(f"[RESTORE] Restore complete. Imported {records_imported} records into {tables_imported} tables")
     return {'tables_imported': tables_imported, 'records_imported': records_imported, 'deleted_records': deleted_records}
 
 def get_company_filtered_settings(category=None, key=None):
@@ -1383,48 +1380,32 @@ def reset_system():
     import sys
     
     try:
-        print("[RESET] ===== RESET ENDPOINT CALLED =====")
-        print(f"[RESET] User authenticated: {current_user.is_authenticated}")
-        print(f"[RESET] User: {current_user.username if hasattr(current_user, 'username') else 'N/A'}")
-        print(f"[RESET] Role: {current_user.role if hasattr(current_user, 'role') else 'N/A'}")
-        print("[RESET] Entering try block...")
+        current_app.logger.info("[RESET] Reset endpoint called")
+        current_app.logger.debug(f"[RESET] User: {current_user.username if hasattr(current_user, 'username') else 'N/A'}")
         
         # Check admin/super admin role first
-        print("[RESET] Checking admin role...")
         is_admin = False
         if hasattr(current_user, 'role') and current_user.role:
             is_admin = current_user.role.lower() in ['admin', 'super admin']
         
-        print(f"[RESET] is_admin: {is_admin}")
-        
         if not is_admin:
-            print(f"[RESET] NOT ADMIN")
+            current_app.logger.warning("[RESET] Non-admin attempted system reset")
             return jsonify({'error': 'Only administrators can reset the system.'}), 403
         
-        print("[RESET] Admin check PASSED")
-        
         # Get company ID
-        print("[RESET] Getting company ID...")
         try:
             company_id = get_company_id()
-            print(f"[RESET] Got company_id: {company_id}")
-        except Exception as cid_error:
-            print(f"[RESET] ERROR getting company_id: {cid_error}")
-            raise
         
         # Fallback: if no company_id in session, try to get from user's companies
         if not company_id and hasattr(current_user, 'companies') and current_user.companies:
             company_id = current_user.companies[0].id
-            print(f"[RESET] Using fallback company_id from user: {company_id}")
         
         if not company_id:
-            print("[RESET] No company ID - returning 400")
             return jsonify({'error': 'No company selected for reset'}), 400
         
         print(f"[RESET] Starting reset for Company ID: {company_id}")
         
         # Now import models and utilities
-        print("[RESET] Importing models...")
         try:
             from app.models import (
                 Sale, SaleItem, Return, ReturnItem, Exchange, ExchangeItem,
@@ -1435,48 +1416,39 @@ def reset_system():
                 AuditLog, CustomerPayment, Company, User
             )
             from sqlalchemy import or_ as sql_or
-            print("[RESET] Models imported successfully")
+            current_app.logger.debug("[RESET] Models imported successfully")
         except Exception as import_error:
-            print(f"[RESET] ERROR importing models: {import_error}")
+            current_app.logger.error(f"[RESET] ERROR importing models: {import_error}")
             raise
         
         # Delete all transactional data FOR CURRENT COMPANY ONLY
         # in correct order to avoid FK violations
-        # Must delete child tables before parent tables
-        
-        # CRITICAL: Complex FK dependencies require careful deletion order
-        # Be careful about records with NULL company_id that reference company data
-        
-        print("[RESET] Starting data deletion process...")
-        print("[RESET] Analyzing dependencies...")
         
         # Get all Sales IDs for this company
         company_sales_ids = db.session.query(Sale.id).filter(
             Sale.company_id == company_id
         ).all()
         sales_ids = [s[0] for s in company_sales_ids]
-        print(f"    Found {len(sales_ids)} Sales to be deleted")
+        current_app.logger.debug(f"[RESET] Found {len(sales_ids)} Sales to be deleted")
         
         # Get all SaleItems IDs for this company
         company_saleitems_ids = db.session.query(SaleItem.id).filter(
             SaleItem.company_id == company_id
         ).all()
         saleitem_ids = [s[0] for s in company_saleitems_ids]
-        print(f"    Found {len(saleitem_ids)} SaleItems to be deleted")
+        current_app.logger.debug(f"[RESET] Found {len(saleitem_ids)} SaleItems to be deleted")
         
         # Now delete in order:
         # 1. ReturnItems referencing our SaleItems
         if saleitem_ids:
-            print("  Deleting ReturnItems...")
             count = db.session.query(ReturnItem).filter(
                 ReturnItem.original_sale_item_id.in_(saleitem_ids)
             ).delete(synchronize_session=False)
             db.session.flush()
-            print(f"    Deleted {count} ReturnItems")
+            current_app.logger.debug(f"[RESET] Deleted {count} ReturnItems")
         
         # 2. Returns referencing our Sales or belonging to company
         if sales_ids:
-            print("  Deleting Returns...")
             returns_count = db.session.query(Return).filter(
                 sql_or(
                     Return.original_sale_id.in_(sales_ids),
@@ -1484,11 +1456,10 @@ def reset_system():
                 )
             ).delete(synchronize_session=False)
             db.session.flush()
-            print(f"    Deleted {returns_count} Returns")
+            current_app.logger.debug(f"[RESET] Deleted {returns_count} Returns")
         
         # 3. Exchanges referencing our Sales or belonging to company
         if sales_ids:
-            print("  Deleting Exchanges...")
             exchanges_count = db.session.query(Exchange).filter(
                 sql_or(
                     Exchange.original_sale_id.in_(sales_ids),
@@ -1497,11 +1468,10 @@ def reset_system():
                 )
             ).delete(synchronize_session=False)
             db.session.flush()
-            print(f"    Deleted {exchanges_count} Exchanges")
+            current_app.logger.debug(f"[RESET] Deleted {exchanges_count} Exchanges")
         
         # 4. Cheques referencing our Sales or belonging to company
         if sales_ids:
-            print("  Deleting Cheques...")
             cheques_count = db.session.query(Cheque).filter(
                 sql_or(
                     Cheque.sale_id.in_(sales_ids),
@@ -1509,15 +1479,14 @@ def reset_system():
                 )
             ).delete(synchronize_session=False)
             db.session.flush()
-            print(f"    Deleted {cheques_count} Cheques")
+            current_app.logger.debug(f"[RESET] Deleted {cheques_count} Cheques")
         
         # 5. ChequeDeposits belonging to company (they don't have sale_id FK)
-        print("  Deleting ChequeDeposits...")
         deposits_count = db.session.query(ChequeDeposit).filter(
             ChequeDeposit.company_id == company_id
         ).delete(synchronize_session=False)
         db.session.flush()
-        print(f"    Deleted {deposits_count} ChequeDeposits")
+        current_app.logger.debug(f"[RESET] Deleted {deposits_count} ChequeDeposits")
         
         # Now delete the other tables in order
         tables_to_delete = [
@@ -1579,11 +1548,11 @@ def reset_system():
         db.session.commit()
         
         # Special handling for Product - also delete orphaned dependent records
-        print(f"[RESET] Deleting Products for company {company_id}...")
         try:
+            current_app.logger.debug(f"[RESET] Deleting Products for company {company_id}")
+            
             # Try to delete any orphaned InventoryTransaction/ReturnItem/etc with NULL company_id
             # that might reference this company's products
-            print("[RESET]   Attempting to clean orphaned records...")
             
             # Get all product IDs for this company
             company_product_ids = db.session.query(Product.id).filter(
@@ -1600,7 +1569,7 @@ def reset_system():
                     )
                 ).delete(synchronize_session=False)
                 db.session.flush()
-                print(f"[RESET]   Cleaned {orphan_inv_count} orphaned inventory transactions")
+                current_app.logger.debug(f"[RESET] Cleaned {orphan_inv_count} orphaned inventory transactions")
                 
                 # Delete orphaned return items
                 orphan_ret_items = db.session.query(ReturnItem).filter(
@@ -1610,59 +1579,54 @@ def reset_system():
                     )
                 ).delete(synchronize_session=False)
                 db.session.flush()
-                print(f"[RESET]   Cleaned {orphan_ret_items} orphaned return items")
+                current_app.logger.debug(f"[RESET] Cleaned {orphan_ret_items} orphaned return items")
             
             # Now delete products
             products_count = db.session.query(Product).filter(
                 Product.company_id == company_id
             ).delete(synchronize_session=False)
             db.session.flush()
-            print(f"[RESET]   Deleted {products_count} products")
+            current_app.logger.debug(f"[RESET] Deleted {products_count} products")
         except Exception as e:
-            print(f"[RESET] ERROR deleting Product: {str(e)}")
+            current_app.logger.error(f"[RESET] ERROR deleting Product: {str(e)}")
             raise
         
         # Commit to release connections after product deletion
-        print("[RESET] Releasing connections after product deletion...")
         db.session.commit()
         
         # Delete company-specific settings only
-        print("[RESET] Deleting Settings for company...")
         try:
             Setting.query.filter(
                 Setting.company_id == company_id  # Only delete THIS company's settings
             ).delete(synchronize_session=False)
             db.session.flush()
-            print("[RESET]   Settings deleted")
+            current_app.logger.debug("[RESET] Settings deleted")
         except Exception as e:
-            print(f"[RESET] Warning: Error deleting settings: {str(e)}")
+            current_app.logger.warning(f"[RESET] Warning: Error deleting settings: {str(e)}")
             # Continue anyway
         
         # Delete Customer and Supplier data
-        print(f"[RESET] Deleting Customer for company {company_id}...")
         try:
             cust_count = Customer.query.filter(
                 Customer.company_id == company_id
             ).delete(synchronize_session=False)
             db.session.flush()
-            print(f"[RESET]   Deleted {cust_count} customers")
+            current_app.logger.debug(f"[RESET] Deleted {cust_count} customers")
         except Exception as e:
-            print(f"[RESET] ERROR deleting Customer: {str(e)}")
+            current_app.logger.error(f"[RESET] ERROR deleting Customer: {str(e)}")
             raise
         
-        print(f"[RESET] Deleting Supplier for company {company_id}...")
         try:
             supp_count = Supplier.query.filter(
                 Supplier.company_id == company_id
             ).delete(synchronize_session=False)
             db.session.flush()
-            print(f"[RESET]   Deleted {supp_count} suppliers")
+            current_app.logger.debug(f"[RESET] Deleted {supp_count} suppliers")
         except Exception as e:
-            print(f"[RESET] ERROR deleting Supplier: {str(e)}")
+            current_app.logger.error(f"[RESET] ERROR deleting Supplier: {str(e)}")
             raise
         
         # Commit to release connections after settings and customer/supplier deletion
-        print("[RESET] Releasing connections after customer/supplier deletion...")
         db.session.commit()
         
         # Remove from the main deletion list since we handled them above
@@ -1670,7 +1634,6 @@ def reset_system():
         
         # Reset the current admin user's permissions to full access
         # BUT keep company association (don't clear companies)
-        print("[RESET] Resetting admin user permissions...")
         try:
             admin_user = User.query.get(current_user.id)
             if admin_user:
@@ -1695,38 +1658,26 @@ def reset_system():
                 admin_user.can_manage_purchase_returns = True
                 admin_user.can_manage_customer_payments = True
                 db.session.flush()
-                print("[RESET] Admin user permissions reset successfully")
+                current_app.logger.debug("[RESET] Admin user permissions reset successfully")
         except Exception as e:
-            print(f"[RESET] Warning: Error resetting admin user: {str(e)}")
+            current_app.logger.warning(f"[RESET] Warning: Error resetting admin user: {str(e)}")
             # Continue anyway - admin permissions are not critical to reset
         
-        print("[RESET] Committing all changes...")
         db.session.commit()
         
         # Dispose of all connections in the pool to prevent holding connections
-        print("[RESET] Disposing connection pool...")
         db.engine.dispose()
         
-        print("[RESET] System reset completed successfully!")
+        current_app.logger.info("[RESET] System reset completed successfully!")
         return jsonify({
             'success': True, 
             'message': f'Company {company_id} data reset successfully. All transactional data has been cleared.'
         })
     except Exception as e:
-        print("[RESET] ===== EXCEPTION OCCURRED =====")
-        print(f"[RESET] Exception type: {type(e).__name__}")
-        print(f"[RESET] Exception message: {str(e)}")
-        
-        error_msg = traceback.format_exc()
-        print(f"[RESET] Full traceback:\n{error_msg}")
+        current_app.logger.error(f"[RESET] EXCEPTION: {type(e).__name__} - {str(e)}")
+        current_app.logger.error(f"[RESET] Traceback: {traceback.format_exc()}")
         
         db.session.rollback()
-        
-        # Always dispose of connections even on error
-        try:
-            db.engine.dispose()
-        except:
-            pass
         
         try:
             current_app.logger.error(f"System reset failed: {error_msg}")
@@ -1816,24 +1767,3 @@ def get_loyalty_points_settings():
             'enable_loyalty_points': True,
             'loyalty_points_conversion_rate': 1.0
         })
-
-@settings_bp.route('/api/debug/reload-modules', methods=['POST'])
-@csrf.exempt
-@login_required
-def reload_modules():
-    """Debug endpoint to reload Python modules. Admin only."""
-    if not current_user.role or current_user.role.lower() not in ['admin', 'super admin']:
-        return jsonify({'error': 'Admin only'}), 403
-    
-    import importlib
-    try:
-        # Reload the settings_new module
-        import app.routes.settings_new as sn
-        importlib.reload(sn)
-        
-        import app.models as models
-        importlib.reload(models)
-        
-        return jsonify({'success': True, 'message': 'Modules reloaded'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500

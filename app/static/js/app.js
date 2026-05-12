@@ -29,7 +29,7 @@
             }
             return response;
         }).catch(error => {
-            console.error('Fetch error:', error);
+            // Suppress error logging in production
             throw error;
         });
     };
@@ -173,7 +173,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Check if the pressed key matches a shortcut
         if (shortcuts[key]) {
             e.preventDefault();
-            console.log('Keyboard shortcut pressed:', key, '->', shortcuts[key]);
             window.location.href = shortcuts[key];
             return;
         }

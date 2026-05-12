@@ -652,8 +652,6 @@ def receipt_html(sale_id):
 
 
     
-    print('DEBUG receipt_html settings:', {k: v for k, v in settings.items() if 'business' in k or 'logo' in k})  # Debug
-    
     # Logo path resolution (check common locations)
     # Logo path - prioritize app/static/uploads (settings path), then static/uploads
     logo_path = settings.get('logo_path')  # This is '/static/uploads/business_logo_xxx.jpg' from DB
@@ -661,9 +659,6 @@ def receipt_html(sale_id):
         # Fallback to app/static/uploads direct
         logo_filename = 'business_logo_1774707906_Simple Sports Logo.jpg'
         logo_path = f'/app/static/uploads/{logo_filename}'
-    
-    # Debug
-    print('DEBUG logo_path:', logo_path)
     
     # Cashier name from user
     cashier_name = getattr(getattr(sale, 'user', None), 'username', 'Cashier')
@@ -1654,5 +1649,5 @@ def get_return(return_id):
         
         return jsonify(return_data)
     except Exception as e:
-        print(f"Error getting return: {e}")
+        current_app.logger.error(f"Error getting return: {e}")
         return jsonify({'error': 'Failed to load return details'}), 500

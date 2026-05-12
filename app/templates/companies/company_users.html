@@ -111,8 +111,8 @@ function loadUsers() {
 }
 
 function loadAvailableUsers() {
-    // TODO: Need /api/users endpoint or use server-rendered list
-    // For now, disable add user functionality
+    // Add user functionality requires endpoint for fetching available users
+    // Currently uses server-rendered list or disable add functionality
     const select = document.getElementById('userSelect');
     select.innerHTML = '<option value="">Add User Coming Soon</option>';
     select.disabled = true;
