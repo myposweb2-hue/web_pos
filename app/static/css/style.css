@@ -1212,7 +1212,7 @@ body {
 @media (max-width: 991.98px) {
     /* Mobile/tablet responsive handled by responsive.css */
     .sidebar-toggle {
-        display: flex;
+        display: block !important;
     }
     
     .collapse-btn {

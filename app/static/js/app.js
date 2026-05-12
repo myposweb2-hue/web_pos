@@ -648,84 +648,116 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ============================================
     // ============================================
-    // Sidebar Toggle Handler
+    // Sidebar Toggle Handler - DEBUGGING
     // ============================================
+    console.log('🚀 Starting sidebar toggle initialization...');
+    
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.getElementById('sidebar');
     
-    // Use existing overlay element or create one
+    console.log('Step 1 - Element selection:');
+    console.log('  ✓ sidebarToggle element:', sidebarToggle ? 'FOUND ✅' : 'NOT FOUND ❌');
+    console.log('  ✓ sidebar element:', sidebar ? 'FOUND ✅' : 'NOT FOUND ❌');
+    
+    if (!sidebar) {
+        console.error('❌ CRITICAL: Sidebar element not found! Cannot initialize toggle.');
+        throw new Error('Sidebar element #sidebar not found in DOM');
+    }
+    
+    if (!sidebarToggle) {
+        console.error('❌ CRITICAL: Toggle button not found! Cannot initialize toggle.');
+        throw new Error('Toggle button #sidebarToggle not found in DOM');
+    }
+    
+    // Get or create overlay
     let overlay = document.querySelector('.sidebar-overlay');
+    console.log('Step 2 - Overlay:');
+    console.log('  ✓ overlay element:', overlay ? 'FOUND ✅' : 'NOT FOUND - CREATING...');
+    
     if (!overlay) {
-        console.log('Creating missing sidebar-overlay element');
         overlay = document.createElement('div');
         overlay.className = 'sidebar-overlay';
         document.body.insertBefore(overlay, sidebar.nextSibling);
+        console.log('  ✓ overlay CREATED and inserted into DOM ✅');
     }
     
-    console.log('✅ DOMContentLoaded: Toggle button:', sidebarToggle ? 'Found' : 'NOT FOUND');
-    console.log('✅ DOMContentLoaded: Sidebar:', sidebar ? 'Found' : 'NOT FOUND');
-    console.log('✅ DOMContentLoaded: Overlay:', overlay ? 'Found' : 'NOT FOUND');
+    console.log('Step 3 - Initial state:');
+    console.log('  ✓ sidebar.className:', sidebar.className);
+    console.log('  ✓ sidebar computed left:', window.getComputedStyle(sidebar).left);
+    console.log('  ✓ window width:', window.innerWidth, '(mobile cutoff: 989px)');
     
-    // Simple toggle function
-    function toggleSidebar() {
-        if (!sidebar) {
-            console.error('❌ sidebar element not found!');
-            return;
-        }
+    // Toggle function with detailed logging
+    window.toggleSidebarDebug = function() {
+        console.log('\n🖱️ === TOGGLE FUNCTION CALLED ===');
+        console.log('BEFORE:');
+        console.log('  sidebar.className:', sidebar.className);
+        console.log('  sidebar.classList.contains("show"):', sidebar.classList.contains('show'));
+        console.log('  computed left:', window.getComputedStyle(sidebar).left);
+        console.log('  overlay.classList.contains("show"):', overlay.classList.contains('show'));
         
         const isOpen = sidebar.classList.contains('show');
         
         if (isOpen) {
-            // Close
+            console.log('ACTION: Sidebar is open, closing...');
             sidebar.classList.remove('show');
             overlay.classList.remove('show');
-            console.log('📦 Sidebar closed - removed show class');
         } else {
-            // Open
+            console.log('ACTION: Sidebar is closed, opening...');
             sidebar.classList.add('show');
             overlay.classList.add('show');
-            console.log('📦 Sidebar opened - added show class');
         }
         
-        console.log('Sidebar class after toggle:', sidebar.className);
-        console.log('Sidebar computed left:', window.getComputedStyle(sidebar).left);
-    }
+        // Small delay to let browser paint the change
+        setTimeout(() => {
+            console.log('AFTER (after paint):');
+            console.log('  sidebar.className:', sidebar.className);
+            console.log('  sidebar.classList.contains("show"):', sidebar.classList.contains('show'));
+            console.log('  computed left:', window.getComputedStyle(sidebar).left);
+            console.log('  overlay.classList.contains("show"):', overlay.classList.contains('show'));
+            console.log('✓ Toggle complete\n');
+        }, 50);
+    };
     
-    // Attach click listener to toggle button
-    if (sidebarToggle && sidebar) {
-        sidebarToggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('🖱️ Toggle button clicked!');
-            toggleSidebar();
-        });
-        console.log('✅ Toggle button event listener attached');
-    } else {
-        console.error('❌ Cannot attach toggle listener - button or sidebar not found');
-    }
+    // Attach click listener with detailed logging
+    console.log('Step 4 - Attaching event listener:');
+    sidebarToggle.addEventListener('click', function(e) {
+        console.log('\n🔘 BUTTON CLICKED!');
+        e.preventDefault();
+        e.stopPropagation();
+        window.toggleSidebarDebug();
+    });
+    console.log('  ✓ Click listener attached to button ✅');
     
     // Close sidebar when clicking overlay
-    if (overlay) {
-        overlay.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (sidebar && sidebar.classList.contains('show')) {
-                sidebar.classList.remove('show');
-                overlay.classList.remove('show');
-                console.log('📦 Sidebar closed via overlay click');
-            }
-        });
-    }
+    overlay.addEventListener('click', function(e) {
+        console.log('\n🔳 OVERLAY CLICKED!');
+        e.stopPropagation();
+        if (sidebar.classList.contains('show')) {
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+            console.log('  ✓ Closed sidebar via overlay click ✅');
+        }
+    });
+    console.log('  ✓ Click listener attached to overlay ✅');
     
-    // Close sidebar when clicking nav links on mobile
-    if (sidebar) {
-        sidebar.addEventListener('click', function(e) {
-            if (e.target.closest('.nav-link') && window.innerWidth <= 989) {
-                sidebar.classList.remove('show');
-                overlay.classList.remove('show');
-                console.log('📦 Sidebar closed via nav link click');
-            }
-        });
-    }
+    // Close when clicking nav links on mobile
+    sidebar.addEventListener('click', function(e) {
+        if (e.target.closest('.nav-link') && window.innerWidth <= 989) {
+            console.log('\n🔗 NAV LINK CLICKED on mobile!');
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+            console.log('  ✓ Closed sidebar via nav link click ✅');
+        }
+    });
+    console.log('  ✓ Click listener attached to nav links ✅');
+    
+    console.log('\n✅ SIDEBAR INITIALIZATION COMPLETE\n');
+    console.log('📝 Instructions:');
+    console.log('  1. Open mobile view (dev tools, < 989px width)');
+    console.log('  2. Look for hamburger button in header');
+    console.log('  3. Click it and watch console for toggle debug output');
+    console.log('  4. Check if "computed left" changes from -280px to 0px');
+    console.log('  5. If it doesn\'t change, there\'s a CSS cascade issue')
     
     // Close sidebar on window resize if width > 989px
     window.addEventListener('resize', function() {
