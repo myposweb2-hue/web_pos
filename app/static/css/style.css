@@ -1364,32 +1364,8 @@ html {
     margin-left: 80px;
 }
 
-/* Responsive: Disable collapse on mobile */
-@media (max-width: 991.98px) {
-    .sidebar.collapsed {
-        width: var(--sidebar-width);
-    }
-    
-    .sidebar.collapsed .brand-text,
-    .sidebar.collapsed .nav-text,
-    .sidebar.collapsed .user-details,
-    .sidebar.collapsed .logout-btn span {
-        display: inline;
-    }
-    
-    .sidebar.collapsed .nav-link {
-        justify-content: flex-start;
-        padding: 12px 16px;
-    }
-    
-    .sidebar.collapsed .nav-icon {
-        margin-right: 12px;
-    }
-    
-    .collapse-btn {
-        display: none;
-    }
-}
+/* NOTE: All mobile/tablet responsive sidebar handling is in responsive.css 
+   This prevents cascade conflicts */
 
 /* ============================================
    Settings UI - Enhanced Styling
