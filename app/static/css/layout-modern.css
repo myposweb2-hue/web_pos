@@ -67,30 +67,22 @@ body * {
     display: flex;
     flex-direction: column;
     flex: 1;
-    width: 100%;
     height: 100vh;
     overflow: hidden;
     margin: 0;
     padding: 0;
-    transition: width var(--transition-speed), padding var(--transition-speed);
+    transition: all var(--transition-speed);
+    min-width: 0;
 }
 
-/* Ensure content doesn't overflow */
-.main-wrapper {
-    max-width: 100%;
-}
-
-/* Desktop: Sidebar visible */
+/* Desktop: Let flex handle the width, don't set explicit width */
 @media (min-width: 1024px) {
     .main-wrapper {
-        width: 100%;
-        max-width: 100%;
-        padding-left: 0;
+        width: auto;
     }
     
     body.sidebar-collapsed .main-wrapper {
-        width: 100%;
-        max-width: 100%;
+        width: auto;
     }
 }
 
@@ -98,8 +90,6 @@ body * {
 @media (max-width: 1023px) {
     .main-wrapper {
         width: 100%;
-        max-width: 100%;
-        padding-left: 0;
     }
 }
 
@@ -173,24 +163,24 @@ body * {
     flex-direction: column;
     margin: 0;
     padding: 0;
-    
-    /* Custom scrollbar */
-    &::-webkit-scrollbar {
-        width: 8px;
-    }
-    
-    &::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    
-    &::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 4px;
-        
-        &:hover {
-            background: #94a3b8;
-        }
-    }
+}
+
+/* Custom scrollbar - webkit browsers */
+.main-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.main-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.main-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.main-content::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
 /* Firefox scrollbar */

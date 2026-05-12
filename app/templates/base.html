@@ -23,41 +23,6 @@
     <link href="{{ url_for('static', filename='css/sidebar-modern.css', v='1.0.0') }}" rel="stylesheet">
     <!-- Modern Responsive Layout CSS -->
     <link href="{{ url_for('static', filename='css/layout-modern.css', v='1.0.0') }}" rel="stylesheet">
-    <style>
-        /* Sticky Footer Layout */
-        body {
-            margin: 0;
-            padding: 0;
-        }
-        .main-wrapper {
-            display: flex;
-            flex-direction: column;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .main-content {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
-            margin: 0 !important;
-            padding-top: 0 !important;
-        }
-        .main-content > * {
-            margin-top: 0 !important;
-        }
-        /* Remove Bootstrap row gutters */
-        .main-content .row {
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-            margin-top: 0 !important;
-        }
-        /* Ensure header doesn't shrink */
-        .top-header {
-            flex-shrink: 0;
-        }
-    </style>
 <body>
     <!-- Modern Responsive Sidebar -->
     <aside class="sidebar" id="sidebar">
