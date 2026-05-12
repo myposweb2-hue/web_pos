@@ -647,104 +647,85 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ============================================
+    // ============================================
     // Sidebar Toggle Handler
     // ============================================
     const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarCollapse = document.getElementById('sidebarCollapse');
-    const sidebarClose = document.getElementById('sidebarClose');
     const sidebar = document.getElementById('sidebar');
     
-    // Get or create overlay
+    // Use existing overlay element or create one
     let overlay = document.querySelector('.sidebar-overlay');
     if (!overlay) {
+        console.log('Creating missing sidebar-overlay element');
         overlay = document.createElement('div');
         overlay.className = 'sidebar-overlay';
-        document.body.appendChild(overlay);
+        document.body.insertBefore(overlay, sidebar.nextSibling);
     }
     
-    // Initialize sidebar state for mobile
-    function initializeSidebarForDevice() {
-        if (window.innerWidth <= 989) {
-            // Mobile/Tablet: remove collapsed class, ensure drawer behavior
-            sidebar.classList.remove('collapsed');
-            sidebar.classList.remove('show');
-        } else {
-            // Desktop: can have collapsed if needed
-            // but ensure show class is removed
-            sidebar.classList.remove('show');
-        }
-    }
+    console.log('✅ DOMContentLoaded: Toggle button:', sidebarToggle ? 'Found' : 'NOT FOUND');
+    console.log('✅ DOMContentLoaded: Sidebar:', sidebar ? 'Found' : 'NOT FOUND');
+    console.log('✅ DOMContentLoaded: Overlay:', overlay ? 'Found' : 'NOT FOUND');
     
-    // Helper function to update close button visibility
-    function updateCloseButtonVisibility() {
-        if (window.innerWidth > 989) {
-            sidebarClose.style.display = 'none';
-        } else {
-            sidebarClose.style.display = 'block';
-        }
-    }
-    
-    // Helper function to close sidebar
-    function closeSidebar() {
-        sidebar.classList.remove('show');
-        overlay.classList.remove('show');
-    }
-    
-    // Helper function to toggle sidebar
+    // Simple toggle function
     function toggleSidebar() {
-        sidebar.classList.toggle('show');
-        overlay.classList.toggle('show');
+        if (!sidebar) {
+            console.error('❌ sidebar element not found!');
+            return;
+        }
+        
+        const isOpen = sidebar.classList.contains('show');
+        
+        if (isOpen) {
+            // Close
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+            console.log('📦 Sidebar closed - removed show class');
+        } else {
+            // Open
+            sidebar.classList.add('show');
+            overlay.classList.add('show');
+            console.log('📦 Sidebar opened - added show class');
+        }
+        
+        console.log('Sidebar class after toggle:', sidebar.className);
+        console.log('Sidebar computed left:', window.getComputedStyle(sidebar).left);
     }
     
-    // Hamburger button click
-    if (sidebarToggle) {
+    // Attach click listener to toggle button
+    if (sidebarToggle && sidebar) {
         sidebarToggle.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            console.log('🔧 Toggle button clicked');
-            console.log('📍 Sidebar before toggle:', sidebar.className);
-            console.log('📍 Sidebar position:', window.getComputedStyle(sidebar).left);
+            console.log('🖱️ Toggle button clicked!');
             toggleSidebar();
-            console.log('📍 Sidebar after toggle:', sidebar.className);
-            console.log('📍 Sidebar position after:', window.getComputedStyle(sidebar).left);
-            console.log('📍 Overlay has show class:', overlay.classList.contains('show'));
         });
+        console.log('✅ Toggle button event listener attached');
     } else {
-        console.warn('⚠️ sidebarToggle button not found!');
+        console.error('❌ Cannot attach toggle listener - button or sidebar not found');
     }
     
-    // Close button (X) click
-    if (sidebarClose) {
-        sidebarClose.addEventListener('click', function(e) {
-            e.preventDefault();
+    // Close sidebar when clicking overlay
+    if (overlay) {
+        overlay.addEventListener('click', function(e) {
             e.stopPropagation();
-            closeSidebar();
-        });
-    }
-    
-    // Collapse button (desktop) - toggle collapsed state
-    if (sidebarCollapse) {
-        sidebarCollapse.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (window.innerWidth > 989) {
-                sidebar.classList.toggle('collapsed');
+            if (sidebar && sidebar.classList.contains('show')) {
+                sidebar.classList.remove('show');
+                overlay.classList.remove('show');
+                console.log('📦 Sidebar closed via overlay click');
             }
         });
     }
     
-    // Overlay click to close
-    overlay.addEventListener('click', function(e) {
-        e.stopPropagation();
-        closeSidebar();
-    });
-    
-    // Close when clicking nav links on mobile/tablet
-    sidebar.addEventListener('click', function(e) {
-        if (e.target.closest('.nav-link') && window.innerWidth <= 989) {
-            closeSidebar();
-        }
-    });
+    // Close sidebar when clicking nav links on mobile
+    if (sidebar) {
+        sidebar.addEventListener('click', function(e) {
+            if (e.target.closest('.nav-link') && window.innerWidth <= 989) {
+                sidebar.classList.remove('show');
+                overlay.classList.remove('show');
+                console.log('📦 Sidebar closed via nav link click');
+            }
+        });
+    }
     
     // Close sidebar on window resize if width > 989px
     window.addEventListener('resize', function() {

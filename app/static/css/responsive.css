@@ -21,6 +21,14 @@
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
         transform: none !important;
+        margin: 0 !important;
+        border: none !important;
+    }
+    
+    /* Hide sidebar by default */
+    .sidebar {
+        visibility: visible !important;
+        opacity: 1 !important;
     }
     
     .sidebar.collapsed {
@@ -28,6 +36,7 @@
         left: -280px !important;
     }
     
+    /* Show sidebar when toggle is pressed */
     .sidebar.show {
         left: 0 !important;
     }
@@ -38,17 +47,22 @@
     
     .sidebar-overlay {
         display: none !important;
-        position: fixed;
-        top: var(--header-height);
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 1040;
+        position: fixed !important;
+        top: var(--header-height) !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        background: rgba(0, 0, 0, 0.5) !important;
+        z-index: 1040 !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        transition: opacity 0.3s ease, visibility 0.3s ease !important;
     }
     
     .sidebar-overlay.show {
         display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
     
     body {
