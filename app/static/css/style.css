@@ -21,8 +21,6 @@
     /* Background Colors */
     --bg-body: #F1F5F9;
     --bg-card: #FFFFFF;
-    --bg-sidebar: #1E293B;
-    --bg-sidebar-hover: #334155;
     --bg-header: #FFFFFF;
     
     /* Text Colors */
@@ -44,13 +42,7 @@
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
     
-    /* Layout */
-    --sidebar-width: 260px;
-    --header-height: 64px;
-    --header-height-tablet: 56px;
-    --header-height-mobile: 48px;
-    --content-padding: 24px;
-    --quick-nav-btn-size: 44px;
+    /* Layout - Managed by modern CSS (sidebar-modern.css, layout-modern.css) */
     
     /* Transitions */
     --transition-fast: 150ms ease;
@@ -75,185 +67,12 @@ body {
 }
 
 /* ============================================
-   Sidebar Styles (DEPRECATED - See sidebar-modern.css)
+   Layout & Header Styles (Managed by modern CSS)
    ============================================
-   Legacy sidebar styles maintained for fallback only.
-   All new sidebar styling is in app/static/css/sidebar-modern.css
-   These styles are overridden by the modern sidebar system.
+   - Sidebar styling: app/static/css/sidebar-modern.css
+   - Layout & header: app/static/css/layout-modern.css
+   - Header search & actions: See layout-modern.css
 */
-
-/* ============================================
-   Main Wrapper
-   ============================================ */
-.main-wrapper {
-    margin-left: var(--sidebar-width);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    transition: margin-left var(--transition);
-}
-
-/* ============================================
-   Top Header Styles
-   ============================================ */
-.top-header {
-    height: var(--header-height);
-    background: linear-gradient(to bottom, #ffffff 0%, #fafbfc 100%);
-    border-bottom: 1px solid #e8ecf1;
-    display: flex;
-    align-items: center;
-    padding: 0 28px;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
-    margin: 0 !important;
-    margin-bottom: 0 !important;
-    line-height: 1;
-    min-height: 64px;
-    flex-shrink: 0;
-    transition: all 0.3s ease;
-}
-
-.sidebar-toggle {
-    background: none;
-    border: none;
-    padding: 8px 12px;
-    cursor: pointer;
-    color: var(--text-secondary);
-    font-size: 20px;
-    border-radius: var(--border-radius-sm);
-    transition: all var(--transition-fast);
-    display: none;
-}
-
-.sidebar-toggle:hover {
-    background: var(--bg-body);
-    color: var(--text-primary);
-}
-
-.header-search {
-    position: relative;
-    width: 340px;
-    margin: 0;
-}
-
-.header-search i {
-    position: absolute;
-    left: 14px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    font-size: 15px;
-    transition: color var(--transition-fast);
-}
-
-.header-search input {
-    width: 100%;
-    padding: 11px 14px 11px 40px;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 10px;
-    font-size: 14px;
-    background: #f9fbfd;
-    transition: all var(--transition-fast);
-    height: 42px;
-    font-weight: 500;
-    color: var(--text-primary);
-}
-
-.header-search input::placeholder {
-    color: var(--text-muted);
-    font-weight: 400;
-}
-
-.header-search input:focus {
-    outline: none;
-    border-color: #4F46E5;
-    background: var(--bg-card);
-    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.08);
-}
-
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-left: auto;
-}
-
-.top-header .btn-primary {
-    height: 42px;
-    border-radius: 10px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    font-size: 14px;
-    letter-spacing: 0.3px;
-    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.15);
-    border: none;
-    transition: all var(--transition-fast);
-}
-
-.top-header .btn-primary:hover {
-    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
-    transform: translateY(-1px);
-}
-
-.notification-badge {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    width: 18px;
-    height: 18px;
-    background: var(--danger);
-    color: white;
-    font-size: 10px;
-    font-weight: 600;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.header-user {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: #f5f7fb;
-    border-radius: 12px;
-    cursor: pointer;
-    font-weight: 500;
-    color: var(--text-primary);
-    border: 1.5px solid #e8ecf1;
-    transition: all var(--transition-fast);
-}
-
-.header-user:hover {
-    border-color: #4F46E5;
-    background: #f0f4f8;
-}
-
-/* Header Action Buttons */
-.header-actions .btn-link {
-    width: 42px;
-    height: 42px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    border: 1.5px solid transparent;
-    transition: all var(--transition-fast);
-    background: transparent;
-    padding: 0 !important;
-    color: #64748B !important;
-    font-size: 16px;
-}
-
-.header-actions .btn-link:hover {
-    background: #f0f4f8;
-    border-color: #e2e8f0;
-    color: #4F46E5 !important;
-}
 
 /* Wide container to center content under header */
 .container-wide {
@@ -343,8 +162,8 @@ body {
 }
 .onscreen-kb .kb-actions button {
     padding: 0;
-    width: var(--quick-nav-btn-size);
-    height: var(--quick-nav-btn-size);
+    width: 44px;
+    height: 44px;
     font-size: 20px;
     font-weight: 600;
     text-align: center;
@@ -494,25 +313,8 @@ body {
 }
 
 /* ============================================
-   Sidebar Overlay (Mobile)
+   Sidebar Overlay (Managed by sidebar-modern.css)
    ============================================ */
-.sidebar-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 999;
-    opacity: 0;
-    visibility: hidden;
-    transition: all var(--transition);
-}
-
-.sidebar-overlay.active {
-    opacity: 1;
-    visibility: visible;
-}
 
 /* ============================================
    Card Styles
@@ -908,84 +710,11 @@ body {
     border-color: #e8ecf1;
 }
 
-/* Header Action Buttons */
-.header-actions-btn {
-    width: 42px;
-    height: 42px;
-    padding: 0 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 10px;
-    border: none;
-    transition: all var(--transition-fast);
-    font-size: 16px;
-    color: #64748B !important;
-}
-
-.header-actions-btn:hover {
-    background: #f0f4f8;
-    color: #4F46E5 !important;
-}
-
-/* User Profile Trigger */
-.user-profile-trigger {
-    padding: 8px 12px !important;
-    border-radius: 12px;
-    border: 1.5px solid transparent;
-    transition: all var(--transition-fast);
-}
-
-.user-profile-trigger:hover {
-    background: #f0f4f8;
-    border-color: #e2e8f0;
-}
+/* Header action buttons styled in layout-modern.css */
 
 /* ============================================
-   Responsive Styles - See responsive.css
+   Responsive Styles (Layout handled by layout-modern.css)
    ============================================ */
-/* All responsive styles now in responsive.css */
-
-@media (max-width: 767.98px) {
-    :root {
-        --content-padding: 16px;
-        --header-height: 56px;
-    }
-    
-    .main-content {
-        padding: 16px;
-    }
-    
-    .card-header,
-    .card-body {
-        padding: 16px;
-    }
-    
-    .stats-card .stats-value {
-        font-size: 24px;
-    }
-    
-    .stats-card .stats-icon {
-        width: 48px;
-        height: 48px;
-        font-size: 20px;
-    }
-}
-
-@media (max-width: 575.98px) {
-    .top-header {
-        padding: 0 16px;
-    }
-    
-    .header-actions {
-        gap: 4px;
-    }
-    
-    .header-btn {
-        width: 36px;
-        height: 36px;
-    }
-}
 
 /* ============================================
    Utility Classes
@@ -1069,104 +798,12 @@ html {
 .stagger-4 { animation-delay: 0.2s; }
 
 /* ============================================
-   Sidebar Collapse Button
+   Sidebar Styles (Managed by sidebar-modern.css)
    ============================================ */
-.collapse-btn {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 8px;
-    transition: all var(--transition-fast);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.collapse-btn:hover {
-    background: var(--bg-sidebar-hover);
-    color: var(--text-light);
-}
-
-.sidebar-header .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
 
 /* ============================================
-   Collapsed Sidebar State
+   Collapsed Sidebar State (Managed by sidebar-modern.css)
    ============================================ */
-.sidebar.collapsed {
-    width: 80px;
-}
-
-.sidebar.collapsed .brand-text,
-.sidebar.collapsed .nav-text,
-.sidebar.collapsed .user-details,
-.sidebar.collapsed .logout-btn span {
-    display: none;
-}
-
-.sidebar.collapsed .sidebar-header {
-    justify-content: center;
-    padding: 20px 10px;
-}
-
-.sidebar.collapsed .brand {
-    justify-content: center;
-}
-
-.sidebar.collapsed .brand i {
-    margin-right: 0;
-    font-size: 24px;
-}
-
-.sidebar.collapsed .collapse-btn {
-    transform: rotate(180deg);
-}
-
-.sidebar.collapsed .nav-link {
-    justify-content: center;
-    padding: 14px;
-}
-
-.sidebar.collapsed .nav-icon {
-    margin-right: 0;
-    font-size: 20px;
-}
-
-.sidebar.collapsed .user-info {
-    justify-content: center;
-    padding: 12px 8px;
-}
-
-.sidebar.collapsed .user-avatar {
-    margin-right: 0;
-}
-
-.sidebar.collapsed .logout-btn {
-    padding: 12px;
-}
-
-.sidebar.collapsed .logout-btn i {
-    margin-right: 0;
-    font-size: 18px;
-}
-
-/* Main wrapper adjustment for collapsed sidebar */
-.main-wrapper.sidebar-collapsed {
-    margin-left: 80px;
-}
-
-.sidebar.collapsed + .main-wrapper {
-    margin-left: 80px;
-}
-
-/* NOTE: All mobile/tablet responsive sidebar handling is in responsive.css 
-   This prevents cascade conflicts */
 
 /* ============================================
    Settings UI - Enhanced Styling
@@ -1626,55 +1263,4 @@ html {
     padding: 16px;
 }
 
-/* Quick Nav Buttons (Header) */
-.quick-nav-buttons { 
-    gap: 10px !important; 
-}
-
-.quick-nav-btn { 
-    width: 44px; 
-    height: 44px; 
-    padding: 0 !important; 
-    display: flex !important; 
-    align-items: center; 
-    justify-content: center; 
-    border-radius: 12px; 
-    transition: all var(--transition-fast);
-    background: #f0f4f8;
-    border: 1.5px solid #e2e8f0;
-    color: #64748B !important;
-    font-weight: 500;
-    position: relative;
-}
-
-.quick-nav-btn:hover { 
-    background: linear-gradient(135deg, #e0e7ff 0%, #f0f4f8 100%);
-    border-color: #4F46E5;
-    color: #4F46E5 !important; 
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.15), 0 1px 2px rgba(0, 0, 0, 0.05); 
-}
-
-.quick-nav-btn:active {
-    transform: translateY(0px);
-}
-
-.quick-nav-btn i { 
-    font-size: 18px; 
-}
-
-@media (max-width: 1199.98px) { 
-    .quick-nav-btn { 
-        width: 40px; 
-        height: 40px; 
-    } 
-    .quick-nav-btn i { 
-        font-size: 16px; 
-    } 
-}
-
-@media (max-width: 991.98px) { 
-    .quick-nav-buttons { 
-        display: none !important; 
-    } 
-}
+/* Quick Nav Button styling managed by layout-modern.css */
