@@ -85,7 +85,7 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 1000;
-    transition: transform var(--transition);
+    transition: left 0.3s ease;
 }
 
 .sidebar-header {
@@ -1132,21 +1132,10 @@ body {
 }
 
 /* ============================================
-   Responsive Styles
+   Responsive Styles - See responsive.css
    ============================================ */
 @media (max-width: 991.98px) {
-    .sidebar {
-        transform: translateX(-100%);
-    }
-    
-    .sidebar.open {
-        transform: translateX(0);
-    }
-    
-    .main-wrapper {
-        margin-left: 0;
-    }
-    
+    /* Mobile/tablet responsive handled by responsive.css */
     .sidebar-toggle {
         display: flex;
     }
