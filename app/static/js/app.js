@@ -742,6 +742,11 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('resize', function() {
         updateCloseButtonVisibility();
         initializeSidebarForDevice();
+        if (window.innerWidth > 989) {
+            closeSidebar();
+        }
+    });
+    
     // Navbar Toggle Handler
     // ============================================
     const navbarToggle = document.getElementById('navbarToggle');
@@ -781,8 +786,6 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.classList.add('fa-chevron-down');
         }
     }
-
-        if (window.innerWidth > 989) {
             closeSidebar();
         }
     });

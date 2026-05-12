@@ -35,6 +35,17 @@
             margin: 0;
             padding: 0;
         }
+        
+        /* When navbar is collapsed, adjust main content */
+        .main-wrapper.navbar-collapsed {
+            padding-top: 0;
+        }
+        
+        .main-wrapper.navbar-collapsed .main-content {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
+        
         .main-content {
             flex: 1;
             overflow-y: auto;

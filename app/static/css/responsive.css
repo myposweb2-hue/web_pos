@@ -58,6 +58,11 @@
         top: 0 !important;
         height: 100vh !important;
     }
+    
+    /* Ensure sidebar top resets when navbar visible */
+    .main-wrapper:not(.navbar-collapsed) .sidebar {
+        top: 56px !important;
+    }
 }
 
 /* Desktop (>= 1200px): Sidebar always visible */
