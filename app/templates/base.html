@@ -18,9 +18,9 @@
     <!-- Chart.js for data visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Custom CSS -->
-    <link href="{{ url_for('static', filename='css/style.css', v='15.0.0') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css', v='16.0.0') }}" rel="stylesheet">
     <!-- Enhanced Responsive CSS - CLEAN VERSION -->
-    <link href="{{ url_for('static', filename='css/responsive.css', v='29.0.0') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/responsive.css', v='31.0.0') }}" rel="stylesheet">
     <style>
         /* Sticky Footer Layout */
         body {
@@ -28,16 +28,17 @@
             padding: 0;
         }
         .main-wrapper {
-            height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
             margin: 0;
             padding: 0;
+            height: 100vh;
+            overflow: hidden;
         }
         .main-content {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
             margin: 0 !important;
             padding-top: 0 !important;
         }
@@ -49,6 +50,10 @@
             margin-left: 0 !important;
             margin-right: 0 !important;
             margin-top: 0 !important;
+        }
+        /* Ensure header doesn't shrink */
+        .top-header {
+            flex-shrink: 0;
         }
     </style>
 <body>

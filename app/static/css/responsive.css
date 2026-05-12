@@ -4,12 +4,20 @@
 
 /* MOBILE-FIRST BASE STATE (default for all screens < 990px) */
 @media (max-width: 989px) {
+    :root {
+        --header-height: var(--header-height-tablet);
+    }
+    
+    .sidebar-toggle {
+        display: block !important;
+    }
+    
     .sidebar {
         position: fixed !important;
-        top: 56px !important;
+        top: var(--header-height) !important;
         left: -280px !important;
         width: 280px !important;
-        height: calc(100vh - 56px) !important;
+        height: calc(100vh - var(--header-height)) !important;
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
         transform: none !important;
@@ -117,12 +125,20 @@
 
 /* Tablet (768px - 989px): Sidebar drawer */
 @media (min-width: 768px) and (max-width: 989px) {
+    :root {
+        --header-height: var(--header-height-tablet);
+    }
+    
+    .sidebar-toggle {
+        display: block !important;
+    }
+    
     .sidebar {
         position: fixed !important;
-        top: 56px !important;
+        top: var(--header-height) !important;
         left: -280px !important;
         width: 280px !important;
-        height: calc(100vh - 56px) !important;
+        height: calc(100vh - var(--header-height)) !important;
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
         transform: none !important;
@@ -160,7 +176,7 @@
     .sidebar-overlay {
         display: none !important;
         position: fixed;
-        top: 56px;
+        top: var(--header-height);
         left: 0;
         right: 0;
         bottom: 0;
@@ -184,12 +200,20 @@
 
 /* Mobile Tablet (481px - 767px): Sidebar drawer */
 @media (min-width: 481px) and (max-width: 767px) {
+    :root {
+        --header-height: var(--header-height-tablet);
+    }
+    
+    .sidebar-toggle {
+        display: block !important;
+    }
+    
     .sidebar {
         position: fixed !important;
-        top: 56px !important;
+        top: var(--header-height) !important;
         left: -280px !important;
         width: 280px !important;
-        height: calc(100vh - 56px) !important;
+        height: calc(100vh - var(--header-height)) !important;
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
         transform: none !important;
@@ -227,7 +251,7 @@
     .sidebar-overlay {
         display: none !important;
         position: fixed;
-        top: 56px;
+        top: var(--header-height);
         left: 0;
         right: 0;
         bottom: 0;
@@ -250,13 +274,15 @@
 }
 
 /* Mobile (< 480px): Sidebar drawer */
-@media (max-width: 480px) {
-    .sidebar {
+@media (max-width: 480px) {    .sidebar-toggle {
+        display: block !important;
+    }
+        .sidebar {
         position: fixed !important;
-        top: 48px !important;
+        top: var(--header-height) !important;
         left: -280px !important;
         width: 280px !important;
-        height: calc(100vh - 48px) !important;
+        height: calc(100vh - var(--header-height)) !important;
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
         transform: none !important;
@@ -294,7 +320,7 @@
     .sidebar-overlay {
         display: none !important;
         position: fixed;
-        top: 48px;
+        top: var(--header-height);
         left: 0;
         right: 0;
         bottom: 0;

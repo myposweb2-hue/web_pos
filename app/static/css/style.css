@@ -47,6 +47,8 @@
     /* Layout */
     --sidebar-width: 260px;
     --header-height: 64px;
+    --header-height-tablet: 56px;
+    --header-height-mobile: 48px;
     --content-padding: 24px;
     --quick-nav-btn-size: 44px;
     
