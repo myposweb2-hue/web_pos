@@ -25,6 +25,19 @@
         flex-shrink: 0;
     }
     
+    .sidebar.show {
+        left: 0 !important;
+    }
+    
+    /* Hide close button and overlay on desktop */
+    .sidebar-close {
+        display: none !important;
+    }
+    
+    .sidebar-overlay {
+        display: none !important;
+    }
+    
     .main-wrapper {
         flex: 1;
         display: flex;
@@ -60,6 +73,15 @@
         z-index: 100 !important;
         transform: none !important;
         flex-shrink: 0;
+    }
+    
+    /* Hide close button on larger tablets */
+    .sidebar-close {
+        display: none !important;
+    }
+    
+    .sidebar-overlay {
+        display: none !important;
     }
     
     .main-wrapper {
@@ -98,6 +120,26 @@
     
     .sidebar.show {
         left: 0 !important;
+    }
+    
+    /* Show close button on tablet */
+    .sidebar-close {
+        display: block !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-size: 20px;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .sidebar-close:hover {
+        background: var(--bg-sidebar-hover);
+        color: var(--text-light);
     }
     
     .sidebar-overlay {
@@ -240,11 +282,14 @@
         visibility: visible !important;
         pointer-events: auto !important;
         z-index: 1100 !important;
+        cursor: pointer;
     }
     
-    /* Hide sidebar close button on large screens */
+    /* Show and style close button on mobile */
     .sidebar-close {
         display: block !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
         background: none;
         border: none;
         color: var(--text-muted);
