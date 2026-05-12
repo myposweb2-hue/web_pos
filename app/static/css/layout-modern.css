@@ -21,8 +21,9 @@
 body {
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: row;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
     width: 100%;
     height: 100vh;
     overflow: hidden;
@@ -30,26 +31,25 @@ body {
     position: relative;
 }
 
-/* Desktop (1024px+): Sidebar on left, content on right */
+/* Desktop (1024px+): Grid with sidebar column */
 @media (min-width: 1024px) {
     body {
-        padding-left: var(--sidebar-width);
+        display: grid;
+        grid-template-columns: var(--sidebar-width) 1fr;
+        grid-template-rows: 1fr;
     }
     
     body.sidebar-collapsed {
-        padding-left: var(--sidebar-width-collapsed);
+        grid-template-columns: var(--sidebar-width-collapsed) 1fr;
     }
 }
 
-/* Mobile/Tablet: No padding, sidebar is drawer */
+/* Mobile/Tablet: Single column, sidebar off-canvas */
 @media (max-width: 1023px) {
     body {
-        padding-left: 0 !important;
-        overflow: hidden;
-    }
-    
-    /* Prevent body scroll when sidebar is open */
-    body.sidebar-open {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
         overflow: hidden;
     }
 }
@@ -66,19 +66,19 @@ body * {
 .main-wrapper {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    height: 100vh;
+    height: 100%;
+    width: 100%;
     overflow: hidden;
     margin: 0;
     padding: 0;
     transition: all var(--transition-speed);
-    min-width: 0;
 }
 
-/* Desktop: Let flex handle the width, don't set explicit width */
+/* Desktop: Let grid handle sizing */
 @media (min-width: 1024px) {
     .main-wrapper {
         width: auto;
+        height: 100%;
     }
     
     body.sidebar-collapsed .main-wrapper {
@@ -86,10 +86,11 @@ body * {
     }
 }
 
-/* Mobile/Tablet: Full width */
+/* Mobile/Tablet: Full grid cell */
 @media (max-width: 1023px) {
     .main-wrapper {
         width: 100%;
+        height: 100%;
     }
 }
 

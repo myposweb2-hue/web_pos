@@ -42,11 +42,30 @@
     overflow: hidden;
 }
 
-/* Mobile: Sidebar hidden by default */
+/* Desktop: Position in grid column, use relative positioning */
+@media (min-width: 1024px) {
+    .sidebar {
+        position: relative;
+        top: auto;
+        left: auto;
+        width: var(--sidebar-width);
+        height: 100vh;
+        transform: none;
+    }
+    
+    .sidebar.collapsed {
+        width: var(--sidebar-width-collapsed);
+    }
+}
+
+/* Mobile: Sidebar hidden by default, overlay mode */
 @media (max-width: 1023px) {
     .sidebar {
         position: fixed;
+        left: 0;
+        top: 0;
         width: var(--sidebar-width);
+        height: 100vh;
         transform: translateX(-100%);
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
     }
@@ -61,18 +80,8 @@
     }
 }
 
-/* Desktop: Sidebar visible */
+/* Collapsed state: Hide text elements on desktop */
 @media (min-width: 1024px) {
-    .sidebar {
-        position: fixed;
-        width: var(--sidebar-width);
-        transform: translateX(0);
-    }
-    
-    .sidebar.collapsed {
-        width: var(--sidebar-width-collapsed);
-    }
-    
     .sidebar.collapsed .sidebar-header .brand-text,
     .sidebar.collapsed .sidebar-nav .nav-text,
     .sidebar.collapsed .sidebar-footer .user-details,
