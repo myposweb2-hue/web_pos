@@ -351,26 +351,33 @@ body {
 }
 
 .sidebar-toggle {
-    background: none;
-    border: none;
-    padding: 12px 16px;
+    background: none !important;
+    border: none !important;
+    padding: 10px 12px !important;
     cursor: pointer;
-    color: var(--text-secondary);
+    color: var(--text-secondary) !important;
     font-size: 20px;
     border-radius: var(--border-radius-sm);
     transition: all var(--transition-fast);
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: center;
     height: 44px;
     width: 44px;
     min-width: 44px;
     z-index: 101;
+    flex-shrink: 0;
 }
 
 .sidebar-toggle:hover {
-    background: var(--bg-body);
-    color: var(--text-primary);
+    background: var(--bg-body) !important;
+    color: var(--text-primary) !important;
+}
+
+.sidebar-toggle i {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .header-search {

@@ -657,15 +657,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     const mainWrapper = document.querySelector('.main-wrapper');
     
+    console.log('Sidebar elements:', { sidebarToggle, sidebar, sidebarOverlay, sidebarClose });
+    
     if (sidebarToggle) {
-        sidebarToggle.addEventListener('click', function() {
+        console.log('Sidebar toggle button found, adding click listener');
+        sidebarToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Toggle clicked');
             if (sidebar) {
                 sidebar.classList.toggle('open');
+                console.log('Sidebar open:', sidebar.classList.contains('open'));
             }
             if (sidebarOverlay) {
                 sidebarOverlay.classList.toggle('active');
             }
         });
+    } else {
+        console.warn('Sidebar toggle button not found in DOM');
     }
     
     if (sidebarClose) {
