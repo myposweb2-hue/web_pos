@@ -648,20 +648,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ============================================
-    // Sidebar Toggle Handler for Mobile/Tablet
+    // Sidebar Toggle Handler
     // ============================================
     const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebarClose = document.getElementById('sidebarClose');
     const sidebar = document.getElementById('sidebar');
     
-    console.log('Sidebar JS Loaded:', {
-        sidebarToggle: !!sidebarToggle,
-        sidebarClose: !!sidebarClose, 
-        sidebar: !!sidebar,
-        windowWidth: window.innerWidth
-    });
-    
-    // Create overlay if it doesn't exist
+    // Get or create overlay
     let overlay = document.querySelector('.sidebar-overlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -669,43 +662,53 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.appendChild(overlay);
     }
     
-    // Toggle sidebar on hamburger click
+    // Helper function to close sidebar
+    function closeSidebar() {
+        sidebar.classList.remove('show');
+        overlay.classList.remove('show');
+    }
+    
+    // Helper function to toggle sidebar
+    function toggleSidebar() {
+        sidebar.classList.toggle('show');
+        overlay.classList.toggle('show');
+    }
+    
+    // Hamburger button click
     if (sidebarToggle) {
         sidebarToggle.addEventListener('click', function(e) {
             e.preventDefault();
-            console.log('Hamburger clicked, show class:', sidebar.classList.contains('show'));
-            sidebar.classList.toggle('show');
-            overlay.classList.toggle('show');
-            console.log('After toggle, show class:', sidebar.classList.contains('show'));
+            e.stopPropagation();
+            toggleSidebar();
         });
     }
     
-    // Close sidebar on X click
+    // Close button (X) click
     if (sidebarClose) {
         sidebarClose.addEventListener('click', function(e) {
             e.preventDefault();
-            console.log('Close button clicked');
-            sidebar.classList.remove('show');
-            overlay.classList.remove('show');
+            e.stopPropagation();
+            closeSidebar();
         });
     }
     
-    // Close sidebar when clicking overlay
-    overlay.addEventListener('click', function() {
-        console.log('Overlay clicked');
-        sidebar.classList.remove('show');
-        overlay.classList.remove('show');
+    // Overlay click to close
+    overlay.addEventListener('click', function(e) {
+        e.stopPropagation();
+        closeSidebar();
     });
     
-    // Close sidebar when clicking a nav link (on mobile)
-    const navLinks = sidebar.querySelectorAll('.nav-link');
-    navLinks.forEach(link => {
-        link.addEventListener('click', function() {
-            if (window.innerWidth <= 767) {
-                console.log('Nav link clicked on mobile');
-                sidebar.classList.remove('show');
-                overlay.classList.remove('show');
-            }
-        });
+    // Close when clicking nav links on mobile/tablet
+    sidebar.addEventListener('click', function(e) {
+        if (e.target.closest('.nav-link') && window.innerWidth <= 989) {
+            closeSidebar();
+        }
+    });
+    
+    // Close sidebar on window resize if width > 989px
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 989) {
+            closeSidebar();
+        }
     });
 })();
