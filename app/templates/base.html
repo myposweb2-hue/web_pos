@@ -56,16 +56,16 @@
             <ul class="nav-list">
                 <li class="nav-item">
                     <a href="{{ url_for('main.dashboard') }}" class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
-                        <i class="fas fa-tachometer-alt"></i>
-                        <span>Dashboard</span>
+                        <i class="fas fa-tachometer-alt nav-icon"></i>
+                        <span class="nav-text">Dashboard</span>
                     </a>
                 </li>
 
                 {% if current_user.can_access_sales %}
                 <li class="nav-item">
                     <a href="{{ url_for('sales.sales') }}" class="nav-link {% if request.endpoint == 'sales.sales' %}active{% endif %}">
-                        <i class="fas fa-shopping-cart"></i>
-                        <span>Sales</span>
+                        <i class="fas fa-shopping-cart nav-icon"></i>
+                        <span class="nav-text">Sales</span>
                     </a>
                 </li>
                 {% endif %}
@@ -73,14 +73,14 @@
                 {% if current_user.can_view_sales_history %}
                 <li class="nav-item">
                     <a href="{{ url_for('sales.sales_history') }}" class="nav-link {% if request.endpoint == 'sales.sales_history' %}active{% endif %}">
-                        <i class="fas fa-history"></i>
-                        <span>Sales History</span>
+                        <i class="fas fa-history nav-icon"></i>
+                        <span class="nav-text">Sales History</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="{{ url_for('sales.returns') }}" class="nav-link {% if request.endpoint == 'sales.returns' %}active{% endif %}">
-                        <i class="fas fa-undo-alt"></i>
-                        <span>Returns</span>
+                        <i class="fas fa-undo-alt nav-icon"></i>
+                        <span class="nav-text">Returns</span>
                     </a>
                 </li>
                 {% endif %}
@@ -88,7 +88,7 @@
                 {% if current_user.can_view_inventory or current_user.can_access_warehouse %}
                 <li class="nav-item nav-dropdown {% if request.endpoint.startswith('inventory.') %}open{% endif %}">
                     <a href="#" class="nav-link">
-                        <i class="fas fa-warehouse"></i>
+                        <i class="fas fa-warehouse nav-icon"></i>
                         <span class="nav-text">Inventory</span>
                         <i class="fas fa-chevron-down nav-arrow"></i>
                     </a>
@@ -96,7 +96,7 @@
                         {% if current_user.can_view_inventory %}
                         <li>
                             <a href="{{ url_for('inventory.inventory') }}" class="nav-dropdown-link {% if request.endpoint == 'inventory.inventory' %}active{% endif %}">
-                                <i class="fas fa-box"></i>
+                                <i class="fas fa-box nav-icon"></i>
                                 <span class="nav-text">Products</span>
                             </a>
                         </li>
@@ -104,13 +104,13 @@
                         {% if current_user.can_access_warehouse %}
                         <li>
                             <a href="{{ url_for('inventory.warehouse') }}" class="nav-dropdown-link {% if request.endpoint == 'inventory.warehouse' %}active{% endif %}">
-                                <i class="fas fa-boxes"></i>
+                                <i class="fas fa-boxes nav-icon"></i>
                                 <span class="nav-text">Warehouse Stock</span>
                             </a>
                         </li>
                         <li>
                             <a href="{{ url_for('inventory.warehouses') }}" class="nav-dropdown-link {% if request.endpoint == 'inventory.warehouses' %}active{% endif %}">
-                                <i class="fas fa-warehouse"></i>
+                                <i class="fas fa-warehouse nav-icon"></i>
                                 <span class="nav-text">Manage Warehouses</span>
                             </a>
                         </li>
@@ -122,20 +122,20 @@
                 {% if current_user.can_access_purchases %}
                 <li class="nav-item nav-dropdown {% if request.endpoint.startswith('purchases.') %}open{% endif %}">
                     <a href="#" class="nav-link">
-                        <i class="fas fa-dolly"></i>
+                        <i class="fas fa-dolly nav-icon"></i>
                         <span class="nav-text">Purchases</span>
                         <i class="fas fa-chevron-down nav-arrow"></i>
                     </a>
                     <ul class="nav-dropdown-menu">
                         <li>
                             <a href="{{ url_for('purchases.purchases') }}" class="nav-dropdown-link {% if request.endpoint == 'purchases.purchases' %}active{% endif %}">
-                                <i class="fas fa-shopping-basket"></i>
+                                <i class="fas fa-shopping-basket nav-icon"></i>
                                 <span class="nav-text">Purchases</span>
                             </a>
                         </li>
                         <li>
                             <a href="{{ url_for('purchases.purchase_returns') }}" class="nav-dropdown-link {% if request.endpoint == 'purchases.purchase_returns' %}active{% endif %}">
-                                <i class="fas fa-truck-loading"></i>
+                                <i class="fas fa-truck-loading nav-icon"></i>
                                 <span class="nav-text">Purchase Returns</span>
                             </a>
                         </li>
@@ -146,8 +146,8 @@
                 {% if current_user.can_access_customers %}
                 <li class="nav-item">
                     <a href="{{ url_for('customers.customers') }}" class="nav-link {% if request.endpoint == 'customers.customers' %}active{% endif %}">
-                        <i class="fas fa-users"></i>
-                        <span>Customers</span>
+                        <i class="fas fa-users nav-icon"></i>
+                        <span class="nav-text">Customers</span>
                     </a>
                 </li>
                 {% endif %}
@@ -155,8 +155,8 @@
                 {% if current_user.can_access_suppliers %}
                 <li class="nav-item">
                     <a href="{{ url_for('suppliers.suppliers') }}" class="nav-link {% if request.endpoint == 'suppliers.suppliers' %}active{% endif %}">
-                        <i class="fas fa-truck"></i>
-                        <span>Suppliers</span>
+                        <i class="fas fa-truck nav-icon"></i>
+                        <span class="nav-text">Suppliers</span>
                     </a>
                 </li>
                 {% endif %}
@@ -164,8 +164,8 @@
                 {% if current_user.can_view_reports %}
                 <li class="nav-item">
                     <a href="{{ url_for('reports.reports') }}" class="nav-link {% if request.endpoint == 'reports.reports' %}active{% endif %}">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Reports</span>
+                        <i class="fas fa-chart-bar nav-icon"></i>
+                        <span class="nav-text">Reports</span>
                     </a>
                 </li>
                 {% endif %}
@@ -173,8 +173,8 @@
                 {% if current_user.can_access_expenses %}
                 <li class="nav-item">
                     <a href="{{ url_for('expenses.expenses') }}" class="nav-link {% if request.endpoint == 'expenses.expenses' %}active{% endif %}">
-                        <i class="fas fa-receipt"></i>
-                        <span>Expenses</span>
+                        <i class="fas fa-receipt nav-icon"></i>
+                        <span class="nav-text">Expenses</span>
                     </a>
                 </li>
                 {% endif %}
@@ -182,8 +182,8 @@
                 {% if current_user.can_access_cheques %}
                 <li class="nav-item">
                     <a href="{{ url_for('cheques.cheques') }}" class="nav-link {% if request.endpoint == 'cheques.cheques' %}active{% endif %}">
-                        <i class="fas fa-money-check"></i>
-                        <span>Cheques</span>
+                        <i class="fas fa-money-check nav-icon"></i>
+                        <span class="nav-text">Cheques</span>
                     </a>
                 </li>
                 {% endif %}
@@ -191,14 +191,14 @@
                 {% if current_user.can_access_settings %}
                 <li class="nav-item">
                     <a href="{{ url_for('settings.settings') }}" class="nav-link {% if request.endpoint == 'settings.settings' %}active{% endif %}">
-                        <i class="fas fa-cog"></i>
-                        <span>Settings</span>
+                        <i class="fas fa-cog nav-icon"></i>
+                        <span class="nav-text">Settings</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="{{ url_for('audit.audit_logs') }}" class="nav-link {% if request.endpoint == 'audit.audit_logs' %}active{% endif %}">
-                        <i class="fas fa-history"></i>
-                        <span>Audit Logs</span>
+                        <i class="fas fa-history nav-icon"></i>
+                        <span class="nav-text">Audit Logs</span>
                     </a>
                 </li>
                 {% endif %}
@@ -210,11 +210,7 @@
             {% if current_user.is_authenticated %}
             <div class="user-info">
                 <div class="user-avatar">
-                    {% if current_user.profile_picture %}
-                    <img src="{{ '/' + current_user.profile_picture }}" alt="{{ current_user.username }}" />
-                    {% else %}
                     <i class="fas fa-user"></i>
-                    {% endif %}
                 </div>
                 <div class="user-details">
                     <span class="user-name">{{ current_user.username }}</span>
@@ -236,8 +232,8 @@
             <div class="d-flex align-items-center justify-content-between w-100">
                 <!-- Left: Toggle & Search -->
                 <div class="d-flex align-items-center gap-4">
-                    <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
-                        <i class="fas fa-bars"></i>
+                    <button class="sidebar-toggle border-0 bg-transparent p-0 text-secondary" id="sidebarToggle">
+                        <i class="fas fa-bars fa-lg"></i>
                     </button>
                     
                     <div class="header-search d-none d-md-block position-relative">
@@ -250,8 +246,8 @@
                 <div class="d-flex align-items-center gap-4">
                     <!-- Real-time Clock -->
                     <div class="d-none d-lg-block text-end me-2">
-                        <div id="clockTime" class="fw-bold text-dark" style="font-size: 0.9rem; line-height: 1.1; letter-spacing: 0.2px;"></div>
-                        <div id="clockDate" class="text-muted" style="font-size: 0.7rem; line-height: 1; letter-spacing: 0.1px;"></div>
+                        <div id="clockTime" class="fw-bold text-dark" style="font-size: 0.95rem; line-height: 1.2; letter-spacing: 0.3px;"></div>
+                        <div id="clockDate" class="text-muted" style="font-size: 0.75rem; line-height: 1.2; letter-spacing: 0.2px;"></div>
                     </div>
 
                     <!-- Quick Nav Buttons -->
@@ -325,8 +321,8 @@
                                 </div>
                             {% endif %}
                             <div class="ms-3 d-none d-lg-block text-start">
-                                <div class="text-dark fw-bold" style="font-size: 0.85rem; letter-spacing: 0.1px;">{{ current_user.username }}</div>
-                                <div class="text-muted" style="font-size: 0.7rem; letter-spacing: 0.05px;">{{ current_user.role }}</div>
+                                <div class="text-dark fw-bold" style="font-size: 0.9rem; letter-spacing: 0.2px;">{{ current_user.username }}</div>
+                                <div class="text-muted" style="font-size: 0.75rem; letter-spacing: 0.1px;">{{ current_user.role }}</div>
                             </div>
                             <i class="fas fa-chevron-down ms-2 text-muted" style="font-size: 0.75rem;"></i>
                         </a>
@@ -361,7 +357,7 @@
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('settings.profile') }}"><i class="fas fa-user-circle me-2 text-muted"></i>My Profile</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('settings.settings') }}"><i class="fas fa-cog me-2 text-muted"></i>Settings</a></li>
-                            {% if current_user.role and current_user.role.lower() == 'super admin' %}
+                            {% if current_user.role == 'admin' %}
                             <li><a class="dropdown-item" href="{{ url_for('companies.companies') }}"><i class="fas fa-building me-2 text-muted"></i>Manage Companies</a></li>
                             {% endif %}
                             <li><hr class="dropdown-divider"></li>
@@ -517,8 +513,9 @@
             const sidebarCollapseBtn = document.getElementById('sidebarCollapse');
             if (sidebarCollapseBtn) {
                 sidebarCollapseBtn.addEventListener('click', function() {
+                    const sidebar = document.getElementById('sidebar');
                     sidebar.classList.toggle('collapsed');
-                    document.querySelector('.main-wrapper').classList.toggle('sidebar-collapsed');
+                    // Save state
                     localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
                 });
             }
@@ -534,6 +531,7 @@
                     .then(response => response.json())
                     .then(data => {
                         const newSymbol = data.currency_symbol || 'Rs. ';
+                        // Replace all instances of ₨ with the dynamic symbol
                         document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, td, div, li').forEach(element => {
                             if (element.textContent && element.textContent.includes('₨')) {
                                 element.innerHTML = element.innerHTML.replace(/₨/g, newSymbol);
@@ -558,17 +556,24 @@
                 if (dateEl) dateEl.textContent = dateString;
             }
             setInterval(updateClock, 1000);
-            updateClock();
+            updateClock(); // Initial call
         });
     </script>
 
     <!-- Global Timestamp Utility Functions -->
     <script>
+        /**
+         * Format a UTC timestamp to local timezone
+         * @param {string} timestamp - ISO timestamp string (with or without Z suffix)
+         * @param {boolean} includeTime - Whether to include time in output (default: true)
+         * @returns {string} Formatted datetime in DD/MM/YYYY HH:MM:SS format
+         */
         window.formatTimestamp = function(timestamp, includeTime = true) {
             if (!timestamp) return '-';
             
             try {
                 let dateStr = String(timestamp).trim();
+                // Ensure UTC marker
                 if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
                     dateStr += 'Z';
                 }
@@ -606,7 +611,12 @@
             }
         };
 
+        /**
+         * Format a date/time in table cells from API responses
+         * Converts .timestamp, .created_at, .updated_at, .date columns automatically
+         */
         window.formatTableTimestamps = function() {
+            // Find all elements with timestamp-like content
             document.querySelectorAll('[data-timestamp]').forEach(el => {
                 const timestamp = el.getAttribute('data-timestamp');
                 el.textContent = window.formatTimestamp(timestamp, true);
@@ -618,6 +628,9 @@
             });
         };
 
+        /**
+         * Format timestamps in dynamically loaded content
+         */
         window.formatDynamicTimestamps = function(container = document) {
             if (!container) container = document;
             
@@ -642,6 +655,7 @@
                     if (e.key === 'Enter' || this.value.length >= 2) {
                         const searchTerm = this.value.trim();
                         if (searchTerm) {
+                            // Navigate to inventory page with search
                             window.location.href = '/sales/sales?search=' + encodeURIComponent(searchTerm);
                         }
                     }
@@ -705,6 +719,7 @@
                             }
                         }
                         
+                        // Update badge
                         if (badge && data.count > 0) {
                             badge.textContent = data.count > 9 ? '9+' : data.count;
                             badge.style.display = 'inline-block';
@@ -719,7 +734,10 @@
                     });
             }
             
+            // Load notifications on page load
             loadNotifications();
+            
+            // Refresh notifications every 60 seconds
             setInterval(loadNotifications, 60000);
         });
         
