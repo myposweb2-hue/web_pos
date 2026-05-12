@@ -19,8 +19,10 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Custom CSS -->
     <link href="{{ url_for('static', filename='css/style.css', v='16.0.4') }}" rel="stylesheet">
-    <!-- Enhanced Responsive CSS - CLEAN VERSION -->
-    <link href="{{ url_for('static', filename='css/responsive.css', v='34.0.0') }}" rel="stylesheet">
+    <!-- Modern Responsive Sidebar CSS -->
+    <link href="{{ url_for('static', filename='css/sidebar-modern.css', v='1.0.0') }}" rel="stylesheet">
+    <!-- Modern Responsive Layout CSS -->
+    <link href="{{ url_for('static', filename='css/layout-modern.css', v='1.0.0') }}" rel="stylesheet">
     <style>
         /* Sticky Footer Layout */
         body {
@@ -57,28 +59,30 @@
         }
     </style>
 <body>
-    <!-- Sidebar -->
+    <!-- Modern Responsive Sidebar -->
     <aside class="sidebar" id="sidebar">
+        <!-- Sidebar Header -->
         <div class="sidebar-header">
             <a href="{{ url_for('main.dashboard') }}" class="brand">
                 <i class="fas fa-cash-register"></i>
                 <span class="brand-text">{{ app_name }}</span>
             </a>
             <div class="header-actions">
-                <button class="collapse-btn" id="sidebarCollapse" title="Toggle Sidebar">
+                <button class="collapse-btn" id="sidebarCollapse" type="button" title="Toggle Sidebar" aria-label="Collapse sidebar">
                     <i class="fas fa-angle-left"></i>
                 </button>
-                <button class="sidebar-close" id="sidebarClose" type="button" title="Close sidebar">
+                <button class="sidebar-close" id="sidebarClose" type="button" title="Close Sidebar" aria-label="Close sidebar">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
         </div>
-        
-        <nav class="sidebar-nav">
+
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar-nav" role="navigation">
             {% if current_user.is_authenticated %}
             <ul class="nav-list">
                 <li class="nav-item">
-                    <a href="{{ url_for('main.dashboard') }}" class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}">
+                    <a href="{{ url_for('main.dashboard') }}" class="nav-link {% if request.endpoint == 'main.dashboard' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-tachometer-alt nav-icon"></i>
                         <span class="nav-text">Dashboard</span>
                     </a>
@@ -86,7 +90,7 @@
 
                 {% if current_user.can_access_sales %}
                 <li class="nav-item">
-                    <a href="{{ url_for('sales.sales') }}" class="nav-link {% if request.endpoint == 'sales.sales' %}active{% endif %}">
+                    <a href="{{ url_for('sales.sales') }}" class="nav-link {% if request.endpoint == 'sales.sales' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-shopping-cart nav-icon"></i>
                         <span class="nav-text">Sales</span>
                     </a>
@@ -95,13 +99,13 @@
 
                 {% if current_user.can_view_sales_history %}
                 <li class="nav-item">
-                    <a href="{{ url_for('sales.sales_history') }}" class="nav-link {% if request.endpoint == 'sales.sales_history' %}active{% endif %}">
+                    <a href="{{ url_for('sales.sales_history') }}" class="nav-link {% if request.endpoint == 'sales.sales_history' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-history nav-icon"></i>
                         <span class="nav-text">Sales History</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('sales.returns') }}" class="nav-link {% if request.endpoint == 'sales.returns' %}active{% endif %}">
+                    <a href="{{ url_for('sales.returns') }}" class="nav-link {% if request.endpoint == 'sales.returns' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-undo-alt nav-icon"></i>
                         <span class="nav-text">Returns</span>
                     </a>
@@ -110,29 +114,29 @@
 
                 {% if current_user.can_view_inventory or current_user.can_access_warehouse %}
                 <li class="nav-item nav-dropdown {% if request.endpoint.startswith('inventory.') %}open{% endif %}">
-                    <a href="#" class="nav-link">
+                    <a href="#" class="nav-link" role="menuitem" aria-expanded="{% if request.endpoint.startswith('inventory.') %}true{% else %}false{% endif %}">
                         <i class="fas fa-warehouse nav-icon"></i>
                         <span class="nav-text">Inventory</span>
                         <i class="fas fa-chevron-down nav-arrow"></i>
                     </a>
-                    <ul class="nav-dropdown-menu">
+                    <ul class="nav-dropdown-menu" role="menu">
                         {% if current_user.can_view_inventory %}
-                        <li>
-                            <a href="{{ url_for('inventory.inventory') }}" class="nav-dropdown-link {% if request.endpoint == 'inventory.inventory' %}active{% endif %}">
+                        <li role="none">
+                            <a href="{{ url_for('inventory.inventory') }}" class="nav-dropdown-link {% if request.endpoint == 'inventory.inventory' %}active{% endif %}" role="menuitem">
                                 <i class="fas fa-box nav-icon"></i>
                                 <span class="nav-text">Products</span>
                             </a>
                         </li>
                         {% endif %}
                         {% if current_user.can_access_warehouse %}
-                        <li>
-                            <a href="{{ url_for('inventory.warehouse') }}" class="nav-dropdown-link {% if request.endpoint == 'inventory.warehouse' %}active{% endif %}">
+                        <li role="none">
+                            <a href="{{ url_for('inventory.warehouse') }}" class="nav-dropdown-link {% if request.endpoint == 'inventory.warehouse' %}active{% endif %}" role="menuitem">
                                 <i class="fas fa-boxes nav-icon"></i>
                                 <span class="nav-text">Warehouse Stock</span>
                             </a>
                         </li>
-                        <li>
-                            <a href="{{ url_for('inventory.warehouses') }}" class="nav-dropdown-link {% if request.endpoint == 'inventory.warehouses' %}active{% endif %}">
+                        <li role="none">
+                            <a href="{{ url_for('inventory.warehouses') }}" class="nav-dropdown-link {% if request.endpoint == 'inventory.warehouses' %}active{% endif %}" role="menuitem">
                                 <i class="fas fa-warehouse nav-icon"></i>
                                 <span class="nav-text">Manage Warehouses</span>
                             </a>
@@ -144,20 +148,20 @@
 
                 {% if current_user.can_access_purchases %}
                 <li class="nav-item nav-dropdown {% if request.endpoint.startswith('purchases.') %}open{% endif %}">
-                    <a href="#" class="nav-link">
+                    <a href="#" class="nav-link" role="menuitem" aria-expanded="{% if request.endpoint.startswith('purchases.') %}true{% else %}false{% endif %}">
                         <i class="fas fa-dolly nav-icon"></i>
                         <span class="nav-text">Purchases</span>
                         <i class="fas fa-chevron-down nav-arrow"></i>
                     </a>
-                    <ul class="nav-dropdown-menu">
-                        <li>
-                            <a href="{{ url_for('purchases.purchases') }}" class="nav-dropdown-link {% if request.endpoint == 'purchases.purchases' %}active{% endif %}">
+                    <ul class="nav-dropdown-menu" role="menu">
+                        <li role="none">
+                            <a href="{{ url_for('purchases.purchases') }}" class="nav-dropdown-link {% if request.endpoint == 'purchases.purchases' %}active{% endif %}" role="menuitem">
                                 <i class="fas fa-shopping-basket nav-icon"></i>
                                 <span class="nav-text">Purchases</span>
                             </a>
                         </li>
-                        <li>
-                            <a href="{{ url_for('purchases.purchase_returns') }}" class="nav-dropdown-link {% if request.endpoint == 'purchases.purchase_returns' %}active{% endif %}">
+                        <li role="none">
+                            <a href="{{ url_for('purchases.purchase_returns') }}" class="nav-dropdown-link {% if request.endpoint == 'purchases.purchase_returns' %}active{% endif %}" role="menuitem">
                                 <i class="fas fa-truck-loading nav-icon"></i>
                                 <span class="nav-text">Purchase Returns</span>
                             </a>
@@ -168,7 +172,7 @@
 
                 {% if current_user.can_access_customers %}
                 <li class="nav-item">
-                    <a href="{{ url_for('customers.customers') }}" class="nav-link {% if request.endpoint == 'customers.customers' %}active{% endif %}">
+                    <a href="{{ url_for('customers.customers') }}" class="nav-link {% if request.endpoint == 'customers.customers' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-users nav-icon"></i>
                         <span class="nav-text">Customers</span>
                     </a>
@@ -177,7 +181,7 @@
 
                 {% if current_user.can_access_suppliers %}
                 <li class="nav-item">
-                    <a href="{{ url_for('suppliers.suppliers') }}" class="nav-link {% if request.endpoint == 'suppliers.suppliers' %}active{% endif %}">
+                    <a href="{{ url_for('suppliers.suppliers') }}" class="nav-link {% if request.endpoint == 'suppliers.suppliers' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-truck nav-icon"></i>
                         <span class="nav-text">Suppliers</span>
                     </a>
@@ -186,7 +190,7 @@
 
                 {% if current_user.can_view_reports %}
                 <li class="nav-item">
-                    <a href="{{ url_for('reports.reports') }}" class="nav-link {% if request.endpoint == 'reports.reports' %}active{% endif %}">
+                    <a href="{{ url_for('reports.reports') }}" class="nav-link {% if request.endpoint == 'reports.reports' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-chart-bar nav-icon"></i>
                         <span class="nav-text">Reports</span>
                     </a>
@@ -195,7 +199,7 @@
 
                 {% if current_user.can_access_expenses %}
                 <li class="nav-item">
-                    <a href="{{ url_for('expenses.expenses') }}" class="nav-link {% if request.endpoint == 'expenses.expenses' %}active{% endif %}">
+                    <a href="{{ url_for('expenses.expenses') }}" class="nav-link {% if request.endpoint == 'expenses.expenses' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-receipt nav-icon"></i>
                         <span class="nav-text">Expenses</span>
                     </a>
@@ -204,7 +208,7 @@
 
                 {% if current_user.can_access_cheques %}
                 <li class="nav-item">
-                    <a href="{{ url_for('cheques.cheques') }}" class="nav-link {% if request.endpoint == 'cheques.cheques' %}active{% endif %}">
+                    <a href="{{ url_for('cheques.cheques') }}" class="nav-link {% if request.endpoint == 'cheques.cheques' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-money-check nav-icon"></i>
                         <span class="nav-text">Cheques</span>
                     </a>
@@ -213,13 +217,13 @@
 
                 {% if current_user.can_access_settings %}
                 <li class="nav-item">
-                    <a href="{{ url_for('settings.settings') }}" class="nav-link {% if request.endpoint == 'settings.settings' %}active{% endif %}">
+                    <a href="{{ url_for('settings.settings') }}" class="nav-link {% if request.endpoint == 'settings.settings' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-cog nav-icon"></i>
                         <span class="nav-text">Settings</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a href="{{ url_for('audit.audit_logs') }}" class="nav-link {% if request.endpoint == 'audit.audit_logs' %}active{% endif %}">
+                    <a href="{{ url_for('audit.audit_logs') }}" class="nav-link {% if request.endpoint == 'audit.audit_logs' %}active{% endif %}" role="menuitem">
                         <i class="fas fa-history nav-icon"></i>
                         <span class="nav-text">Audit Logs</span>
                     </a>
@@ -228,19 +232,24 @@
             </ul>
             {% endif %}
         </nav>
-        
+
+        <!-- Sidebar Footer - User Profile -->
         <div class="sidebar-footer">
             {% if current_user.is_authenticated %}
             <div class="user-info">
                 <div class="user-avatar">
+                    {% if current_user.profile_picture %}
+                    <img src="{{ '/' + current_user.profile_picture }}" alt="{{ current_user.username }}" />
+                    {% else %}
                     <i class="fas fa-user"></i>
+                    {% endif %}
                 </div>
                 <div class="user-details">
                     <span class="user-name">{{ current_user.username }}</span>
                     <span class="user-role">{{ current_user.role }}</span>
                 </div>
             </div>
-            <a href="{{ url_for('auth.logout') }}" class="logout-btn">
+            <a href="{{ url_for('auth.logout') }}" class="logout-btn" role="menuitem">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
             </a>
@@ -248,10 +257,10 @@
         </div>
     </aside>
 
-    <!-- Sidebar Overlay for Mobile/Tablet -->
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <!-- Sidebar Overlay (Mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
-    <!-- Main Content -->
+    <!-- Main Content Wrapper -->
     <div class="main-wrapper">
         <!-- Top Header -->
         <header class="top-header">
@@ -493,6 +502,8 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Modern Sidebar System -->
+    <script src="{{ url_for('static', filename='js/sidebar-modern.js', v='1.0.0') }}"></script>
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js', v='13.0.1') }}"></script>
     
