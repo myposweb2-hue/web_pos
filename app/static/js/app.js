@@ -747,50 +747,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Sidebar Visibility Toggle Handler
-    // ============================================
-    const sidebarVisibilityToggle = document.getElementById('sidebarVisibilityToggle');
-    // Note: `sidebar` already declared in sidebarToggle handler above
-    // Using existing: const sidebar = document.getElementById('sidebar');
-    
-    if (sidebarVisibilityToggle && sidebar && mainWrapper) {
-        // Restore state on page load (before anything else)
-        if (localStorage.getItem('sidebarHidden') === 'true') {
-            sidebar.classList.add('sidebar-hidden');
-            mainWrapper.classList.add('sidebar-hidden');
-            const icon = sidebarVisibilityToggle.querySelector('i');
-            if (icon) {
-                icon.classList.remove('fa-chevron-left');
-                icon.classList.add('fa-chevron-right');
-            }
-        }
-        
-        sidebarVisibilityToggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // Toggle hidden class on sidebar
-            sidebar.classList.toggle('sidebar-hidden');
-            mainWrapper.classList.toggle('sidebar-hidden');
-            
-            // Update icon
-            const icon = sidebarVisibilityToggle.querySelector('i');
-            if (icon) {
-                if (sidebar.classList.contains('sidebar-hidden')) {
-                    icon.classList.remove('fa-chevron-left');
-                    icon.classList.add('fa-chevron-right');
-                    // Save state
-                    localStorage.setItem('sidebarHidden', 'true');
-                } else {
-                    icon.classList.remove('fa-chevron-right');
-                    icon.classList.add('fa-chevron-left');
-                    // Save state
-                    localStorage.setItem('sidebarHidden', 'false');
-                }
-            }
-        });
-    }
-    
     // Initialize on page load
     initializeSidebarForDevice();
     updateCloseButtonVisibility();
