@@ -12,6 +12,14 @@
         display: block !important;
     }
     
+    .collapse-btn {
+        display: none !important;
+    }
+    
+    .header-search {
+        display: none !important;
+    }
+    
     .sidebar {
         position: fixed !important;
         top: var(--header-height) !important;
@@ -25,6 +33,7 @@
         border: none !important;
         visibility: visible !important;
         opacity: 1 !important;
+        pointer-events: auto !important;
     }
     
     .sidebar.collapsed {
@@ -35,6 +44,7 @@
     /* Show sidebar when toggle is pressed */
     .sidebar.show {
         transform: translateX(0) !important;
+        pointer-events: auto !important;
     }
     
     .sidebar-close {
@@ -53,6 +63,7 @@
         visibility: hidden !important;
         opacity: 0 !important;
         transition: opacity 0.3s ease, visibility 0.3s ease !important;
+        pointer-events: none !important;
     }
     
     .sidebar-overlay.show {
