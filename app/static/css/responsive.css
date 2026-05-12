@@ -15,30 +15,26 @@
     .sidebar {
         position: fixed !important;
         top: var(--header-height) !important;
-        left: -280px !important;
+        left: 0 !important;
         width: 280px !important;
         height: calc(100vh - var(--header-height)) !important;
         z-index: 1050 !important;
-        transition: left 0.3s ease !important;
-        transform: none !important;
+        transition: transform 0.3s ease !important;
+        transform: translateX(-280px) !important;
         margin: 0 !important;
         border: none !important;
-    }
-    
-    /* Hide sidebar by default */
-    .sidebar {
         visibility: visible !important;
         opacity: 1 !important;
     }
     
     .sidebar.collapsed {
         width: 280px !important;
-        left: -280px !important;
+        transform: translateX(-280px) !important;
     }
     
     /* Show sidebar when toggle is pressed */
     .sidebar.show {
-        left: 0 !important;
+        transform: translateX(0) !important;
     }
     
     .sidebar-close {
@@ -150,22 +146,22 @@
     .sidebar {
         position: fixed !important;
         top: var(--header-height) !important;
-        left: -280px !important;
+        left: 0 !important;
         width: 280px !important;
         height: calc(100vh - var(--header-height)) !important;
         z-index: 1050 !important;
-        transition: left 0.3s ease !important;
-        transform: none !important;
+        transition: transform 0.3s ease !important;
+        transform: translateX(-280px) !important;
     }
     
     /* Override collapsed state on mobile */
     .sidebar.collapsed {
         width: 280px !important;
-        left: -280px !important;
+        transform: translateX(-280px) !important;
     }
     
     .sidebar.show {
-        left: 0 !important;
+        transform: translateX(0) !important;
     }
     
     .sidebar-close {
@@ -225,22 +221,22 @@
     .sidebar {
         position: fixed !important;
         top: var(--header-height) !important;
-        left: -280px !important;
+        left: 0 !important;
         width: 280px !important;
         height: calc(100vh - var(--header-height)) !important;
         z-index: 1050 !important;
-        transition: left 0.3s ease !important;
-        transform: none !important;
+        transition: transform 0.3s ease !important;
+        transform: translateX(-280px) !important;
     }
     
     /* Override collapsed state on mobile */
     .sidebar.collapsed {
         width: 280px !important;
-        left: -280px !important;
+        transform: translateX(-280px) !important;
     }
     
     .sidebar.show {
-        left: 0 !important;
+        transform: translateX(0) !important;
     }
     
     .sidebar-close {
@@ -300,22 +296,22 @@
     .sidebar {
         position: fixed !important;
         top: var(--header-height) !important;
-        left: -280px !important;
+        left: 0 !important;
         width: 280px !important;
         height: calc(100vh - var(--header-height)) !important;
         z-index: 1050 !important;
-        transition: left 0.3s ease !important;
-        transform: none !important;
+        transition: transform 0.3s ease !important;
+        transform: translateX(-280px) !important;
     }
     
     /* Override collapsed state on mobile */
     .sidebar.collapsed {
         width: 280px !important;
-        left: -280px !important;
+        transform: translateX(-280px) !important;
     }
     
     .sidebar.show {
-        left: 0 !important;
+        transform: translateX(0) !important;
     }
     
     .sidebar-close {
