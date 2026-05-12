@@ -42,10 +42,10 @@
 
 
 /* ============================================
-   TABLET LANDSCAPE (768px - 1199px)
+   TABLET LANDSCAPE (990px - 1199px)
    Sidebar always visible, flexbox layout
    ============================================ */
-@media (min-width: 768px) and (max-width: 1199px) {
+@media (min-width: 990px) and (max-width: 1199px) {
     body {
         display: flex;
         flex-direction: row;
@@ -74,6 +74,55 @@
         flex: 1;
         margin-left: 0 !important;
         overflow-y: auto;
+    }
+}
+
+/* ============================================
+   TABLET PORTRAIT & SMALL TABLET (768px - 989px)
+   Sidebar drawer overlay (hidden by default)
+   ============================================ */
+@media (min-width: 768px) and (max-width: 989px) {
+    body {
+        display: block;
+    }
+    
+    .sidebar {
+        position: fixed !important;
+        top: 56px !important;
+        left: -280px !important;
+        width: 280px !important;
+        height: calc(100vh - 56px) !important;
+        z-index: 1050 !important;
+        transition: left 0.3s ease !important;
+    }
+    
+    .sidebar.show {
+        left: 0 !important;
+    }
+    
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 56px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1040;
+    }
+    
+    .sidebar-overlay.show {
+        display: block;
+    }
+    
+    .main-wrapper {
+        width: 100%;
+        margin-left: 0;
+    }
+    
+    .main-content {
+        margin-left: 0 !important;
+        width: 100%;
     }
 }
 
@@ -196,6 +245,19 @@
     /* Hide sidebar close button on large screens */
     .sidebar-close {
         display: block !important;
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font-size: 20px;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+    }
+    
+    .sidebar-close:hover {
+        background: var(--bg-sidebar-hover);
+        color: var(--text-light);
     }
     
     /* Sidebar navigation - ensure items are visible and clickable */
