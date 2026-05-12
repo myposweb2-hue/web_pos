@@ -753,7 +753,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const topHeader = document.querySelector('.top-header');
     const mainWrapper = document.querySelector('.main-wrapper');
     
-    if (navbarToggle) {
+    if (navbarToggle && topHeader && mainWrapper) {
         navbarToggle.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -786,9 +786,6 @@ document.addEventListener('DOMContentLoaded', function() {
             icon.classList.add('fa-chevron-down');
         }
     }
-            closeSidebar();
-        }
-    });
     
     // Initialize on page load
     initializeSidebarForDevice();
