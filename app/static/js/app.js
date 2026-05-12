@@ -742,6 +742,46 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('resize', function() {
         updateCloseButtonVisibility();
         initializeSidebarForDevice();
+    // Navbar Toggle Handler
+    // ============================================
+    const navbarToggle = document.getElementById('navbarToggle');
+    const topHeader = document.querySelector('.top-header');
+    const mainWrapper = document.querySelector('.main-wrapper');
+    
+    if (navbarToggle) {
+        navbarToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Toggle collapsed class on navbar
+            topHeader.classList.toggle('collapsed');
+            mainWrapper.classList.toggle('navbar-collapsed');
+            
+            // Update icon
+            const icon = navbarToggle.querySelector('i');
+            if (topHeader.classList.contains('collapsed')) {
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+                // Save state
+                localStorage.setItem('navbarCollapsed', 'true');
+            } else {
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+                // Save state
+                localStorage.setItem('navbarCollapsed', 'false');
+            }
+        });
+        
+        // Restore state on page load
+        if (localStorage.getItem('navbarCollapsed') === 'true') {
+            topHeader.classList.add('collapsed');
+            mainWrapper.classList.add('navbar-collapsed');
+            const icon = navbarToggle.querySelector('i');
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        }
+    }
+
         if (window.innerWidth > 989) {
             closeSidebar();
         }

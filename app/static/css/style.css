@@ -375,6 +375,15 @@ body {
     line-height: 1;
     min-height: 64px;
     flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+/* Navbar collapsed state - hide all content inside */
+.top-header.collapsed {
+    height: 0;
+    padding: 0;
+    border-bottom: none;
+    overflow: hidden;
 }
 
 .sidebar-toggle {

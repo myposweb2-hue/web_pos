@@ -52,6 +52,12 @@
         margin-left: 0;
         padding-top: 0;
     }
+    
+    /* Adjust sidebar when navbar is collapsed */
+    .main-wrapper.navbar-collapsed .sidebar {
+        top: 0 !important;
+        height: 100vh !important;
+    }
 }
 
 /* Desktop (>= 1200px): Sidebar always visible */
