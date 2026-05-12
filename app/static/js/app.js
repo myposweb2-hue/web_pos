@@ -651,6 +651,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sidebar Toggle Handler
     // ============================================
     const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarCollapse = document.getElementById('sidebarCollapse');
     const sidebarClose = document.getElementById('sidebarClose');
     const sidebar = document.getElementById('sidebar');
     
@@ -711,6 +712,17 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             e.stopPropagation();
             closeSidebar();
+        });
+    }
+    
+    // Collapse button (desktop) - toggle collapsed state
+    if (sidebarCollapse) {
+        sidebarCollapse.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (window.innerWidth > 989) {
+                sidebar.classList.toggle('collapsed');
+            }
         });
     }
     
