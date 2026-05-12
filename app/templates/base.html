@@ -34,7 +34,6 @@
             overflow-y: auto;
         }
     </style>
-</head>
 <body>
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
@@ -226,6 +225,9 @@
             {% endif %}
         </div>
     </aside>
+
+    <!-- Sidebar Overlay for Mobile/Tablet -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
     <!-- Main Content -->
     <div class="main-wrapper">
@@ -473,23 +475,10 @@
     <script src="{{ url_for('static', filename='js/app.js', v='11.0.0') }}"></script>
     
     <script>
-        // Sidebar collapse toggle (desktop)
+        // NOTE: Sidebar collapse handler is in app.js to avoid duplication
+        // All sidebar toggle/close logic is managed centrally in app.js
+        
         document.addEventListener('DOMContentLoaded', function() {
-            const sidebarCollapseBtn = document.getElementById('sidebarCollapse');
-            if (sidebarCollapseBtn) {
-                sidebarCollapseBtn.addEventListener('click', function() {
-                    const sidebar = document.getElementById('sidebar');
-                    sidebar.classList.toggle('collapsed');
-                    // Save state
-                    localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
-                });
-            }
-            
-            // Load saved state
-            if (localStorage.getItem('sidebarCollapsed') === 'true') {
-                document.getElementById('sidebar').classList.add('collapsed');
-            }
-
             // Load and replace currency symbols globally
             function replaceCurrencySymbols() {
                 fetch('/api/currency-symbol')
