@@ -370,6 +370,7 @@ body {
     top: 0;
     z-index: 100;
     box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+    margin: 0 !important;
 }
 
 .sidebar-toggle {
@@ -682,10 +683,12 @@ body {
     flex: 1;
     padding: 0 var(--content-padding) var(--content-padding) var(--content-padding);
     overflow-y: auto;
+    margin: 0 !important;
 }
 
 .main-content > * {
     margin-top: 0 !important;
+    margin-bottom: 0 !important;
 }
 
 .main-content > .alert {
@@ -700,6 +703,8 @@ body {
 .main-content .container,
 .main-content .container-fluid {
     padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin: 0 !important;
 }
 
 /* ============================================
@@ -1157,6 +1162,10 @@ body {
     /* Mobile/tablet responsive handled by responsive.css */
     .sidebar-toggle {
         display: flex;
+    }
+    
+    .collapse-btn {
+        display: none !important;
     }
     
     .header-search {
