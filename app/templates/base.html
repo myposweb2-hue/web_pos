@@ -476,21 +476,26 @@
     
     <script>
         // Sidebar Toggle Functionality
-        document.addEventListener('DOMContentLoaded', function() {
+        function initSidebarToggle() {
             const sidebar = document.getElementById('sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarClose = document.getElementById('sidebarClose');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
             
+            if (!sidebar || !sidebarToggle) {
+                console.warn('Sidebar elements not found');
+                return;
+            }
+            
             function openSidebar() {
                 sidebar.classList.add('open');
-                sidebarOverlay.classList.add('active');
+                if (sidebarOverlay) sidebarOverlay.classList.add('active');
                 document.body.style.overflow = 'hidden';
             }
             
             function closeSidebar() {
                 sidebar.classList.remove('open');
-                sidebarOverlay.classList.remove('active');
+                if (sidebarOverlay) sidebarOverlay.classList.remove('active');
                 document.body.style.overflow = '';
             }
             
@@ -502,27 +507,32 @@
                 }
             }
             
-            if (sidebarToggle) {
-                sidebarToggle.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    toggleSidebar();
-                });
-            }
+            // Remove any existing listeners
+            const newSidebarToggle = sidebarToggle.cloneNode(true);
+            sidebarToggle.parentNode.replaceChild(newSidebarToggle, sidebarToggle);
+            
+            // Add fresh event listeners
+            newSidebarToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleSidebar();
+            }, false);
             
             if (sidebarClose) {
-                sidebarClose.addEventListener('click', function(e) {
+                const newSidebarClose = sidebarClose.cloneNode(true);
+                sidebarClose.parentNode.replaceChild(newSidebarClose, sidebarClose);
+                newSidebarClose.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     closeSidebar();
-                });
+                }, false);
             }
             
             if (sidebarOverlay) {
                 sidebarOverlay.addEventListener('click', function(e) {
                     e.preventDefault();
                     closeSidebar();
-                });
+                }, false);
             }
             
             // Close sidebar on window resize if width > 992px
@@ -546,8 +556,27 @@
             if (localStorage.getItem('sidebarCollapsed') === 'true') {
                 document.getElementById('sidebar').classList.add('collapsed');
             }
+        }
+        
+        // Initialize on DOMContentLoaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSidebarToggle);
+        } else {
+            initSidebarToggle();
+        }
+        
+        // Re-initialize after page transitions (for AJAX pages)
+        let initCount = 0;
+        const reInitInterval = setInterval(function() {
+            if (initCount === 0) {
+                initSidebarToggle();
+                initCount++;
+            }
+        }, 100);
+        setTimeout(() => clearInterval(reInitInterval), 1000);
 
-            // Load and replace currency symbols globally
+        // Load and replace currency symbols globally
+        document.addEventListener('DOMContentLoaded', function() {
             function replaceCurrencySymbols() {
                 fetch('/api/currency-symbol')
                     .then(response => response.json())
