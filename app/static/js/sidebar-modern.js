@@ -224,9 +224,10 @@ class ModernSidebar {
         dropdowns?.forEach(dropdown => {
             dropdown.addEventListener('click', (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 
                 const parent = dropdown.closest('.nav-dropdown');
-                const wasOpen = parent?.classList.contains('open');
+                if (!parent) return;
                 
                 // Close all other dropdowns
                 this.sidebar?.querySelectorAll('.nav-dropdown.open').forEach(open => {
@@ -235,10 +236,8 @@ class ModernSidebar {
                     }
                 });
                 
-                // Toggle current
-                if (parent) {
-                    parent.classList.toggle('open');
-                }
+                // Toggle current dropdown
+                parent.classList.toggle('open');
             });
         });
         
