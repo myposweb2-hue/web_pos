@@ -648,56 +648,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // ============================================
     // Sidebar Toggle Handler
-    // ============================================
-    // Basic sidebar open/close functionality
+    // Simple toggle functionality
     const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarCollapse = document.getElementById('sidebarCollapse');
-    const sidebarClose = document.getElementById('sidebarClose');
     const sidebar = document.getElementById('sidebar');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    const mainWrapper = document.querySelector('.main-wrapper');
     
-    console.log('Sidebar elements:', { sidebarToggle, sidebar, sidebarOverlay, sidebarClose });
-    
-    if (sidebarToggle) {
-        console.log('Sidebar toggle button found, adding click listener');
+    if (sidebarToggle && sidebar) {
         sidebarToggle.addEventListener('click', function(e) {
             e.preventDefault();
-            console.log('Toggle clicked');
-            if (sidebar) {
-                sidebar.classList.toggle('open');
-                console.log('Sidebar open:', sidebar.classList.contains('open'));
-            }
-            if (sidebarOverlay) {
-                sidebarOverlay.classList.toggle('active');
-            }
+            sidebar.classList.toggle('collapsed');
         });
-    } else {
-        console.warn('Sidebar toggle button not found in DOM');
-    }
-    
-    if (sidebarClose) {
-        sidebarClose.addEventListener('click', function() {
-            if (sidebar) {
-                sidebar.classList.remove('open');
-            }
-            if (sidebarOverlay) {
-                sidebarOverlay.classList.remove('active');
-            }
-        });
-    }
-    
-    if (sidebarOverlay) {
-        sidebarOverlay.addEventListener('click', function() {
-            if (sidebar) {
-                sidebar.classList.remove('open');
-            }
-            sidebarOverlay.classList.remove('active');
-        });
-    }
-    
-    // Disable collapse button styling (should not be visible in original)
-    if (sidebarCollapse) {
-        sidebarCollapse.style.display = 'none';
     }
 })();
