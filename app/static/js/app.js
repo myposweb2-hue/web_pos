@@ -754,6 +754,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const mainWrapper = document.querySelector('.main-wrapper');
     
     if (navbarToggle && topHeader && mainWrapper) {
+        // Restore state on page load (before anything else)
+        if (localStorage.getItem('navbarCollapsed') === 'true') {
+            topHeader.classList.add('collapsed');
+            mainWrapper.classList.add('navbar-collapsed');
+            const icon = navbarToggle.querySelector('i');
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        }
+        
         navbarToggle.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -776,15 +785,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 localStorage.setItem('navbarCollapsed', 'false');
             }
         });
-        
-        // Restore state on page load
-        if (localStorage.getItem('navbarCollapsed') === 'true') {
-            topHeader.classList.add('collapsed');
-            mainWrapper.classList.add('navbar-collapsed');
-            const icon = navbarToggle.querySelector('i');
-            icon.classList.remove('fa-chevron-up');
-            icon.classList.add('fa-chevron-down');
-        }
     }
     
     // Initialize on page load
