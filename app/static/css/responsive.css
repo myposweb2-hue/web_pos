@@ -39,7 +39,7 @@
     .sidebar-overlay {
         display: none !important;
         position: fixed;
-        top: 0;
+        top: var(--header-height);
         left: 0;
         right: 0;
         bottom: 0;
@@ -274,10 +274,16 @@
 }
 
 /* Mobile (< 480px): Sidebar drawer */
-@media (max-width: 480px) {    .sidebar-toggle {
+@media (max-width: 480px) {
+    :root {
+        --header-height: var(--header-height-mobile);
+    }
+    
+    .sidebar-toggle {
         display: block !important;
     }
-        .sidebar {
+    
+    .sidebar {
         position: fixed !important;
         top: var(--header-height) !important;
         left: -280px !important;

@@ -701,8 +701,16 @@ document.addEventListener('DOMContentLoaded', function() {
         sidebarToggle.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            console.log('🔧 Toggle button clicked');
+            console.log('📍 Sidebar before toggle:', sidebar.className);
+            console.log('📍 Sidebar position:', window.getComputedStyle(sidebar).left);
             toggleSidebar();
+            console.log('📍 Sidebar after toggle:', sidebar.className);
+            console.log('📍 Sidebar position after:', window.getComputedStyle(sidebar).left);
+            console.log('📍 Overlay has show class:', overlay.classList.contains('show'));
         });
+    } else {
+        console.warn('⚠️ sidebarToggle button not found!');
     }
     
     // Close button (X) click
