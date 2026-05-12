@@ -684,13 +684,22 @@ body {
     overflow-y: auto;
 }
 
-.main-content > *:first-child {
+.main-content > * {
     margin-top: 0 !important;
 }
 
-/* Remove extra spacing from alerts */
-.main-content .alert {
-    margin: 0 0 16px 0 !important;
+.main-content > .alert {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 16px !important;
+    border-radius: 0;
+}
+
+.main-container,
+.main-content .container,
+.main-content .container-fluid {
+    padding-top: 0 !important;
 }
 
 /* ============================================
