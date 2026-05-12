@@ -654,6 +654,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const sidebarClose = document.getElementById('sidebarClose');
     const sidebar = document.getElementById('sidebar');
     
+    console.log('Sidebar JS Loaded:', {
+        sidebarToggle: !!sidebarToggle,
+        sidebarClose: !!sidebarClose, 
+        sidebar: !!sidebar,
+        windowWidth: window.innerWidth
+    });
+    
     // Create overlay if it doesn't exist
     let overlay = document.querySelector('.sidebar-overlay');
     if (!overlay) {
@@ -666,8 +673,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (sidebarToggle) {
         sidebarToggle.addEventListener('click', function(e) {
             e.preventDefault();
+            console.log('Hamburger clicked, show class:', sidebar.classList.contains('show'));
             sidebar.classList.toggle('show');
             overlay.classList.toggle('show');
+            console.log('After toggle, show class:', sidebar.classList.contains('show'));
         });
     }
     
@@ -675,6 +684,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (sidebarClose) {
         sidebarClose.addEventListener('click', function(e) {
             e.preventDefault();
+            console.log('Close button clicked');
             sidebar.classList.remove('show');
             overlay.classList.remove('show');
         });
@@ -682,6 +692,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Close sidebar when clicking overlay
     overlay.addEventListener('click', function() {
+        console.log('Overlay clicked');
         sidebar.classList.remove('show');
         overlay.classList.remove('show');
     });
@@ -691,6 +702,7 @@ document.addEventListener('DOMContentLoaded', function() {
     navLinks.forEach(link => {
         link.addEventListener('click', function() {
             if (window.innerWidth <= 767) {
+                console.log('Nav link clicked on mobile');
                 sidebar.classList.remove('show');
                 overlay.classList.remove('show');
             }

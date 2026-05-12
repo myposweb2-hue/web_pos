@@ -116,10 +116,12 @@
         height: calc(100vh - 56px) !important;
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
+        visibility: visible;
     }
     
     .sidebar.show {
         left: 0 !important;
+        visibility: visible !important;
     }
     
     /* Show close button on tablet */
@@ -185,10 +187,12 @@
         height: calc(100vh - 56px) !important;
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
+        visibility: visible;
     }
     
     .sidebar.show {
         left: 0 !important;
+        visibility: visible !important;
     }
     
     .sidebar-overlay {
@@ -234,10 +238,12 @@
         height: calc(100vh - 48px) !important;
         z-index: 1050 !important;
         transition: left 0.3s ease !important;
+        visibility: visible;
     }
     
     .sidebar.show {
         left: 0 !important;
+        visibility: visible !important;
     }
     
     .sidebar-overlay {
