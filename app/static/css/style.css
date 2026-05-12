@@ -85,7 +85,22 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 1000;
-    transition: left 0.3s ease;
+    transition: left 0.3s ease, width 0.3s ease, opacity 0.3s ease;
+}
+
+/* Sidebar hidden state */
+.sidebar.sidebar-hidden {
+    width: 0 !important;
+    left: -280px !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Adjust main content when sidebar is hidden */
+.main-wrapper.sidebar-hidden .main-content {
+    margin-left: 0;
+    padding-left: 0;
 }
 
 .sidebar-header {
@@ -376,35 +391,6 @@ body {
     min-height: 64px;
     flex-shrink: 0;
     transition: all 0.3s ease;
-}
-
-/* Navbar collapsed state - hide all content but keep structure for button */
-.top-header.collapsed {
-    height: 0 !important;
-    min-height: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    overflow: hidden !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    box-shadow: none !important;
-}
-
-/* Hide all navbar children when collapsed */
-.top-header.collapsed > div,
-.top-header.collapsed .d-flex,
-.top-header.collapsed .header-search,
-.top-header.collapsed .quick-nav-buttons,
-.top-header.collapsed .btn-primary,
-.top-header.collapsed .vr,
-.top-header.collapsed .header-actions-btn,
-.top-header.collapsed .dropdown {
-    display: none !important;
-}
-
-/* Ensure sidebar adjusts */
-.main-wrapper.navbar-collapsed .sidebar {
-    top: 0 !important;
 }
 
 .sidebar-toggle {

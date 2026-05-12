@@ -36,16 +36,6 @@
             padding: 0;
         }
         
-        /* When navbar is collapsed, adjust main content */
-        .main-wrapper.navbar-collapsed {
-            padding-top: 0;
-        }
-        
-        .main-wrapper.navbar-collapsed .main-content {
-            margin-top: 0 !important;
-            padding-top: 0 !important;
-        }
-        
         .main-content {
             flex: 1;
             overflow-y: auto;
@@ -259,18 +249,17 @@
 
     <!-- Main Content -->
     <div class="main-wrapper">
-        <!-- Navbar Toggle Button - Positioned fixed so it's always visible -->
-        <button class="border-0 bg-transparent p-0 text-secondary" id="navbarToggle" title="Hide/Show Navbar" style="position: fixed; top: 12px; left: 60px; z-index: 1001; font-size: 20px; cursor: pointer;">
-            <i class="fas fa-chevron-up fa-lg"></i>
-        </button>
-        
         <!-- Top Header -->
         <header class="top-header">
             <div class="d-flex align-items-center justify-content-between w-100">
                 <!-- Left: Toggle & Search -->
                 <div class="d-flex align-items-center gap-4">
-                    <button class="sidebar-toggle border-0 bg-transparent p-0 text-secondary" id="sidebarToggle">
+                    <button class="sidebar-toggle border-0 bg-transparent p-0 text-secondary" id="sidebarToggle" title="Toggle Sidebar">
                         <i class="fas fa-bars fa-lg"></i>
+                    </button>
+                    
+                    <button class="border-0 bg-transparent p-0 text-secondary" id="sidebarVisibilityToggle" title="Hide/Show Sidebar">
+                        <i class="fas fa-chevron-left fa-lg"></i>
                     </button>
                     
                     <div class="header-search d-none d-md-block position-relative">

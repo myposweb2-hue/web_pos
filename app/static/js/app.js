@@ -747,42 +747,42 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Navbar Toggle Handler
+    // Sidebar Visibility Toggle Handler
     // ============================================
-    const navbarToggle = document.getElementById('navbarToggle');
-    const topHeader = document.querySelector('.top-header');
+    const sidebarVisibilityToggle = document.getElementById('sidebarVisibilityToggle');
+    const sidebar = document.getElementById('sidebar');
     const mainWrapper = document.querySelector('.main-wrapper');
     
-    if (navbarToggle && topHeader && mainWrapper) {
+    if (sidebarVisibilityToggle && sidebar && mainWrapper) {
         // Restore state on page load (before anything else)
-        if (localStorage.getItem('navbarCollapsed') === 'true') {
-            topHeader.classList.add('collapsed');
-            mainWrapper.classList.add('navbar-collapsed');
-            const icon = navbarToggle.querySelector('i');
-            icon.classList.remove('fa-chevron-up');
-            icon.classList.add('fa-chevron-down');
+        if (localStorage.getItem('sidebarHidden') === 'true') {
+            sidebar.classList.add('sidebar-hidden');
+            mainWrapper.classList.add('sidebar-hidden');
+            const icon = sidebarVisibilityToggle.querySelector('i');
+            icon.classList.remove('fa-chevron-left');
+            icon.classList.add('fa-chevron-right');
         }
         
-        navbarToggle.addEventListener('click', function(e) {
+        sidebarVisibilityToggle.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             
-            // Toggle collapsed class on navbar
-            topHeader.classList.toggle('collapsed');
-            mainWrapper.classList.toggle('navbar-collapsed');
+            // Toggle hidden class on sidebar
+            sidebar.classList.toggle('sidebar-hidden');
+            mainWrapper.classList.toggle('sidebar-hidden');
             
             // Update icon
-            const icon = navbarToggle.querySelector('i');
-            if (topHeader.classList.contains('collapsed')) {
-                icon.classList.remove('fa-chevron-up');
-                icon.classList.add('fa-chevron-down');
+            const icon = sidebarVisibilityToggle.querySelector('i');
+            if (sidebar.classList.contains('sidebar-hidden')) {
+                icon.classList.remove('fa-chevron-left');
+                icon.classList.add('fa-chevron-right');
                 // Save state
-                localStorage.setItem('navbarCollapsed', 'true');
+                localStorage.setItem('sidebarHidden', 'true');
             } else {
-                icon.classList.remove('fa-chevron-down');
-                icon.classList.add('fa-chevron-up');
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-left');
                 // Save state
-                localStorage.setItem('navbarCollapsed', 'false');
+                localStorage.setItem('sidebarHidden', 'false');
             }
         });
     }
