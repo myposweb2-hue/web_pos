@@ -78,8 +78,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     
     if (sidebarToggle && sidebar) {
-        // Toggle sidebar on button click
-        sidebarToggle.addEventListener('click', function() {
+        sidebarToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             sidebar.classList.toggle('open');
             if (sidebarOverlay) {
                 sidebarOverlay.classList.toggle('active');
@@ -89,7 +90,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Close sidebar when overlay is clicked
     if (sidebarOverlay && sidebar) {
-        sidebarOverlay.addEventListener('click', function() {
+        sidebarOverlay.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             sidebar.classList.remove('open');
             sidebarOverlay.classList.remove('active');
         });
@@ -100,28 +103,26 @@ document.addEventListener('DOMContentLoaded', function() {
         const navLinks = sidebar.querySelectorAll('.nav-link, .nav-dropdown-link');
         navLinks.forEach(function(link) {
             link.addEventListener('click', function() {
-                // Don't close if it's a dropdown toggle (those have preventDefault)
                 setTimeout(function() {
-                    // Only close if sidebar is still open and we're on mobile
                     if (window.innerWidth <= 991 && sidebar.classList.contains('open')) {
                         sidebar.classList.remove('open');
                         if (sidebarOverlay) {
                             sidebarOverlay.classList.remove('active');
                         }
                     }
-                }, 0);
+                }, 50);
             });
         });
     }
     
-    // Mobile user profile dropdown toggle
+    // Reinitialize Bootstrap dropdowns for dynamically loaded content
     const mobileUserDropdown = document.getElementById('mobileUserDropdown');
     if (mobileUserDropdown) {
-        // Bootstrap dropdown will handle this automatically with data-bs-toggle="dropdown"
-        // But we can add manual handler if needed
-        mobileUserDropdown.addEventListener('click', function(e) {
-            e.preventDefault();
-        });
+        try {
+            new bootstrap.Dropdown(mobileUserDropdown);
+        } catch(e) {
+            console.warn('Bootstrap Dropdown initialization:', e);
+        }
     }
 });
 
