@@ -78,14 +78,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     
     if (sidebarToggle && sidebar) {
-        sidebarToggle.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+        function handleSidebarToggle(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }
             sidebar.classList.toggle('open');
             if (sidebarOverlay) {
                 sidebarOverlay.classList.toggle('active');
             }
-        });
+        }
+        
+        // Multiple event types for better compatibility
+        sidebarToggle.addEventListener('click', handleSidebarToggle, true);
+        sidebarToggle.addEventListener('touchstart', handleSidebarToggle, true);
     }
     
     // Close sidebar when overlay is clicked
@@ -115,10 +122,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Reinitialize Bootstrap dropdowns for dynamically loaded content
+    // Mobile user profile dropdown - ensure Bootstrap initialization
     const mobileUserDropdown = document.getElementById('mobileUserDropdown');
     if (mobileUserDropdown) {
         try {
+            // Destroy any existing instance first
+            let instance = bootstrap.Dropdown.getInstance(mobileUserDropdown);
+            if (instance) instance.dispose();
+            // Create new instance
             new bootstrap.Dropdown(mobileUserDropdown);
         } catch(e) {
             console.warn('Bootstrap Dropdown initialization:', e);
