@@ -113,6 +113,16 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    
+    // Mobile user profile dropdown toggle
+    const mobileUserDropdown = document.getElementById('mobileUserDropdown');
+    if (mobileUserDropdown) {
+        // Bootstrap dropdown will handle this automatically with data-bs-toggle="dropdown"
+        // But we can add manual handler if needed
+        mobileUserDropdown.addEventListener('click', function(e) {
+            e.preventDefault();
+        });
+    }
 });
 
 // Helper function to show notifications
