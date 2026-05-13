@@ -287,10 +287,11 @@ body {
 .user-info {
     display: flex;
     align-items: center;
-    padding: 12px;
+    padding: 16px 14px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: var(--border-radius-sm);
     margin-bottom: 12px;
+    gap: 12px;
 }
 
 .user-avatar {
@@ -303,23 +304,35 @@ body {
     justify-content: center;
     color: var(--text-light);
     font-size: 16px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
 
 .user-details {
-    margin-left: 12px;
+    margin-left: 0;
     display: flex;
     flex-direction: column;
+    gap: 2px;
 }
 
 .user-name {
     color: var(--text-light);
     font-weight: 600;
     font-size: 14px;
+    line-height: 1.3;
 }
 
 .user-role {
     color: var(--text-muted);
     font-size: 12px;
+    line-height: 1.3;
 }
 
 .logout-btn {

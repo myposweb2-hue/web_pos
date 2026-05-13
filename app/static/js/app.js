@@ -71,6 +71,48 @@ document.addEventListener('DOMContentLoaded', function() {
             parent.classList.toggle('open');
         });
     });
+
+    // Mobile sidebar toggle functionality
+    const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (sidebarToggle && sidebar) {
+        // Toggle sidebar on button click
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (sidebarOverlay) {
+                sidebarOverlay.classList.toggle('active');
+            }
+        });
+    }
+    
+    // Close sidebar when overlay is clicked
+    if (sidebarOverlay && sidebar) {
+        sidebarOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            sidebarOverlay.classList.remove('active');
+        });
+    }
+    
+    // Close sidebar when a nav link is clicked
+    if (sidebar) {
+        const navLinks = sidebar.querySelectorAll('.nav-link, .nav-dropdown-link');
+        navLinks.forEach(function(link) {
+            link.addEventListener('click', function() {
+                // Don't close if it's a dropdown toggle (those have preventDefault)
+                setTimeout(function() {
+                    // Only close if sidebar is still open and we're on mobile
+                    if (window.innerWidth <= 991 && sidebar.classList.contains('open')) {
+                        sidebar.classList.remove('open');
+                        if (sidebarOverlay) {
+                            sidebarOverlay.classList.remove('active');
+                        }
+                    }
+                }, 0);
+            });
+        });
+    }
 });
 
 // Helper function to show notifications
