@@ -2298,6 +2298,75 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Receipt Settings Form Handler
+    const receiptForm = document.getElementById('receiptSettingsForm');
+    if (receiptForm) {
+        // Load current settings
+        async function loadReceiptSettings() {
+            try {
+                const response = await fetch('/invoices/api/settings');
+                const data = await response.json();
+                if (data.success) {
+                    const settings = data.settings;
+                    document.getElementById('receiptBusinessName').value = settings.company_name || '';
+                    document.getElementById('businessAddress').value = settings.business_address || '';
+                    document.getElementById('businessPhone').value = settings.business_phone || '';
+                    document.getElementById('businessEmail').value = settings.business_email || '';
+                    document.getElementById('businessGst').value = settings.business_gst || '';
+                    document.getElementById('thankYouMessage').value = settings.thank_you_message || '';
+                    document.getElementById('warrantyInfo').value = settings.warranty_info || '';
+                    document.getElementById('receiptFooterText').value = settings.footer_text || '';
+                    document.getElementById('defaultReceiptFormat').value = settings.default_receipt_format || 'thermal';
+                    document.getElementById('showQrCode').checked = settings.show_qr_code !== false;
+                }
+            } catch (error) {
+                console.error('Error loading receipt settings:', error);
+            }
+        }
+        
+        // Save settings
+        receiptForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const settingsData = {
+                company_name: document.getElementById('receiptBusinessName').value,
+                business_address: document.getElementById('businessAddress').value,
+                business_phone: document.getElementById('businessPhone').value,
+                business_email: document.getElementById('businessEmail').value,
+                business_gst: document.getElementById('businessGst').value,
+                thank_you_message: document.getElementById('thankYouMessage').value,
+                warranty_info: document.getElementById('warrantyInfo').value,
+                footer_text: document.getElementById('receiptFooterText').value,
+                default_receipt_format: document.getElementById('defaultReceiptFormat').value,
+                show_qr_code: document.getElementById('showQrCode').checked
+            };
+            
+            try {
+                const response = await fetch('/invoices/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify(settingsData)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Receipt settings saved successfully!', 'success');
+                } else {
+                    showNotification('Error saving settings: ' + data.error, 'danger');
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                showNotification('Error saving settings', 'danger');
+            }
+        });
+        
+        // Load settings on page load
+        loadReceiptSettings();
+    }
+
     // Simple rotate button
     if (rotateCW && imageToCrop) {
         rotateCW.addEventListener('click', () => {
