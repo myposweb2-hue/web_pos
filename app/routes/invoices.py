@@ -17,22 +17,40 @@ invoices_bp = Blueprint('invoices', __name__, url_prefix='/invoices', template_f
 def get_receipt_settings(company_id=None):
     """Get receipt settings from database, with fallback defaults"""
     try:
-        if not company_id and current_user.is_authenticated:
-            # Get current company from user's session or settings
-            from app.utils.company import get_current_company
-            company = get_current_company()
-            company_id = company.id if company else None
+        # Get company_id if not provided
+        if not company_id:
+            try:
+                if current_user.is_authenticated:
+                    from app.utils.company import get_current_company
+                    company = get_current_company()
+                    company_id = company.id if company else None
+            except Exception as e:
+                current_app.logger.warning(f"Could not get current company: {str(e)}")
+                company_id = None
         
         settings_dict = {}
         
-        # Receipt business info
-        settings = Setting.query.filter_by(
-            setting_category='receipt',
-            company_id=company_id
-        ).all()
+        # Try to get settings for the specific company first
+        if company_id:
+            settings = Setting.query.filter_by(
+                setting_category='receipt',
+                company_id=company_id
+            ).all()
+            
+            for setting in settings:
+                settings_dict[setting.setting_key] = setting.setting_value
         
-        for setting in settings:
-            settings_dict[setting.setting_key] = setting.setting_value
+        # If no company_id or no settings found, try to get any receipt settings
+        if not settings_dict:
+            settings = Setting.query.filter_by(
+                setting_category='receipt'
+            ).all()
+            
+            for setting in settings:
+                settings_dict[setting.setting_key] = setting.setting_value
+        
+        # Debug logging
+        current_app.logger.info(f"Receipt settings found: {list(settings_dict.keys())}")
         
         # Merge with defaults
         defaults = {
@@ -51,10 +69,11 @@ def get_receipt_settings(company_id=None):
             'receipt_type': settings_dict.get('receipt_type', 'thermal'),
         }
         
+        current_app.logger.info(f"Returning receipt settings: {defaults}")
         return defaults
     
     except Exception as e:
-        current_app.logger.error(f"Error getting receipt settings: {str(e)}")
+        current_app.logger.error(f"Error getting receipt settings: {str(e)}", exc_info=True)
         return get_default_receipt_settings()
 
 
@@ -195,10 +214,9 @@ def preview_thermal_receipt():
         'receipt_time': datetime.now().strftime('%H:%M:%S'),
         'cashier': 'John Smith',
         'company_name': settings['company_name'],
-        'company_subline': 'Professional POS System',
         'company_address': settings['business_address'],
-        'company_city': settings['business_city'],
         'company_phone': settings['business_phone'],
+        'company_email': settings.get('business_email', ''),
         'customer_name': 'Walk-In Customer',
         'invoice_number': 'INV-2026-4567',
         'items': [
@@ -241,10 +259,10 @@ def preview_thermal_receipt():
         'payment_method': 'CARD',
         'reference': '123456789012',
         'authorization': 'APPROVED',
-        'thank_you': f'{settings["thank_you_message"].split("!")[0]}!',
-        'thank_you_msg': 'For your patronage and support',
-        'warranty_info': settings['warranty_info'],
-        'footer_text': settings['footer_text']
+        'thank_you': f'{settings["thank_you_message"].split("!")[0]}!' if settings.get("thank_you_message") else "THANK YOU!",
+        'thank_you_message': settings.get('thank_you_message', 'For your patronage and support'),
+        'warranty_info': settings.get('warranty_info', ''),
+        'footer_text': settings.get('footer_text', '')
     }
     
     return render_template('invoices/thermal_receipt_80mm.html', **sample_data)
@@ -299,7 +317,10 @@ def save_settings_api():
         company = get_current_company()
         company_id = company.id if company else None
         
+        current_app.logger.info(f"Saving receipt settings for company_id: {company_id}")
+        
         data = request.get_json()
+        current_app.logger.info(f"Received settings data: {list(data.keys())}")
         
         # List of settings keys to save
         settings_keys = [
@@ -309,8 +330,12 @@ def save_settings_api():
             'receipt_type'
         ]
         
+        saved_count = 0
         for key in settings_keys:
             if key in data:
+                value_str = str(data[key])
+                current_app.logger.info(f"Saving setting {key}={value_str}")
+                
                 # Check if setting exists
                 existing = Setting.query.filter_by(
                     setting_category='receipt',
@@ -319,28 +344,37 @@ def save_settings_api():
                 ).first()
                 
                 if existing:
-                    existing.setting_value = str(data[key])
-                    existing.updated_at = datetime.utcnow()
+                    existing.setting_value = value_str
+                    existing.updated_at = datetime.now()
+                    current_app.logger.info(f"Updated existing setting: {key}")
                 else:
                     new_setting = Setting(
                         setting_category='receipt',
                         setting_key=key,
-                        setting_value=str(data[key]),
+                        setting_value=value_str,
                         company_id=company_id
                     )
                     db.session.add(new_setting)
+                    current_app.logger.info(f"Created new setting: {key}")
+                
+                saved_count += 1
         
         db.session.commit()
+        current_app.logger.info(f"Successfully saved {saved_count} receipt settings")
+        
+        # Get updated settings
+        updated_settings = get_receipt_settings(company_id)
+        current_app.logger.info(f"Retrieved updated settings: {updated_settings}")
         
         return jsonify({
             'success': True,
-            'message': 'Receipt settings saved successfully',
-            'settings': get_receipt_settings(company_id)
+            'message': f'Receipt settings saved successfully ({saved_count} items)',
+            'settings': updated_settings
         })
     
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error saving settings: {str(e)}")
+        current_app.logger.error(f"Error saving settings: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 

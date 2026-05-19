@@ -405,12 +405,11 @@
     <div class="receipt-container">
         <!-- Header -->
         <div class="receipt-header">
-            <div class="company-logo">YOUR STORE</div>
-            <div class="company-name">Professional POS System</div>
+            <div class="company-logo">{{ company_name }}</div>
+            <div class="company-name">{{ company_name }}</div>
             <div class="company-details">
-                123 Main Street | Suite 100<br>
-                New York, NY 10001<br>
-                Tel: (555) 123-4567
+                {{ company_address }}<br>
+                Tel: {{ company_phone }}
             </div>
         </div>
 
@@ -566,27 +565,20 @@
 
         <!-- Footer -->
         <div class="receipt-footer">
-            <div class="thank-you">THANK YOU!</div>
-            <div class="footer-text">For your patronage and support</div>
-            <div class="footer-contact">Contact: support@company.com</div>
-            <div class footer-contact">Phone: (555) 123-4567</div>
+            <div class="thank-you">{{ thank_you }}</div>
+            <div class="footer-text">{{ thank_you_message }}</div>
+            <div class="footer-contact">{{ company_email }}</div>
+            <div class="footer-contact">Phone: {{ company_phone }}</div>
 
+            {% if warranty_info %}
             <div class="terms mt-2">
-                <strong>Return Policy:</strong><br>
-                Item returns accepted within 30 days<br>
-                with original receipt. No refunds on<br>
-                services. Exchanges available anytime.
-            </div>
-
-            <div class="terms">
                 <strong>Warranty Info:</strong><br>
-                Standard warranty: 1 year<br>
-                Extended warranty available
+                {{ warranty_info }}
             </div>
+            {% endif %}
 
             <div class="footer-text mt-2">
-                Powered by Professional POS<br>
-                Version 2.1.0
+                {{ footer_text }}
             </div>
         </div>
 
