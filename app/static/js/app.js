@@ -74,6 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Mobile sidebar toggle functionality
     const sidebarToggle = document.getElementById('sidebarToggle');
+    const sidebarCollapse = document.getElementById('sidebarCollapse');
     const sidebar = document.getElementById('sidebar');
     const sidebarOverlay = document.getElementById('sidebarOverlay');
     
@@ -93,6 +94,21 @@ document.addEventListener('DOMContentLoaded', function() {
         // Multiple event types for better compatibility
         sidebarToggle.addEventListener('click', handleSidebarToggle, true);
         sidebarToggle.addEventListener('touchstart', handleSidebarToggle, true);
+    }
+
+    // Sidebar collapse button (desktop collapse)
+    if (sidebarCollapse && sidebar) {
+        function handleSidebarCollapse(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }
+            sidebar.classList.toggle('collapsed');
+        }
+        
+        sidebarCollapse.addEventListener('click', handleSidebarCollapse, true);
+        sidebarCollapse.addEventListener('touchstart', handleSidebarCollapse, true);
     }
     
     // Close sidebar when overlay is clicked
