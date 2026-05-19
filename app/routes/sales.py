@@ -685,6 +685,7 @@ def download_receipt_pdf(sale_id):
     Uses default format from Settings > Receipt Settings if not specified.
     """
     from app.utils.multi_format_receipt_generator import MultiFormatReceiptGenerator
+    from app.routes.invoices import get_receipt_settings
     
     sale = get_sale_secure(sale_id)
     if not sale:
@@ -694,29 +695,17 @@ def download_receipt_pdf(sale_id):
     format_type = request.args.get('format')
     company_id = get_company_id()
     
+    # Get receipt settings using integrated function
+    receipt_settings = get_receipt_settings(company_id)
+    
     if not format_type:
-        default_format_setting = Setting.query.filter_by(
-            setting_category='receipt',
-            setting_key='default_format'
-        )
-        if company_id and hasattr(Setting, 'company_id'):
-            default_format_setting = default_format_setting.filter(Setting.company_id == company_id)
-        default_format_setting = default_format_setting.first()
-        format_type = default_format_setting.setting_value if default_format_setting else 'thermal'
+        format_type = receipt_settings.get('default_receipt_format', 'thermal')
     
     if format_type not in ['thermal', 'a4', 'a3']:
         format_type = 'thermal'
 
-    # Get ALL settings from database
-    business_settings = {}
-    all_settings_query = Setting.query
-    if company_id and hasattr(Setting, 'company_id'):
-        all_settings_query = all_settings_query.filter(Setting.company_id == company_id)
-    all_settings = all_settings_query.all()
-    for setting in all_settings:
-        if setting.setting_category not in business_settings:
-            business_settings[setting.setting_category] = {}
-        business_settings[setting.setting_category][setting.setting_key] = setting.setting_value
+    # Format business_settings for the generator
+    business_settings = {'receipt': receipt_settings}
 
     # Generate PDF using multi-format generator
     generator = MultiFormatReceiptGenerator()
