@@ -57,6 +57,7 @@ def create_app(config_class=None):
     from app.routes.companies import companies_bp
     from app.routes.cheques import cheques_bp
     from app.routes.audit import audit_bp
+    from app.routes.invoices import invoices_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -73,6 +74,7 @@ def create_app(config_class=None):
     app.register_blueprint(companies_bp, url_prefix='/companies')
     app.register_blueprint(cheques_bp, url_prefix='/cheques')
     app.register_blueprint(audit_bp, url_prefix='/audit')
+    app.register_blueprint(invoices_bp)
 
     # ✅ REGISTER MULTI-COMPANY SECURITY MIDDLEWARE
     from app.utils.security import before_request_company_check
