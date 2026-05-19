@@ -98,8 +98,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Multiple event types for better compatibility
-        sidebarToggle.addEventListener('click', handleSidebarToggle, true);
-        sidebarToggle.addEventListener('touchstart', handleSidebarToggle, true);
+        sidebarToggle.addEventListener('click', handleSidebarToggle, false);
+        sidebarToggle.addEventListener('touchstart', handleSidebarToggle, false);
     }
 
     // Sidebar collapse button (desktop collapse)
@@ -120,8 +120,8 @@ document.addEventListener('DOMContentLoaded', function() {
             localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
         }
         
-        sidebarCollapse.addEventListener('click', handleSidebarCollapse, true);
-        sidebarCollapse.addEventListener('touchstart', handleSidebarCollapse, true);
+        sidebarCollapse.addEventListener('click', handleSidebarCollapse, false);
+        sidebarCollapse.addEventListener('touchstart', handleSidebarCollapse, false);
     }
     
     // Close sidebar when overlay is clicked
