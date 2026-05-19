@@ -98,6 +98,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Sidebar collapse button (desktop collapse)
     if (sidebarCollapse && sidebar) {
+        // Restore collapsed state on page load
+        if (localStorage.getItem('sidebarCollapsed') === 'true') {
+            sidebar.classList.add('collapsed');
+        }
+        
         function handleSidebarCollapse(e) {
             if (e) {
                 e.preventDefault();
@@ -105,6 +110,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.stopImmediatePropagation();
             }
             sidebar.classList.toggle('collapsed');
+            // Save the state
+            localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
         }
         
         sidebarCollapse.addEventListener('click', handleSidebarCollapse, true);
@@ -121,18 +128,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Close sidebar when a nav link is clicked
+    // Close sidebar when a nav link is clicked (mobile only - keep collapsed state on desktop)
     if (sidebar) {
         const navLinks = sidebar.querySelectorAll('.nav-link, .nav-dropdown-link');
         navLinks.forEach(function(link) {
-            link.addEventListener('click', function() {
+            link.addEventListener('click', function(e) {
+                // For dropdown toggles, prevent default
+                if (link.classList.contains('nav-link') && link.parentElement.classList.contains('nav-dropdown')) {
+                    // Let the dropdown toggle logic handle this
+                    return;
+                }
+                
                 setTimeout(function() {
+                    // Mobile: close the 'open' sidebar (off-screen state)
                     if (window.innerWidth <= 991 && sidebar.classList.contains('open')) {
                         sidebar.classList.remove('open');
                         if (sidebarOverlay) {
                             sidebarOverlay.classList.remove('active');
                         }
                     }
+                    // Desktop & Mobile: Keep the collapsed state - don't toggle it
+                    // The collapsed state should persist across page navigation
                 }, 50);
             });
         });
