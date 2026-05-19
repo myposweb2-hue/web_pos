@@ -396,12 +396,12 @@
             <div class="invoice-header">
                 <div class="company-info">
                     <div class="company-logo">LOGO</div>
-                    <div class="company-name">Your Company</div>
+                    <div class="company-name">{{ company.name }}</div>
                     <div class="company-details">
-                        <p>123 Business St, Suite 100</p>
-                        <p>New York, NY 10001</p>
-                        <p>Ph: +1 (555) 123-4567</p>
-                        <p>Tax ID: 12-3456789</p>
+                        <p>{{ company.address }}</p>
+                        <p>{{ company.city }}</p>
+                        <p>Ph: {{ company.phone }}</p>
+                        <p>Tax ID: {{ company.tax_id }}</p>
                     </div>
                 </div>
                 <div class="invoice-title-section">
@@ -409,15 +409,15 @@
                     <div class="invoice-details">
                         <div class="invoice-details-item">
                             <span class="invoice-details-label">Inv#:</span>
-                            <span class="invoice-details-value">INV-26-1234</span>
+                            <span class="invoice-details-value">{{ invoice_number }}</span>
                         </div>
                         <div class="invoice-details-item">
                             <span class="invoice-details-label">Date:</span>
-                            <span class="invoice-details-value">05/19/26</span>
+                            <span class="invoice-details-value">{{ invoice_date }}</span>
                         </div>
                         <div class="invoice-details-item">
                             <span class="invoice-details-label">Due:</span>
-                            <span class="invoice-details-value">06/19/26</span>
+                            <span class="invoice-details-value">{{ due_date }}</span>
                         </div>
                     </div>
                 </div>

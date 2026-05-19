@@ -399,14 +399,14 @@
             <div class="invoice-header">
                 <div class="company-info">
                     <div class="company-logo">LOGO</div>
-                    <div class="company-name">Your Company Name</div>
+                    <div class="company-name">{{ company.name }}</div>
                     <div class="company-details">
-                        <p><strong>Address:</strong> 123 Business Street, Suite 100</p>
-                        <p><strong>City:</strong> New York, NY 10001</p>
-                        <p><strong>Phone:</strong> +1 (555) 123-4567</p>
-                        <p><strong>Email:</strong> billing@company.com</p>
-                        <p><strong>Website:</strong> www.company.com</p>
-                        <p><strong>Tax ID:</strong> 12-3456789</p>
+                        <p><strong>Address:</strong> {{ company.address }}</p>
+                        <p><strong>City:</strong> {{ company.city }}</p>
+                        <p><strong>Phone:</strong> {{ company.phone }}</p>
+                        <p><strong>Email:</strong> {{ company.email }}</p>
+                        <p><strong>Website:</strong> {{ company.website }}</p>
+                        <p><strong>Tax ID:</strong> {{ company.tax_id }}</p>
                     </div>
                 </div>
                 <div class="invoice-title-section">
@@ -414,19 +414,19 @@
                     <div class="invoice-details">
                         <div class="invoice-details-item">
                             <span class="invoice-details-label">Invoice #:</span>
-                            <span class="invoice-details-value">INV-2026-001234</span>
+                            <span class="invoice-details-value">{{ invoice_number }}</span>
                         </div>
                         <div class="invoice-details-item">
                             <span class="invoice-details-label">Date:</span>
-                            <span class="invoice-details-value">05/19/2026</span>
+                            <span class="invoice-details-value">{{ invoice_date }}</span>
                         </div>
                         <div class="invoice-details-item">
                             <span class="invoice-details-label">Due Date:</span>
-                            <span class="invoice-details-value">06/19/2026</span>
+                            <span class="invoice-details-value">{{ due_date }}</span>
                         </div>
                         <div class="invoice-details-item">
                             <span class="invoice-details-label">Status:</span>
-                            <span class="invoice-details-value">UNPAID</span>
+                            <span class="invoice-details-value">{{ status }}</span>
                         </div>
                     </div>
                 </div>

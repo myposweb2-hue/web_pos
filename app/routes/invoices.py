@@ -108,6 +108,7 @@ def preview_a4_invoice():
         'invoice_number': 'INV-2026-001234',
         'invoice_date': datetime.now().strftime('%m/%d/%Y'),
         'due_date': (datetime.now() + timedelta(days=30)).strftime('%m/%d/%Y'),
+        'status': 'UNPAID',
         'company': {
             'logo': 'LOGO',
             'name': settings['company_name'],
