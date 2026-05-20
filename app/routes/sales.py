@@ -781,7 +781,7 @@ def receipt_html(sale_id):
         'currency': '$'
     }
     
-    return render_template('sales/receipt.html', **context)
+    return render_template('invoices/thermal_receipt_80mm_professional.html', **context)
 
 
 @sales_bp.route('/api/sales/<int:sale_id>/receipt/pdf')
