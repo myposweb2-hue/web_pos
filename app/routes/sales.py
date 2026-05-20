@@ -558,6 +558,8 @@ def create_sale():
 @login_required
 def get_receipt(sale_id):
     """Get receipt data for a sale."""
+    from app.routes.invoices import get_receipt_settings
+    
     sale = get_sale_secure(sale_id)
     if not sale:
         return jsonify({'error': 'Sale not found'}), 404
@@ -584,27 +586,22 @@ def get_receipt(sale_id):
         receipt_data['items'].append(item_data)
         receipt_data['subtotal'] += item_data['total']
 
-    # Get business settings for receipt
+    # Get receipt settings using the integrated function
     company_id = get_company_id()
-    business_name = Setting.query.filter_by(setting_category='general', setting_key='business_name')
-    if company_id and hasattr(Setting, 'company_id'):
-        business_name = business_name.filter(Setting.company_id == company_id)
-    business_name = business_name.first()
+    receipt_settings = get_receipt_settings(company_id)
     
-    receipt_footer = Setting.query.filter_by(setting_category='printing', setting_key='receipt_footer')
-    if company_id and hasattr(Setting, 'company_id'):
-        receipt_footer = receipt_footer.filter(Setting.company_id == company_id)
-    receipt_footer = receipt_footer.first()
-
-    receipt_data['business_name'] = business_name.setting_value if business_name else 'POS System'
-    receipt_data['footer'] = receipt_footer.setting_value if receipt_footer else 'Thank you for your business!'
+    receipt_data['business_name'] = receipt_settings.get('company_name', 'POS System')
+    receipt_data['footer'] = receipt_settings.get('thank_you_message', 'Thank you for your business!')
 
     return jsonify(receipt_data)
 
 @sales_bp.route('/<int:sale_id>/receipt/html')
 @login_required
 def receipt_html(sale_id):
-    """Serve HTML receipt template."""
+    """Serve HTML receipt template - Professional Invoice."""
+    from app.routes.invoices import get_receipt_settings
+    from datetime import datetime, timedelta
+    
     sale = get_sale_secure(sale_id)
     if not sale:
         return jsonify({'error': 'Sale not found'}), 404
@@ -616,78 +613,172 @@ def receipt_html(sale_id):
     items_data = []
     subtotal = 0
     for item in items:
+        item_discount = getattr(item, 'discount_percent', 0) or 0
+        item_discount_amount = (item.price * item_discount / 100) if item_discount > 0 else 0
+        item_net_price = item.price - item_discount_amount
+        item_tax = getattr(item, 'tax_amount', 0) or 0
+        
         item_data = {
+            'code': getattr(item.product, 'code', 'N/A') if hasattr(item, 'product') else 'N/A',
             'name': getattr(item.product, 'name', 'Unknown Product'),
             'quantity': item.quantity,
             'unit_price': item.price,
+            'discount': item_discount,
+            'tax_amount': item_tax,
             'total': item.quantity * item.price
         }
         items_data.append(item_data)
         subtotal += item_data['total']
     
     # Calculate derived values
+    discount_total = getattr(sale, 'discount_amount', 0) or 0
     tax_amount = sale.total - subtotal if sale.total > subtotal else 0
     tax_rate = 18.0  # Default
     if tax_amount > 0 and subtotal > 0:
         tax_rate = round((tax_amount / subtotal) * 100, 1)
     
     change = sale.cash_given - sale.total if sale.payment == 'Cash' else 0
+    balance_due = max(0, sale.total - getattr(sale, 'paid_amount', 0))
     
-    # Get business settings with explicit prioritization: receipt > general > printing
-    # Build settings by iterating categories in priority order (highest first)
-    # This way, receipt values override general, which override printing
-    settings = {}
+    # Get receipt settings using the integrated function
     company_id = get_company_id()
-    all_categories = ['receipt', 'general', 'printing']  # Highest to lowest priority
-    for category in all_categories:
-        cat_settings_query = Setting.query.filter_by(setting_category=category)
-        if company_id and hasattr(Setting, 'company_id'):
-            cat_settings_query = cat_settings_query.filter(Setting.company_id == company_id)
-        cat_settings = cat_settings_query.all()
-        # Since we iterate from highest to lowest, we should only add keys that don't exist yet
-        for s in cat_settings:
-            # Only set if not already been set by a higher priority category
-            if s.setting_key not in settings:
-                settings[s.setting_key] = s.setting_value
-
-
+    receipt_settings = get_receipt_settings(company_id)
     
-    # Logo path resolution (check common locations)
-    # Logo path - prioritize app/static/uploads (settings path), then static/uploads
-    logo_path = settings.get('logo_path')  # This is '/static/uploads/business_logo_xxx.jpg' from DB
-    if not logo_path or logo_path == '':
-        # Fallback to app/static/uploads direct
-        logo_filename = 'business_logo_1774707906_Simple Sports Logo.jpg'
-        logo_path = f'/app/static/uploads/{logo_filename}'
+    # Logo path resolution - convert to base64 data URI for xhtml2pdf
+    import os
+    import base64
+    from app.models import Setting
+    logo_data_uri = ''
+    
+    # Try to get logo from general settings first (upload-logo saves here)
+    logo_setting = Setting.query.filter_by(
+        setting_category='general',
+        setting_key='logo_path',
+        company_id=company_id
+    ).first()
+    
+    if not logo_setting:
+        # Fallback to receipt settings
+        logo_setting = Setting.query.filter_by(
+            setting_category='receipt',
+            setting_key='receipt_logo',
+            company_id=company_id
+        ).first()
+    
+    # Convert to base64 if logo setting exists
+    if logo_setting and logo_setting.setting_value:
+        logo_path_raw = logo_setting.setting_value.strip()
+        
+        # Remove leading '/' or '/static/uploads/' if present
+        if logo_path_raw.startswith('/static/uploads/'):
+            logo_path_raw = logo_path_raw[16:]
+        elif logo_path_raw.startswith('/'):
+            logo_path_raw = logo_path_raw[1:]
+        elif logo_path_raw.startswith('static/uploads/'):
+            logo_path_raw = logo_path_raw[15:]
+        elif logo_path_raw.startswith('uploads/'):
+            logo_path_raw = logo_path_raw[8:]
+        
+        # Build absolute path
+        logo_abs_path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), '..', 'static', 'uploads', os.path.basename(logo_path_raw)
+        ))
+        
+        # Convert to base64 if file exists
+        if os.path.isfile(logo_abs_path):
+            try:
+                with open(logo_abs_path, 'rb') as f:
+                    logo_bytes = f.read()
+                    logo_b64 = base64.b64encode(logo_bytes).decode('utf-8')
+                    # Determine MIME type
+                    ext = os.path.splitext(logo_abs_path)[1].lower()
+                    mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif'}
+                    mime_type = mime_types.get(ext, 'image/jpeg')
+                    logo_data_uri = f'data:{mime_type};base64,{logo_b64}'
+                    current_app.logger.info(f"Logo encoded as data URI from {logo_abs_path}, size: {len(logo_data_uri)} bytes")
+            except Exception as e:
+                current_app.logger.warning(f"Failed to encode logo: {str(e)}")
+                logo_data_uri = ''
+        else:
+            current_app.logger.warning(f"Logo file not found: {logo_abs_path}")
+            logo_data_uri = ''
+    
+    # Pass to template as logo_url (will be used in img src)
+    logo_url = logo_data_uri
     
     # Cashier name from user
     cashier_name = getattr(getattr(sale, 'user', None), 'username', 'Cashier')
     
+    # Payment status determination
+    if balance_due == 0 and sale.total > 0:
+        payment_status = 'Paid'
+    elif balance_due > 0 and getattr(sale, 'paid_amount', 0) > 0:
+        payment_status = 'Partial'
+    else:
+        payment_status = 'Pending'
+    
+    # Due date calculation (30 days from invoice date)
+    due_date = (sale.date + timedelta(days=30)).strftime('%Y-%m-%d')
+    
     context = {
+        # Basic sale info
         'sale': sale,
+        'invoice_number': f"INV-{sale.id}",
+        'invoice_date': sale.date.strftime('%Y-%m-%d'),
+        'due_date': due_date,
+        'payment_status': payment_status,
         'sale_date': sale.date.strftime('%Y-%m-%d'),
         'sale_time': sale.date.strftime('%H:%M'),
-        'customer': sale.customer or 'Walk-in Customer',
+        
+        # Customer info
+        'customer_name': sale.customer or 'Walk-in Customer',
+        'customer_address': getattr(sale, 'customer_address', ''),
+        'customer_phone': getattr(sale, 'customer_phone', ''),
+        'customer_email': getattr(sale, 'customer_email', ''),
+        
+        # Shipping info (if applicable)
+        'shipping_name': getattr(sale, 'shipping_name', ''),
+        'shipping_address': getattr(sale, 'shipping_address', ''),
+        'shipping_phone': getattr(sale, 'shipping_phone', ''),
+        
+        # Payment info
         'payment_method': sale.payment,
         'cashier_name': cashier_name,
+        
+        # Items
         'items': items_data,
+        
+        # Totals
         'subtotal': subtotal,
         'discount': getattr(sale, 'discount', 0),
+        'discount_total': discount_total,
         'tax_amount': tax_amount,
         'tax_rate': tax_rate,
         'total': sale.total,
+        'paid_amount': getattr(sale, 'paid_amount', 0),
+        'balance_due': balance_due,
         'cash_given': sale.cash_given,
         'change': max(0, change),
         'balance': getattr(sale, 'balance', 0),
-        'business_name': settings.get('business_name', 'POS SYSTEM'),
-        'business_address': settings.get('business_address'),
-        'business_phone': settings.get('business_phone'),
-        'business_email': settings.get('business_email'),
-        'business_gst': settings.get('business_gst'),
-        'logo_path': logo_path,
-        'thank_you_message': settings.get('thank_you_message'),
-        'warranty_info': settings.get('warranty_info'),
-        'footer_text': settings.get('footer_text', 'Generated by Web POS System')
+        
+        # Business info
+        'business_name': receipt_settings.get('company_name', 'POS SYSTEM'),
+        'business_address': receipt_settings.get('business_address'),
+        'business_phone': receipt_settings.get('business_phone'),
+        'business_email': receipt_settings.get('business_email'),
+        'business_gst': receipt_settings.get('business_gst'),
+        'website': receipt_settings.get('website', ''),
+        'logo_url': logo_url,
+        
+        # Template content
+        'thank_you_message': receipt_settings.get('thank_you_message', 'Thank You for Your Business!'),
+        'warranty_info': receipt_settings.get('warranty_info'),
+        'footer_text': receipt_settings.get('footer_text', 'Generated by Web POS System'),
+        'notes': receipt_settings.get('invoice_notes'),
+        'terms': receipt_settings.get('invoice_terms'),
+        
+        # Currency
+        'currency': '$'
     }
     
     return render_template('sales/receipt.html', **context)
@@ -696,60 +787,61 @@ def receipt_html(sale_id):
 @sales_bp.route('/api/sales/<int:sale_id>/receipt/pdf')
 @login_required
 def download_receipt_pdf(sale_id):
-    """Download receipt as PDF in various formats.
-    
-    Query parameters:
-        format: 'thermal' (default), 'a4', or 'a3'
-        
-    Uses default format from Settings > Receipt Settings if not specified.
-    """
+    """Download receipt as PDF in specified format."""
     from app.utils.multi_format_receipt_generator import MultiFormatReceiptGenerator
+    from app.routes.invoices import get_receipt_settings
     
     sale = get_sale_secure(sale_id)
     if not sale:
         return jsonify({'error': 'Sale not found'}), 404
     
-    # Get format from query parameter, or use default from settings
-    format_type = request.args.get('format')
-    company_id = get_company_id()
-    
-    if not format_type:
-        default_format_setting = Setting.query.filter_by(
-            setting_category='receipt',
-            setting_key='default_format'
+    try:
+        # Get format from query parameter, default to 'a4'
+        format_type = request.args.get('format', 'a4').lower()
+        
+        # Validate format
+        if format_type not in ['thermal', 'a4', 'a5']:
+            format_type = 'a4'
+        
+        # Get receipt settings
+        company_id = get_company_id()
+        receipt_settings = get_receipt_settings(company_id)
+        
+        # Format business_settings for the generator
+        # Map company_name to business_name for generator compatibility
+        mapped_settings = receipt_settings.copy()
+        if 'company_name' in mapped_settings:
+            mapped_settings['business_name'] = mapped_settings.pop('company_name')
+        business_settings = {'receipt': mapped_settings}
+        
+        # Generate PDF using MultiFormatReceiptGenerator
+        generator = MultiFormatReceiptGenerator()
+        pdf_buffer = generator.generate_receipt_pdf(sale, sale.items, format_type=format_type, business_settings=business_settings)
+        
+        if not pdf_buffer:
+            return jsonify({'error': 'PDF generation failed'}), 500
+        
+        pdf_buffer.seek(0)
+        
+        # Return PDF with cache-busting headers
+        filename = f'receipt_{sale_id}_{format_type}.pdf'
+        response = send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/pdf'
         )
-        if company_id and hasattr(Setting, 'company_id'):
-            default_format_setting = default_format_setting.filter(Setting.company_id == company_id)
-        default_format_setting = default_format_setting.first()
-        format_type = default_format_setting.setting_value if default_format_setting else 'thermal'
-    
-    if format_type not in ['thermal', 'a4', 'a3']:
-        format_type = 'thermal'
-
-    # Get ALL settings from database
-    business_settings = {}
-    all_settings_query = Setting.query
-    if company_id and hasattr(Setting, 'company_id'):
-        all_settings_query = all_settings_query.filter(Setting.company_id == company_id)
-    all_settings = all_settings_query.all()
-    for setting in all_settings:
-        if setting.setting_category not in business_settings:
-            business_settings[setting.setting_category] = {}
-        business_settings[setting.setting_category][setting.setting_key] = setting.setting_value
-
-    # Generate PDF using multi-format generator
-    generator = MultiFormatReceiptGenerator()
-    pdf_buffer = generator.generate_receipt_pdf(sale, sale.items, format_type=format_type, business_settings=business_settings)
-
-    # Return PDF file with appropriate filename
-    pdf_buffer.seek(0)
-    filename = f'receipt_{sale_id}_{format_type}.pdf'
-    return send_file(
-        pdf_buffer,
-        as_attachment=True,
-        download_name=filename,
-        mimetype='application/pdf'
-    )
+        
+        # Prevent browser caching
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
+        return response
+        
+    except Exception as e:
+        current_app.logger.error(f"PDF generation failed: {str(e)}", exc_info=True)
+        return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
 
 @sales_bp.route('/api/sales/<int:sale_id>/print-receipt', methods=['POST'])
 @csrf.exempt
@@ -765,6 +857,7 @@ def print_receipt(sale_id):
     Uses default format from Settings > Receipt Settings if not specified.
     """
     from app.utils.multi_format_receipt_generator import MultiFormatReceiptGenerator
+    from app.routes.invoices import get_receipt_settings
     
     sale = get_sale_secure(sale_id)
     if not sale:
@@ -777,29 +870,22 @@ def print_receipt(sale_id):
     # If no format specified, use default from settings
     if not format_type:
         company_id = get_company_id()
-        default_format_setting = Setting.query.filter_by(
-            setting_category='receipt',
-            setting_key='default_format'
-        )
-        if company_id and hasattr(Setting, 'company_id'):
-            default_format_setting = default_format_setting.filter(Setting.company_id == company_id)
-        default_format_setting = default_format_setting.first()
-        format_type = default_format_setting.setting_value if default_format_setting else 'thermal'
+        receipt_settings = get_receipt_settings(company_id)
+        format_type = receipt_settings.get('default_receipt_format', 'thermal')
     
     if format_type not in ['thermal', 'a4', 'a3']:
         format_type = 'thermal'
 
-    # Get ALL settings from database
-    business_settings = {}
+    # Get receipt settings using integrated function
     company_id = get_company_id()
-    all_settings_query = Setting.query
-    if company_id and hasattr(Setting, 'company_id'):
-        all_settings_query = all_settings_query.filter(Setting.company_id == company_id)
-    all_settings = all_settings_query.all()
-    for setting in all_settings:
-        if setting.setting_category not in business_settings:
-            business_settings[setting.setting_category] = {}
-        business_settings[setting.setting_category][setting.setting_key] = setting.setting_value
+    receipt_settings = get_receipt_settings(company_id)
+    
+    # Format business_settings for the generator
+    # Map company_name to business_name for generator compatibility
+    mapped_settings = receipt_settings.copy()
+    if 'company_name' in mapped_settings:
+        mapped_settings['business_name'] = mapped_settings.pop('company_name')
+    business_settings = {'receipt': mapped_settings}
 
     # Generate PDF for printing
     generator = MultiFormatReceiptGenerator()
@@ -816,8 +902,6 @@ def print_receipt(sale_id):
         'print_ready': True,
         'format': format_type
     })
-
-
 @sales_bp.route('/api/sales/<int:sale_id>/send-email', methods=['POST'])
 @login_required
 def send_email_receipt(sale_id):
@@ -832,6 +916,7 @@ def send_email_receipt(sale_id):
     Uses default format from Settings > Receipt Settings if not specified.
     """
     from app.utils.multi_format_receipt_generator import MultiFormatReceiptGenerator
+    from app.routes.invoices import get_receipt_settings
     
     data = request.get_json() or {}
     to_email = data.get('email')
@@ -843,14 +928,8 @@ def send_email_receipt(sale_id):
     company_id = get_company_id()
     # If no format specified, use default from settings
     if not format_type:
-        default_format_setting = Setting.query.filter_by(
-            setting_category='receipt',
-            setting_key='default_format'
-        )
-        if company_id and hasattr(Setting, 'company_id'):
-            default_format_setting = default_format_setting.filter(Setting.company_id == company_id)
-        default_format_setting = default_format_setting.first()
-        format_type = default_format_setting.setting_value if default_format_setting else 'thermal'
+        receipt_settings = get_receipt_settings(company_id)
+        format_type = receipt_settings.get('default_receipt_format', 'thermal')
     
     if format_type not in ['thermal', 'a4', 'a3']:
         format_type = 'thermal'
@@ -859,26 +938,23 @@ def send_email_receipt(sale_id):
     if not sale:
         return jsonify({'error': 'Sale not found'}), 404
 
-    # Get ALL settings from database
-    business_settings = {}
-    all_settings_query = Setting.query
-    if company_id and hasattr(Setting, 'company_id'):
-        all_settings_query = all_settings_query.filter(Setting.company_id == company_id)
-    all_settings = all_settings_query.all()
-    for setting in all_settings:
-        if setting.setting_category not in business_settings:
-            business_settings[setting.setting_category] = {}
-        business_settings[setting.setting_category][setting.setting_key] = setting.setting_value
-
+    # Get receipt settings
+    receipt_settings = get_receipt_settings(company_id)
+    
+    # Format business_settings for the generator
+    # Map company_name to business_name for generator compatibility
+    mapped_settings = receipt_settings.copy()
+    if 'company_name' in mapped_settings:
+        mapped_settings['business_name'] = mapped_settings.pop('company_name')
+    business_settings = {'receipt': mapped_settings}
+    
     generator = MultiFormatReceiptGenerator()
     pdf_buffer = generator.generate_receipt_pdf(sale, sale.items, format_type=format_type, business_settings=business_settings)
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
 
-    # Get business name from receipt settings (or fall back)
-    business_name = business_settings.get('receipt', {}).get('business_name', '')
-    if not business_name:
-        business_name = business_settings.get('general', {}).get('business_name', 'POS System')
+    # Get business name from receipt settings
+    business_name = receipt_settings.get('company_name', 'POS System')
     
     subject = f'Receipt from {business_name} - Sale #{sale_id}'
     body = f'Thank you for your purchase. Please find attached your {format_type.upper()} receipt for Sale #{sale_id}.'

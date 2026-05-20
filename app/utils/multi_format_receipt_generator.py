@@ -165,8 +165,56 @@ class MultiFormatReceiptGenerator:
         Returns:
             BytesIO: PDF content
         """
+        # Write to file for debugging
+        import datetime
+        debug_file = '/tmp/receipt_generate.log'
+        try:
+            with open(debug_file, 'a') as f:
+                f.write(f"\n🔴 generate_receipt_pdf called at {datetime.datetime.now()}\n")
+                f.write(f"   format_type: {format_type}\n")
+                f.write(f"   business_settings is None? {business_settings is None}\n")
+                if business_settings:
+                    f.write(f"   business_settings keys: {business_settings.keys()}\n")
+                    f.write(f"   business_settings['receipt']? {'receipt' in business_settings}\n")
+                    if 'receipt' in business_settings:
+                        f.write(f"   business_settings['receipt']['business_name']: {business_settings['receipt'].get('business_name')}\n")
+        except:
+            try:
+                with open('c:\\temp\\receipt_generate.log', 'a') as f:
+                    f.write(f"\n🔴 generate_receipt_pdf called at {datetime.datetime.now()}\n")
+                    f.write(f"   format_type: {format_type}\n")
+                    f.write(f"   business_settings is None? {business_settings is None}\n")
+                    if business_settings:
+                        f.write(f"   business_settings keys: {business_settings.keys()}\n")
+                        f.write(f"   business_settings['receipt']? {'receipt' in business_settings}\n")
+                        if 'receipt' in business_settings:
+                            f.write(f"   business_settings['receipt']['business_name']: {business_settings['receipt'].get('business_name')}\n")
+            except:
+                pass
+        
+        print(f"\n🔴 generate_receipt_pdf called with:")
+        print(f"   format_type: {format_type}")
+        print(f"   business_settings is None? {business_settings is None}")
+        if business_settings:
+            print(f"   business_settings keys: {business_settings.keys()}")
+            print(f"   business_settings['receipt']? {'receipt' in business_settings}")
+            if 'receipt' in business_settings:
+                print(f"   business_settings['receipt']['business_name']: {business_settings['receipt'].get('business_name')}")
+        
         if business_settings is None:
             business_settings = self._get_business_settings()
+            print(f"   business_settings was None, using fallback:")
+            print(f"   fallback keys: {business_settings.keys() if isinstance(business_settings, dict) else 'N/A'}")
+            print(f"   fallback business_name: {business_settings.get('business_name', 'NOT FOUND')}")
+            
+            # Write to file
+            try:
+                with open('c:\\temp\\receipt_fallback.log', 'a') as f:
+                    f.write(f"\nFallback triggered:\n")
+                    f.write(f"   keys: {business_settings.keys()}\n")
+                    f.write(f"   business_name: {business_settings.get('business_name', 'NOT FOUND')}\n")
+            except:
+                pass
         
         if format_type not in self.FORMATS:
             format_type = 'thermal'
@@ -197,12 +245,20 @@ class MultiFormatReceiptGenerator:
         
         story = []
         
+        # Add timestamp to prevent caching
+        import datetime
+        gen_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
         # Business name - centered, clean
         business_name = business_settings.get('receipt', {}).get('business_name') or \
-                       business_settings.get('general', {}).get('business_name') or 'Company'
-        business_phone = business_settings.get('receipt', {}).get('business_phone', '')
+                       business_settings.get('general', {}).get('business_name') or \
+                       business_settings.get('business_name') or 'Company'
+        business_phone = business_settings.get('receipt', {}).get('business_phone', '') or \
+                        business_settings.get('business_phone', '')
         
-        story.append(Paragraph(business_name, ParagraphStyle(
+        # Add business name with gen time (for verification)
+        header_text = f"{business_name} [{gen_time}]"
+        story.append(Paragraph(header_text, ParagraphStyle(
             'ThermalHeader',
             parent=self.styles['Normal'],
             fontSize=10,
@@ -450,211 +506,225 @@ class MultiFormatReceiptGenerator:
         
         story = []
         
-        # Business information
+        # Add timestamp for cache busting and verification
+        import datetime
+        gen_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
         business_name = business_settings.get('receipt', {}).get('business_name') or \
-                       business_settings.get('general', {}).get('business_name') or 'Company Name'
-        business_address = business_settings.get('receipt', {}).get('business_address', '')
-        business_phone = business_settings.get('receipt', {}).get('business_phone', '')
-        business_email = business_settings.get('receipt', {}).get('business_email', '')
-        business_gst = business_settings.get('receipt', {}).get('business_gst', '')
+                       business_settings.get('general', {}).get('business_name') or \
+                       business_settings.get('business_name') or 'Company Name'
+        print(f"🟦 Final business_name = {business_name}")
         
-        # Professional header with accent bar
-        story.append(Paragraph(business_name, ParagraphStyle(
-            'ProfessionalHeader',
-            parent=self.styles['Heading1'],
-            fontSize=24,
-            fontName='Helvetica-Bold',
-            textColor=self.primary_color,
-            alignment=0,
-            spaceAfter=2
-        )))
+        business_address = business_settings.get('receipt', {}).get('business_address', '') or \
+                          business_settings.get('business_address', '')
+        business_phone = business_settings.get('receipt', {}).get('business_phone', '') or \
+                        business_settings.get('business_phone', '')
+        business_email = business_settings.get('receipt', {}).get('business_email', '') or \
+                        business_settings.get('business_email', '')
+        business_gst = business_settings.get('receipt', {}).get('business_gst', '') or \
+                      business_settings.get('business_gst', '')
         
-        # Accent line under company name
-        story.append(Paragraph("▌", ParagraphStyle(
-            'AccentBar',
+        # ===== COMPLETELY NEW HEADER DESIGN =====
+        # Large company name in blue
+        story.append(Paragraph(f"<b><font size=28 color='#0052CC'>{business_name}</font></b>", ParagraphStyle(
+            'NewHeader',
             parent=self.styles['Normal'],
-            fontSize=16,
-            textColor=self.accent_color,
-            spaceAfter=8
+            fontSize=28,
+            alignment=1,
+            spaceAfter=4
         )))
         
-        # Contact info - clean layout
-        contact_items = []
-        if business_address:
-            contact_items.append(business_address)
-        if business_phone:
-            contact_items.append(business_phone)
-        if business_email:
-            contact_items.append(business_email)
-        
-        if contact_items:
-            contact_text = " | ".join(contact_items)
-            story.append(Paragraph(contact_text, ParagraphStyle(
-                'Contact',
+        # Company details in smaller text
+        if business_address or business_phone or business_email:
+            details = []
+            if business_address:
+                details.append(business_address)
+            if business_phone:
+                details.append(f"Tel: {business_phone}")
+            if business_email:
+                details.append(f"Email: {business_email}")
+            
+            details_text = " | ".join(details)
+            story.append(Paragraph(f"<font size=10 color='#333333'>{details_text}</font>", ParagraphStyle(
+                'Details',
                 parent=self.styles['Normal'],
-                fontSize=8,
-                textColor=self.text_light,
-                spaceAfter=12,
-                leading=10
+                fontSize=10,
+                alignment=1,
+                spaceAfter=8
             )))
         
-        # Top divider
-        story.append(Paragraph("─" * 100, ParagraphStyle(
-            'DividerTop',
+        if business_gst:
+            story.append(Paragraph(f"<font size=9 color='#666666'>GST ID: {business_gst}</font>", ParagraphStyle(
+                'GST',
+                parent=self.styles['Normal'],
+                fontSize=9,
+                alignment=1,
+                spaceAfter=12
+            )))
+        
+        # Thick blue line divider
+        story.append(Paragraph("_" * 80, ParagraphStyle(
+            'Divider',
             parent=self.styles['Normal'],
-            fontSize=8,
-            textColor=self.border_color,
+            fontSize=10,
+            textColor=colors.HexColor('#0052CC'),
+            alignment=1,
             spaceAfter=12
         )))
         
-        # Invoice header section
-        invoice_header = [
+        # ⚠️ TEST MARK - Shows new code is running
+        story.append(Paragraph(f"<font color='#666666' size=9>Generated: {gen_time}</font>", ParagraphStyle(
+            'Timestamp',
+            parent=self.styles['Normal'],
+            fontSize=9,
+            alignment=1,
+            spaceAfter=12
+        )))
+        
+        # ===== RECEIPT/INVOICE DETAILS TABLE =====
+        story.append(Spacer(1, 5*mm))
+        
+        receipt_details = [
             [
-                Paragraph("<b>INVOICE</b>", ParagraphStyle('InvLabel', parent=self.styles['Normal'], fontSize=9, fontName='Helvetica-Bold', textColor=self.accent_dark)),
-                Paragraph("# {0}".format(sale.id), ParagraphStyle('InvValue', parent=self.styles['Normal'], fontSize=10, fontName='Helvetica-Bold', textColor=self.text_dark))
+                Paragraph("<b>Receipt #</b>", ParagraphStyle('ReceiptLabel', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold')),
+                Paragraph(str(sale.id), ParagraphStyle('ReceiptValue', parent=self.styles['Normal'], fontSize=11))
             ],
             [
-                Paragraph("Date", ParagraphStyle('DateLabel', parent=self.styles['Normal'], fontSize=8, textColor=self.text_light)),
-                Paragraph(sale.date.strftime('%d %B %Y'), ParagraphStyle('DateValue', parent=self.styles['Normal'], fontSize=9, textColor=self.text_dark))
+                Paragraph("<b>Date</b>", ParagraphStyle('DateLabel', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold')),
+                Paragraph(sale.date.strftime('%d-%m-%Y %H:%M'), ParagraphStyle('DateValue', parent=self.styles['Normal'], fontSize=11))
             ],
             [
-                Paragraph("Time", ParagraphStyle('TimeLabel', parent=self.styles['Normal'], fontSize=8, textColor=self.text_light)),
-                Paragraph(sale.date.strftime('%H:%M:%S'), ParagraphStyle('TimeValue', parent=self.styles['Normal'], fontSize=9, textColor=self.text_dark))
+                Paragraph("<b>Customer</b>", ParagraphStyle('CustLabel', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold')),
+                Paragraph(str(sale.customer or 'Walk-in'), ParagraphStyle('CustValue', parent=self.styles['Normal'], fontSize=11))
             ]
         ]
         
-        invoice_table = Table(invoice_header, colWidths=[90*mm, 70*mm])
-        invoice_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-            ('TOPPADDING', (0, 0), (-1, -1), 1),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        receipt_table = Table(receipt_details, colWidths=[70*mm, 90*mm])
+        receipt_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F5F5F5')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#DDDDDD')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
-        story.append(invoice_table)
+        story.append(receipt_table)
+        
+        story.append(Spacer(1, 12*mm))
+        # NOTE: Removed stray/duplicated TableStyle fragments that caused IndentationError.
+        # The variable invoice_table is not used in this implementation section.
+
         
         story.append(Spacer(1, 10*mm))
         
         # Bill to and From section with background
-        bill_from = [
+        # ===== ITEMS TABLE =====
+        items_data = [
             [
-                Paragraph("<b>BILL TO</b>", ParagraphStyle('BillToLabel', parent=self.styles['Normal'], fontSize=8, fontName='Helvetica-Bold', textColor=colors.white, backColor=self.accent_dark)),
-                Paragraph("<b>FROM</b>", ParagraphStyle('FromLabel', parent=self.styles['Normal'], fontSize=8, fontName='Helvetica-Bold', textColor=colors.white, backColor=self.accent_dark))
-            ],
-            [
-                Paragraph(sale.customer or 'Walk-in Customer', ParagraphStyle('Customer', parent=self.styles['Normal'], fontSize=9, textColor=self.text_dark, leading=11)),
-                Paragraph(business_name, ParagraphStyle('Company', parent=self.styles['Normal'], fontSize=9, textColor=self.text_dark, leading=11))
+                Paragraph('<b>Item #</b>', ParagraphStyle('ItemHeader', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold')),
+                Paragraph('<b>Description</b>', ParagraphStyle('DescHeader', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold')),
+                Paragraph('<b>Qty</b>', ParagraphStyle('QtyHeader', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold', alignment=2)),
+                Paragraph('<b>Unit Price</b>', ParagraphStyle('PriceHeader', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold', alignment=2)),
+                Paragraph('<b>Amount</b>', ParagraphStyle('AmountHeader', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold', alignment=2))
             ]
         ]
         
-        bill_table = Table(bill_from, colWidths=[90*mm, 70*mm])
-        bill_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, 0), self.accent_dark),
-            ('BACKGROUND', (1, 0), (1, 0), self.accent_dark),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('FONTSIZE', (0, 1), (-1, 1), 9),
-            ('LINEABOVE', (0, 0), (-1, 0), 1, self.accent_dark),
-            ('LINEBELOW', (0, -1), (-1, -1), 1, self.border_color),
-            ('LEFTPADDING', (0, 0), (-1, -1), 8),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ]))
-        story.append(bill_table)
-        
-        story.append(Spacer(1, 12*mm))
-        
-        # Items table - professional styling
-        items_data = [['Item No.', 'Description', 'Quantity', 'Unit Price', 'Amount']]
         subtotal = 0
-        
         for idx, item in enumerate(sale_items, 1):
             item_total = item.quantity * item.price
             subtotal += item_total
+            product_name = item.product.name if item.product else 'Product'
+            
             items_data.append([
-                str(idx),
-                item.product.name if item.product else 'Product',
-                f"{item.quantity:.2f}",
-                f"Rs. {item.price:,.2f}",
-                f"Rs. {item_total:,.2f}"
+                Paragraph(str(idx), ParagraphStyle('ItemNum', parent=self.styles['Normal'], fontSize=10)),
+                Paragraph(product_name[:50], ParagraphStyle('ItemDesc', parent=self.styles['Normal'], fontSize=10)),
+                Paragraph(f"{item.quantity:.2f}", ParagraphStyle('ItemQty', parent=self.styles['Normal'], fontSize=10, alignment=2)),
+                Paragraph(f"Rs. {item.price:,.2f}", ParagraphStyle('ItemPrice', parent=self.styles['Normal'], fontSize=10, alignment=2)),
+                Paragraph(f"Rs. {item_total:,.2f}", ParagraphStyle('ItemAmount', parent=self.styles['Normal'], fontSize=10, alignment=2, fontName='Helvetica-Bold'))
             ])
         
-        items_table = Table(items_data, colWidths=[14*mm, 88*mm, 20*mm, 28*mm, 30*mm])
+        items_table = Table(items_data, colWidths=[12*mm, 90*mm, 18*mm, 28*mm, 32*mm])
         items_table.setStyle(TableStyle([
             # Professional header
-            ('BACKGROUND', (0, 0), (-1, 0), self.accent_dark),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0052CC')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('LINEBELOW', (0, 0), (-1, 0), 1, self.accent_dark),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
             # Body rows
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('TEXTCOLOR', (0, 1), (-1, -1), self.text_dark),
-            # Alignment
-            ('ALIGN', (0, 0), (1, -1), 'LEFT'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('ALIGN', (0, 1), (1, -1), 'LEFT'),
             ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
-            # Borders
-            ('LINEABOVE', (0, 1), (-1, 1), 0.5, self.border_color),
-            ('LINEBELOW', (0, -1), (-1, -1), 1, self.accent_dark),
-            # Alternating rows with subtle background
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, self.bg_light]),
-            # Padding
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            # Borders and spacing
+            ('LINEABOVE', (0, 1), (-1, 1), 0.5, colors.HexColor('#CCCCCC')),
+            ('LINEBELOW', (0, -1), (-1, -1), 1, colors.HexColor('#0052CC')),
+            ('GRID', (0, 0), (-1, 0), 0.5, colors.white),
+            # Row spacing
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
             ('LEFTPADDING', (0, 0), (-1, -1), 6),
             ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            # Alternating row background
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')])
         ]))
         story.append(items_table)
         
         story.append(Spacer(1, 10*mm))
         
-        # Summary section - prominent and professional
+        # ===== TOTALS SECTION =====
         discount_amt = getattr(sale, 'discount', 0)
-        tax_amt = getattr(sale, 'tax', 0)
+        tax_amt = getattr(sale, 'tax', 0) or 0
         
-        summary_data = [
-            ['Subtotal:', f"Rs. {subtotal:,.2f}"],
+        totals_data = [
+            [
+                Paragraph('<b>Subtotal</b>', ParagraphStyle('SubtotalLabel', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold', alignment=2)),
+                Paragraph(f"Rs. {subtotal:,.2f}", ParagraphStyle('SubtotalVal', parent=self.styles['Normal'], fontSize=11, alignment=2))
+            ]
         ]
         
         if discount_amt > 0:
-            summary_data.append(['Discount:', f"Rs. {discount_amt:,.2f}"])
+            totals_data.append([
+                Paragraph('<b>Discount</b>', ParagraphStyle('DiscountLabel', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold', alignment=2)),
+                Paragraph(f"Rs. {discount_amt:,.2f}", ParagraphStyle('DiscountVal', parent=self.styles['Normal'], fontSize=11, alignment=2, textColor=colors.green))
+            ])
         
         if tax_amt > 0:
-            summary_data.append(['Tax (%):', f"Rs. {tax_amt:,.2f}"])
+            totals_data.append([
+                Paragraph('<b>Tax</b>', ParagraphStyle('TaxLabel', parent=self.styles['Normal'], fontSize=11, fontName='Helvetica-Bold', alignment=2)),
+                Paragraph(f"Rs. {tax_amt:,.2f}", ParagraphStyle('TaxVal', parent=self.styles['Normal'], fontSize=11, alignment=2))
+            ])
         
-        summary_table = Table(summary_data, colWidths=[100*mm, 60*mm])
-        summary_table.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('TEXTCOLOR', (0, 0), (-1, -1), self.text_dark),
-            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
-            ('LINEBELOW', (0, -1), (-1, -1), 0.5, self.border_color),
-            ('LEFTPADDING', (0, 0), (-1, -1), 6),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 3),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ]))
-        story.append(summary_table)
+        # Grand total
+        totals_data.append([
+            Paragraph('<b style="font-size: 14px;">TOTAL</b>', ParagraphStyle('TotalLabel', parent=self.styles['Normal'], fontSize=14, fontName='Helvetica-Bold', alignment=2)),
+            Paragraph(f"<b><font size=14>Rs. {sale.total:,.2f}</font></b>", ParagraphStyle('TotalVal', parent=self.styles['Normal'], fontSize=14, alignment=2, textColor=colors.HexColor('#0052CC')))
+        ])
         
-        story.append(Spacer(1, 6*mm))
-        
-        # Total section - bold and prominent
-        total_table = Table([['TOTAL:', f"Rs. {sale.total:,.2f}"]], colWidths=[100*mm, 60*mm])
-        total_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), self.accent_dark),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('ALIGN', (1, 0), (-1, 0), 'RIGHT'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 6),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        totals_table = Table(totals_data, colWidths=[100*mm, 60*mm])
+        totals_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTSIZE', (0, 0), (-1, -2), 11),
+            ('FONTSIZE', (0, -1), (-1, -1), 14),
+            ('LINEABOVE', (0, -1), (-1, -1), 2, colors.HexColor('#0052CC')),
+            ('LINEBELOW', (0, -1), (-1, -1), 2, colors.HexColor('#0052CC')),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ('LEFTPADDING', (1, 0), (-1, -1), 10),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#F0F4FF'))
         ]))
-        story.append(total_table)
+        story.append(totals_table)
         
         story.append(Spacer(1, 10*mm))
         
