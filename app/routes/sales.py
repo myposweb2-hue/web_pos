@@ -787,36 +787,44 @@ def receipt_html(sale_id):
 @sales_bp.route('/api/sales/<int:sale_id>/receipt/pdf')
 @login_required
 def download_receipt_pdf(sale_id):
-    """Download receipt as PDF using professional HTML template styling."""
-    from io import BytesIO
-    from xhtml2pdf import pisa
+    """Download receipt as PDF in specified format."""
+    from app.utils.multi_format_receipt_generator import MultiFormatReceiptGenerator
+    from app.routes.invoices import get_receipt_settings
     
     sale = get_sale_secure(sale_id)
     if not sale:
         return jsonify({'error': 'Sale not found'}), 404
     
     try:
-        # Get the professional HTML receipt from template
-        html_content = receipt_html(sale.id)
+        # Get format from query parameter, default to 'a4'
+        format_type = request.args.get('format', 'a4').lower()
         
-        # Convert HTML to PDF using xhtml2pdf
-        pdf_buffer = BytesIO()
-        html_bytes = html_content.encode('utf-8')
+        # Validate format
+        if format_type not in ['thermal', 'a4', 'a5']:
+            format_type = 'a4'
         
-        pisa_status = pisa.CreatePDF(
-            BytesIO(html_bytes),
-            pdf_buffer,
-            encoding='utf-8'
-        )
+        # Get receipt settings
+        company_id = get_company_id()
+        receipt_settings = get_receipt_settings(company_id)
         
-        if pisa_status.err:
-            current_app.logger.error(f"PDF conversion error: {pisa_status.err}")
-            return jsonify({'error': 'PDF conversion failed'}), 500
+        # Format business_settings for the generator
+        # Map company_name to business_name for generator compatibility
+        mapped_settings = receipt_settings.copy()
+        if 'company_name' in mapped_settings:
+            mapped_settings['business_name'] = mapped_settings.pop('company_name')
+        business_settings = {'receipt': mapped_settings}
+        
+        # Generate PDF using MultiFormatReceiptGenerator
+        generator = MultiFormatReceiptGenerator()
+        pdf_buffer = generator.generate_receipt_pdf(sale, sale.items, format_type=format_type, business_settings=business_settings)
+        
+        if not pdf_buffer:
+            return jsonify({'error': 'PDF generation failed'}), 500
         
         pdf_buffer.seek(0)
         
         # Return PDF with cache-busting headers
-        filename = f'receipt_{sale_id}.pdf'
+        filename = f'receipt_{sale_id}_{format_type}.pdf'
         response = send_file(
             pdf_buffer,
             as_attachment=True,
