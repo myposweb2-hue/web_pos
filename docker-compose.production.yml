@@ -82,6 +82,7 @@ services:
       - ./letsencrypt_certs:/etc/letsencrypt:ro
       - ./certbot/www:/var/www/certbot:ro
       - ./app/static:/app/static:ro
+      - ./app/uploads:/app/uploads:ro
     depends_on:
       - web
     networks:
