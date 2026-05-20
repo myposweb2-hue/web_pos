@@ -8,6 +8,11 @@ import calendar
 
 main_bp = Blueprint('main', __name__, template_folder='../../templates')
 
+@main_bp.route('/health')
+def health_check():
+    """Health check endpoint for Docker health checks."""
+    return jsonify({'status': 'healthy'}), 200
+
 @main_bp.route('/')
 @main_bp.route('/dashboard')
 @login_required
