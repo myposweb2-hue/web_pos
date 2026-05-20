@@ -1,5 +1,25 @@
 // Base JavaScript for POS Web Application
 
+// Global toggle function for sidebar (direct onclick handler)
+function toggleSidebar(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    
+    if (sidebar) {
+        sidebar.classList.toggle('open');
+        if (sidebarOverlay) {
+            sidebarOverlay.classList.toggle('active');
+        }
+        if (sidebar.classList.contains('open')) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+    }
+}
+
 // Global fetch interceptor to handle session expiration and errors
 (function() {
     const originalFetch = window.fetch;

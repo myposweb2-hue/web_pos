@@ -57,7 +57,7 @@ def get_receipt_settings(company_id=None):
         
         # Merge with defaults
         defaults = {
-            'company_name': settings_dict.get('company_name') or settings_dict.get('business_name', 'YOUR STORE'),
+            'company_name': settings_dict.get('business_name') or settings_dict.get('company_name', 'YOUR STORE'),
             'business_address': settings_dict.get('business_address', '123 Main Street, Suite 100'),
             'business_city': settings_dict.get('business_city', 'New York, NY 10001'),
             'business_phone': settings_dict.get('business_phone', 'Tel: (555) 123-4567'),

@@ -533,40 +533,36 @@ function fetchAndRenderChart() {
 function setupChartControls() {
     console.log('Setting up chart controls...');
     
-    // =============== PERIOD BUTTONS - DOCUMENT-LEVEL DELEGATION ===============
-    // Listen at document level to catch clicks before Bootstrap interferes
-    document.addEventListener('click', function(e) {
-        const periodBtn = e.target.closest('[data-period]');
-        if (periodBtn && periodBtn.dataset.period) {
+    // =============== PERIOD BUTTONS - DIRECT LISTENERS ===============
+    // Attach listeners directly to period buttons without interfering with other elements
+    document.querySelectorAll('[data-period]').forEach(btn => {
+        btn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
-            e.stopImmediatePropagation();
             
-            const newPeriod = periodBtn.dataset.period;
-            console.log(`✓✓✓ DOCUMENT CLICK: Period button clicked: ${newPeriod}`);
+            const newPeriod = this.dataset.period;
+            console.log(`✓✓✓ PERIOD BUTTON CLICKED: ${newPeriod}`);
             
             if (currentPeriod !== newPeriod) {
                 currentPeriod = newPeriod;
                 console.log(`✓ Updated currentPeriod to: ${currentPeriod}`);
                 
                 // Manually update all buttons' active class
-                document.querySelectorAll('[data-period]').forEach(btn => {
-                    if (btn.dataset.period === newPeriod) {
-                        btn.classList.add('active');
+                document.querySelectorAll('[data-period]').forEach(b => {
+                    if (b.dataset.period === newPeriod) {
+                        b.classList.add('active');
                     } else {
-                        btn.classList.remove('active');
+                        b.classList.remove('active');
                     }
                 });
                 
                 console.log(`✓ Fetching chart for period: ${currentPeriod}`);
                 fetchAndRenderChart();
             }
-            
-            return false;
-        }
-    }, true); // Capture phase
+        }, false); // Bubble phase
+    });
     
-    console.log('Period button delegation listener registered');
+    console.log('Period button listeners registered');
     
     // =============== POLLING BACKUP - All three controls ===============
     console.log('Starting polling as backup mechanism...');
