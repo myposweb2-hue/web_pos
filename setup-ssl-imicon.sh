@@ -22,7 +22,7 @@ mkdir -p ./certbot/www
 
 # 2. Stop nginx temporarily to allow certbot to bind to port 80
 echo "⏸️  Stopping Nginx temporarily..."
-docker-compose stop pos_nginx
+docker-compose stop nginx
 
 # Wait a moment for the port to be released
 sleep 2
