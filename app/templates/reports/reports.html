@@ -535,6 +535,29 @@
 
 {% block scripts %}
 <script>
+// ========== Global Notification Function ==========
+function showNotification(message, type = 'info') {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px; max-width: 500px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+
+    setTimeout(function() {
+        if (alertDiv.parentNode) {
+            try {
+                const bsAlert = new bootstrap.Alert(alertDiv);
+                bsAlert.close();
+            } catch(e) {
+                alertDiv.remove();
+            }
+        }
+    }, 5000);
+}
+
 let currencySymbol = '₨';
 let salesTrendChart = null;
 let paymentMethodsChart = null;
@@ -1104,7 +1127,7 @@ function exportCurrentReport() {
         console.log('End Date:', endDate);
         
         if (!startDate || !endDate) {
-            alert('Date range not set. Please refresh the page.');
+            showNotification('Date range not set. Please refresh the page.', 'warning');
             return;
         }
         
@@ -1112,7 +1135,7 @@ function exportCurrentReport() {
         console.log('Active tab element:', activeTab);
         
         if (!activeTab) {
-            alert('Please select a report tab first');
+            showNotification('Please select a report tab first', 'warning');
             return;
         }
         
@@ -1147,7 +1170,7 @@ function exportCurrentReport() {
             console.log('Customer Ledger export - Selected customer ID:', customerId);
             
             if (!customerId) {
-                alert('Please select a customer to export');
+                showNotification('Please select a customer to export', 'warning');
                 exportBtn.innerHTML = '<i class="fas fa-download me-1"></i>Export';
                 exportBtn.disabled = false;
                 return;
@@ -1158,11 +1181,41 @@ function exportCurrentReport() {
         
         console.log('Export URL:', url);
         
-        window.location.href = url;
-        setTimeout(function() { exportBtn.innerHTML = '<i class="fas fa-download me-1"></i>Export'; exportBtn.disabled = false; }, 2000);
+        // Fetch the file with error handling
+        fetch(url)
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Export failed');
+                    });
+                }
+            })
+            .then(blob => {
+                // Create download link
+                var downloadUrl = window.URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = 'report-' + reportType + '-' + new Date().toISOString().split('T')[0] + '.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(downloadUrl);
+                document.body.removeChild(a);
+                
+                showNotification('Report exported successfully!', 'success');
+                exportBtn.innerHTML = '<i class="fas fa-download me-1"></i>Export';
+                exportBtn.disabled = false;
+            })
+            .catch(error => {
+                console.error('Export error:', error);
+                showNotification('Error exporting report: ' + error.message, 'danger');
+                exportBtn.innerHTML = '<i class="fas fa-download me-1"></i>Export';
+                exportBtn.disabled = false;
+            });
     } catch (error) {
         console.error('Export error:', error);
-        alert('Error exporting report: ' + error.message);
+        showNotification('Error exporting report: ' + error.message, 'danger');
         document.getElementById('exportBtn').disabled = false;
         document.getElementById('exportBtn').innerHTML = '<i class="fas fa-download me-1"></i>Export';
     }
