@@ -89,6 +89,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (sidebarOverlay) {
                 sidebarOverlay.classList.toggle('active');
             }
+            // Prevent body scroll when sidebar is open
+            if (sidebar.classList.contains('open')) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
         }
         
         // Multiple event types for better compatibility
