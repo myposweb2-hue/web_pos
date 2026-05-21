@@ -115,13 +115,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemsJsonInput = document.getElementById('items_json');
     let items = [];
 
+    if (!productSearch || !itemsTableBody || !totalAmountInput || !itemsJsonInput) {
+        console.error('Required elements not found in the DOM');
+        return;
+    }
+
     productSearch.addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
-        if (!selectedOption.value) return;
+        
+        if (!selectedOption || !selectedOption.value) {
+            console.warn('No option selected or empty value');
+            return;
+        }
 
         const productId = selectedOption.value;
-        const productName = selectedOption.dataset.name;
-        const costPrice = parseFloat(selectedOption.dataset.cost);
+        const productName = selectedOption.getAttribute('data-name') || selectedOption.textContent;
+        const costPrice = parseFloat(selectedOption.getAttribute('data-cost') || 0);
+
+        console.log('Selected product:', { productId, productName, costPrice });
 
         if (items.some(item => item.product_id === productId)) {
             alert('Product already added.');
@@ -130,6 +141,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const item = { product_id: productId, name: productName, quantity: 1, cost_price: costPrice };
         items.push(item);
+        console.log('Item added, total items:', items.length);
         renderTable();
         this.value = '';
     });
@@ -138,42 +150,65 @@ document.addEventListener('DOMContentLoaded', function() {
         itemsTableBody.innerHTML = '';
         let totalAmount = 0;
 
-        items.forEach((item, index) => {
-            const total = item.quantity * item.cost_price;
-            totalAmount += total;
+        if (items.length === 0) {
+            itemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center">No items added yet</td></tr>';
+        } else {
+            items.forEach((item, index) => {
+                const total = item.quantity * item.cost_price;
+                totalAmount += total;
 
-            const row = `
-                <tr>
-                    <td>${item.name}</td>
-                    <td><input type="number" class="form-control quantity" value="${item.quantity}" data-index="${index}" min="1"></td>
-                    <td><input type="number" step="0.01" class="form-control cost_price" value="${item.cost_price.toFixed(2)}" data-index="${index}"></td>
-                    <td class="text-end">${total.toFixed(2)}</td>
-                    <td><button type="button" class="btn btn-sm btn-danger remove-item" data-index="${index}">&times;</button></td>
-                </tr>
-            `;
-            itemsTableBody.insertAdjacentHTML('beforeend', row);
-        });
+                const row = `
+                    <tr>
+                        <td>${escapeHtml(item.name)}</td>
+                        <td><input type="number" class="form-control quantity" value="${item.quantity}" data-index="${index}" min="1"></td>
+                        <td><input type="number" step="0.01" class="form-control cost_price" value="${item.cost_price.toFixed(2)}" data-index="${index}"></td>
+                        <td class="text-end">${total.toFixed(2)}</td>
+                        <td><button type="button" class="btn btn-sm btn-danger remove-item" data-index="${index}">&times;</button></td>
+                    </tr>
+                `;
+                itemsTableBody.insertAdjacentHTML('beforeend', row);
+            });
+        }
 
         totalAmountInput.value = totalAmount.toFixed(2);
         itemsJsonInput.value = JSON.stringify(items);
     }
 
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
     itemsTableBody.addEventListener('input', function(e) {
         if (e.target.classList.contains('quantity') || e.target.classList.contains('cost_price')) {
-            const index = e.target.dataset.index;
-            items[index].quantity = parseFloat(e.target.closest('tr').querySelector('.quantity').value) || 0;
-            items[index].cost_price = parseFloat(e.target.closest('tr').querySelector('.cost_price').value) || 0;
-            renderTable();
+            const index = parseInt(e.target.dataset.index);
+            if (index >= 0 && index < items.length) {
+                items[index].quantity = parseFloat(e.target.closest('tr').querySelector('.quantity').value) || 0;
+                items[index].cost_price = parseFloat(e.target.closest('tr').querySelector('.cost_price').value) || 0;
+                renderTable();
+            }
         }
     });
 
     itemsTableBody.addEventListener('click', function(e) {
         if (e.target.classList.contains('remove-item')) {
-            const index = e.target.dataset.index;
-            items.splice(index, 1);
-            renderTable();
+            const index = parseInt(e.target.dataset.index);
+            if (index >= 0 && index < items.length) {
+                items.splice(index, 1);
+                renderTable();
+            }
         }
     });
+
+    // Initial render to show empty state
+    renderTable();
 });
 </script>
 {% endblock %}

@@ -276,10 +276,15 @@
     <div class="receipt-container">
         <!-- HEADER -->
         <div class="header">
-            <div class="company-name">{{ company.name }}</div>
+            {% if logo_url %}
+            <div style="margin-bottom: 2mm;">
+                <img src="{{ logo_url }}" alt="Logo" style="max-width: 30mm; max-height: 20mm;">
+            </div>
+            {% endif %}
+            <div class="company-name">{{ business_name }}</div>
             <div class="company-contact">
-                <div>{{ company.address }}</div>
-                <div>{{ company.phone }} | {{ company.email }}</div>
+                <div>{{ business_address }}</div>
+                <div>{{ business_phone }}{% if business_email %} | {{ business_email }}{% endif %}</div>
             </div>
         </div>
 
@@ -300,11 +305,11 @@
             </div>
             <div class="info-row">
                 <span class="info-label">Time:</span>
-                <span>{{ time }}</span>
+                <span>{{ sale_time }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Cashier:</span>
-                <span>{{ cashier }}</span>
+                <span>{{ cashier_name }}</span>
             </div>
         </div>
 
@@ -315,7 +320,7 @@
         <div class="invoice-info" style="margin-bottom: 2mm;">
             <div class="info-row">
                 <span class="info-label">Customer:</span>
-                <span>{{ customer.name }}</span>
+                <span>{{ customer_name }}</span>
             </div>
         </div>
 
@@ -330,29 +335,15 @@
                 <span style="width: 20%; text-align: right;">Total</span>
             </div>
 
+            {% for item in items %}
             <div class="item-row">
-                <div class="item-name">Professional Consultation</div>
+                <div class="item-name">{{ item.product_name }}</div>
                 <div class="qty-price">
-                    <span>1 x $2,500.00</span>
-                    <span style="margin-left: 10mm;">$2,500.00</span>
+                    <span>{{ item.quantity }} x {{ currency }}{{ "%.2f"|format(item.unit_price) }}</span>
+                    <span style="margin-left: 10mm;">{{ currency }}{{ "%.2f"|format(item.total) }}</span>
                 </div>
             </div>
-
-            <div class="item-row">
-                <div class="item-name">Software License</div>
-                <div class="qty-price">
-                    <span>3 x $450.00</span>
-                    <span style="margin-left: 10mm;">$1,350.00</span>
-                </div>
-            </div>
-
-            <div class="item-row">
-                <div class="item-name">Training Services</div>
-                <div class="qty-price">
-                    <span>1 x $1,200.00</span>
-                    <span style="margin-left: 10mm;">$1,200.00</span>
-                </div>
-            </div>
+            {% endfor %}
         </div>
 
         <div class="divider">- - - - - - - - - - -</div>
@@ -361,34 +352,42 @@
         <div class="totals-section">
             <div class="total-row">
                 <span class="total-label">Subtotal:</span>
-                <span class="total-value">$5,050.00</span>
+                <span class="total-value">{{ currency }}{{ "%.2f"|format(subtotal) }}</span>
             </div>
+            {% if discount_total and discount_total > 0 %}
             <div class="total-row">
                 <span class="total-label">Discount:</span>
-                <span class="total-value">-$0.00</span>
+                <span class="total-value">-{{ currency }}{{ "%.2f"|format(discount_total) }}</span>
             </div>
+            {% endif %}
+            {% if tax_amount and tax_amount > 0 %}
             <div class="total-row">
-                <span class="total-label">Tax (8%):</span>
-                <span class="total-value">$404.00</span>
+                <span class="total-label">Tax ({{ tax_rate }}%):</span>
+                <span class="total-value">{{ currency }}{{ "%.2f"|format(tax_amount) }}</span>
             </div>
+            {% endif %}
         </div>
 
         <!-- GRAND TOTAL -->
         <div class="grand-total">
-            TOTAL: $5,454.00
+            TOTAL: {{ currency }}{{ "%.2f"|format(total) }}
         </div>
 
         <!-- PAYMENT METHOD -->
         <div class="payment-section">
-            <div class="payment-method"><strong>Payment Method:</strong> Cash</div>
-            <div class="payment-method"><strong>Amount Paid:</strong> $5,454.00</div>
-            <div class="payment-method"><strong>Change:</strong> $0.00</div>
+            <div class="payment-method"><strong>Payment Method:</strong> {{ payment_method }}</div>
+            <div class="payment-method"><strong>Amount Paid:</strong> {{ currency }}{{ "%.2f"|format(paid_amount) }}</div>
+            {% if balance_due > 0 %}
+            <div class="payment-method"><strong>Balance Due:</strong> {{ currency }}{{ "%.2f"|format(balance_due) }}</div>
+            {% else %}
+            <div class="payment-method"><strong>Change:</strong> {{ currency }}{{ "%.2f"|format(change) }}</div>
+            {% endif %}
         </div>
 
         <!-- BARCODE (Optional) -->
         <div class="barcode-section">
-            <div class="barcode">#{{ invoice_number }}</div>
-            <div style="font-size: 6pt;">Scan to view receipt</div>
+            <div class="barcode">{{ invoice_number }}</div>
+            <div style="font-size: 6pt;">Receipt #</div>
         </div>
 
         <!-- QR CODE (Optional) -->
@@ -402,17 +401,17 @@
         <!-- FOOTER -->
         <div class="footer">
             <div class="divider">- - - - - - - - - - -</div>
-            <div class="thank-you">THANK YOU!</div>
+            <div class="thank-you">{{ thank_you_message }}</div>
+            {% if terms %}
             <div class="terms">
-                <p>Please keep this receipt for your records.</p>
-                <p>For returns, visit within 30 days with receipt.</p>
-                <p>No receipt? Full refund not applicable.</p>
+                {{ terms }}
             </div>
+            {% endif %}
             <div class="receipt-footer">
-                {{ company.name }}<br>
-                {{ company.website }}<br>
-                Powered by POS System<br>
-                Receipt generated on {{ invoice_date }}
+                {{ business_name }}<br>
+                {% if website %}{{ website }}<br>{% endif %}
+                Powered by Web POS System<br>
+                {{ invoice_date }} {{ sale_time }}
             </div>
         </div>
     </div>
