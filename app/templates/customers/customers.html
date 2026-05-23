@@ -910,6 +910,9 @@ function saveCustomer() {
         url: url,
         method: method,
         contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
         data: JSON.stringify(customerData)
     })
     .done(function(response) {
@@ -947,7 +950,10 @@ function restoreAndUpdateCustomer(archivedCustomerId, customerData) {
     // First restore the customer
     $.ajax({
         url: `/customers/api/customers/${archivedCustomerId}/restore`,
-        method: 'POST'
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
     })
     .done(function(response) {
         if (response.success) {
@@ -956,6 +962,9 @@ function restoreAndUpdateCustomer(archivedCustomerId, customerData) {
                 url: `/customers/api/customers/${archivedCustomerId}`,
                 method: 'PUT',
                 contentType: 'application/json',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
                 data: JSON.stringify(customerData)
             })
             .done(function(updateResponse) {
