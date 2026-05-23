@@ -903,8 +903,19 @@ function saveCustomer() {
         current_balance: $('#customerCurrentBalance').val()
     };
 
+    console.log('Saving customer:', customerData);
+    console.log('CSRF Token:', csrfToken);
+
+    // Validate name
+    if (!customerData.name || customerData.name.trim() === '') {
+        showAlert('Customer name is required', 'danger');
+        return;
+    }
+
     const url = currentCustomerId ? `/customers/api/customers/${currentCustomerId}` : '/customers/api/customers';
     const method = currentCustomerId ? 'PUT' : 'POST';
+
+    console.log('URL:', url, 'Method:', method);
 
     $.ajax({
         url: url,
@@ -916,6 +927,7 @@ function saveCustomer() {
         data: JSON.stringify(customerData)
     })
     .done(function(response) {
+        console.log('Success response:', response);
         if (response.success) {
             $('#addCustomerModal').modal('hide');
             $('#customerForm')[0].reset();
@@ -928,9 +940,25 @@ function saveCustomer() {
         }
     })
     .fail(function(jqXHR) {
+        console.error('Error response:', jqXHR.status, jqXHR.responseText);
         // Handle the case when an archived customer with same name exists
         try {
             const response = JSON.parse(jqXHR.responseText);
+            if (response.error && response.archived_customer_id) {
+                // Show confirmation to restore the archived customer
+                const customerName = $('#customerName').val();
+                if (confirm(`A customer with name "${customerName}" already exists but is archived. Would you like to restore it?`)) {
+                    restoreAndUpdateCustomer(response.archived_customer_id, customerData);
+                }
+            } else {
+                showAlert(response.error || 'Error saving customer', 'danger');
+            }
+        } catch (e) {
+            console.error('Parse error:', e);
+            showAlert('Error saving customer: ' + jqXHR.status + ' ' + jqXHR.statusText, 'danger');
+        }
+    });
+}
             if (response.error && response.archived_customer_id) {
                 // Show confirmation to restore the archived customer
                 const customerName = $('#customerName').val();
