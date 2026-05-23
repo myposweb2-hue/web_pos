@@ -959,20 +959,6 @@ function saveCustomer() {
         }
     });
 }
-            if (response.error && response.archived_customer_id) {
-                // Show confirmation to restore the archived customer
-                const customerName = $('#customerName').val();
-                if (confirm(`A customer with name "${customerName}" already exists but is archived. Would you like to restore it?`)) {
-                    restoreAndUpdateCustomer(response.archived_customer_id, customerData);
-                }
-            } else {
-                showAlert(response.error || 'Error saving customer', 'danger');
-            }
-        } catch (e) {
-            showAlert('Error saving customer', 'danger');
-        }
-    });
-}
 
 function restoreAndUpdateCustomer(archivedCustomerId, customerData) {
     // First restore the customer
