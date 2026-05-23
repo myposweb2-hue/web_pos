@@ -689,12 +689,20 @@ function openPrintWindow(saleId, format) {
             newWindow.focus();
             
             // Wait for page to load, then trigger print dialog
-            newWindow.addEventListener('load', function() {
-                console.log('Receipt page loaded, triggering print dialog...');
+            if (newWindow.document.readyState === 'loading') {
+                newWindow.document.addEventListener('DOMContentLoaded', function() {
+                    console.log('Receipt page loaded, triggering print dialog...');
+                    setTimeout(() => {
+                        newWindow.print();
+                    }, 500);
+                });
+            } else {
+                // Page already loaded
+                console.log('Receipt page already loaded, triggering print dialog...');
                 setTimeout(() => {
                     newWindow.print();
                 }, 500);
-            });
+            }
         }
     } catch (error) {
         console.error('Error opening print window:', error);
