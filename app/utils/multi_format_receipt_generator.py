@@ -165,47 +165,51 @@ class MultiFormatReceiptGenerator:
         Returns:
             BytesIO: PDF content
         """
+        # Debug logging removed due to emoji encoding issues on Windows
         # Write to file for debugging
-        import datetime
-        debug_file = '/tmp/receipt_generate.log'
-        try:
-            with open(debug_file, 'a') as f:
-                f.write(f"\n🔴 generate_receipt_pdf called at {datetime.datetime.now()}\n")
-                f.write(f"   format_type: {format_type}\n")
-                f.write(f"   business_settings is None? {business_settings is None}\n")
-                if business_settings:
-                    f.write(f"   business_settings keys: {business_settings.keys()}\n")
-                    f.write(f"   business_settings['receipt']? {'receipt' in business_settings}\n")
-                    if 'receipt' in business_settings:
-                        f.write(f"   business_settings['receipt']['business_name']: {business_settings['receipt'].get('business_name')}\n")
-        except:
-            try:
-                with open('c:\\temp\\receipt_generate.log', 'a') as f:
-                    f.write(f"\n🔴 generate_receipt_pdf called at {datetime.datetime.now()}\n")
-                    f.write(f"   format_type: {format_type}\n")
-                    f.write(f"   business_settings is None? {business_settings is None}\n")
-                    if business_settings:
-                        f.write(f"   business_settings keys: {business_settings.keys()}\n")
-                        f.write(f"   business_settings['receipt']? {'receipt' in business_settings}\n")
-                        if 'receipt' in business_settings:
-                            f.write(f"   business_settings['receipt']['business_name']: {business_settings['receipt'].get('business_name')}\n")
-            except:
-                pass
+        # import datetime
+        # debug_file = '/tmp/receipt_generate.log'
+        # try:
+        #     with open(debug_file, 'a') as f:
+        #         f.write(f"\n🔴 generate_receipt_pdf called at {datetime.datetime.now()}\n")
+        #         f.write(f"   format_type: {format_type}\n")
+        #         f.write(f"   business_settings is None? {business_settings is None}\n")
+        #         if business_settings:
+        #             f.write(f"   business_settings keys: {business_settings.keys()}\n")
+        #             f.write(f"   business_settings['receipt']? {'receipt' in business_settings}\n")
+        #             if 'receipt' in business_settings:
+        #                 f.write(f"   business_settings['receipt']['business_name']: {business_settings['receipt'].get('business_name')}\n")
+        # except:
+        #     try:
+        #         with open('c:\\temp\\receipt_generate.log', 'a') as f:
+        #             f.write(f"\n🔴 generate_receipt_pdf called at {datetime.datetime.now()}\n")
+        #             f.write(f"   format_type: {format_type}\n")
+        #             f.write(f"   business_settings is None? {business_settings is None}\n")
+        #             if business_settings:
+        #                 f.write(f"   business_settings keys: {business_settings.keys()}\n")
+        #                 f.write(f"   business_settings['receipt']? {'receipt' in business_settings}\n")
+        #                 if 'receipt' in business_settings:
+        #                     f.write(f"   business_settings['receipt']['business_name']: {business_settings['receipt'].get('business_name')}\n")
+        #     except:
+        #         pass
         
-        print(f"\n🔴 generate_receipt_pdf called with:")
-        print(f"   format_type: {format_type}")
-        print(f"   business_settings is None? {business_settings is None}")
+        # Debug logging removed due to emoji encoding issues on Windows
+        # print(f"\n🔴 generate_receipt_pdf called with:")
+        # print(f"   format_type: {format_type}")
+        # print(f"   business_settings is None? {business_settings is None}")
+        # if business_settings:
+        #     print(f"   business_settings keys: {business_settings.keys()}")
+        #     print(f"   business_settings['receipt']? {'receipt' in business_settings}")
         if business_settings:
-            print(f"   business_settings keys: {business_settings.keys()}")
-            print(f"   business_settings['receipt']? {'receipt' in business_settings}")
             if 'receipt' in business_settings:
-                print(f"   business_settings['receipt']['business_name']: {business_settings['receipt'].get('business_name')}")
+                pass  # Removed emoji print statement
         
         if business_settings is None:
             business_settings = self._get_business_settings()
-            print(f"   business_settings was None, using fallback:")
-            print(f"   fallback keys: {business_settings.keys() if isinstance(business_settings, dict) else 'N/A'}")
-            print(f"   fallback business_name: {business_settings.get('business_name', 'NOT FOUND')}")
+            # Debug logging removed
+            # print(f"   business_settings was None, using fallback:")
+            # print(f"   fallback keys: {business_settings.keys() if isinstance(business_settings, dict) else 'N/A'}")
+            # print(f"   fallback business_name: {business_settings.get('business_name', 'NOT FOUND')}")
             
             # Write to file
             try:
@@ -513,7 +517,7 @@ class MultiFormatReceiptGenerator:
         business_name = business_settings.get('receipt', {}).get('business_name') or \
                        business_settings.get('general', {}).get('business_name') or \
                        business_settings.get('business_name') or 'Company Name'
-        print(f"🟦 Final business_name = {business_name}")
+        # Removed emoji print due to encoding issues: print(f"🟦 Final business_name = {business_name}")
         
         business_address = business_settings.get('receipt', {}).get('business_address', '') or \
                           business_settings.get('business_address', '')

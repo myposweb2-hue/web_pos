@@ -51,8 +51,9 @@
         }
 
         .company-logo {
-            width: 30mm;
-            height: 30mm;
+            width: 70mm;
+            height: auto;
+            max-height: 70mm;
             background: linear-gradient(135deg, #0051ba 0%, #003d82 100%);
             border-radius: 3px;
             margin-bottom: 3mm;
@@ -62,6 +63,8 @@
             color: white;
             font-size: 18pt;
             font-weight: bold;
+            object-fit: contain;
+            image-rendering: crisp-edges;
         }
 
         .company-name {
@@ -398,15 +401,14 @@
             <!-- Header Section -->
             <div class="invoice-header">
                 <div class="company-info">
-                    <div class="company-logo">LOGO</div>
-                    <div class="company-name">{{ company.name }}</div>
+                    {% if logo_url %}<img src="{{ logo_url }}" alt="Logo" class="company-logo" style="background: none;">{% else %}<div class="company-logo">LOGO</div>{% endif %}
+                    <div class="company-name">{{ business_name }}</div>
                     <div class="company-details">
-                        <p><strong>Address:</strong> {{ company.address }}</p>
-                        <p><strong>City:</strong> {{ company.city }}</p>
-                        <p><strong>Phone:</strong> {{ company.phone }}</p>
-                        <p><strong>Email:</strong> {{ company.email }}</p>
-                        <p><strong>Website:</strong> {{ company.website }}</p>
-                        <p><strong>Tax ID:</strong> {{ company.tax_id }}</p>
+                        {% if business_address %}<p><strong>Address:</strong> {{ business_address }}</p>{% endif %}
+                        {% if business_phone %}<p><strong>Phone:</strong> {{ business_phone }}</p>{% endif %}
+                        {% if business_email %}<p><strong>Email:</strong> {{ business_email }}</p>{% endif %}
+                        {% if website %}<p><strong>Website:</strong> {{ website }}</p>{% endif %}
+                        {% if business_gst %}<p><strong>Tax ID:</strong> {{ business_gst }}</p>{% endif %}
                     </div>
                 </div>
                 <div class="invoice-title-section">
@@ -421,12 +423,12 @@
                             <span class="invoice-details-value">{{ invoice_date }}</span>
                         </div>
                         <div class="invoice-details-item">
-                            <span class="invoice-details-label">Due Date:</span>
-                            <span class="invoice-details-value">{{ due_date }}</span>
+                            <span class="invoice-details-label">Time:</span>
+                            <span class="invoice-details-value">{{ sale_time }}</span>
                         </div>
                         <div class="invoice-details-item">
-                            <span class="invoice-details-label">Status:</span>
-                            <span class="invoice-details-value">{{ status }}</span>
+                            <span class="invoice-details-label">Payment Method:</span>
+                            <span class="invoice-details-value">{{ payment_method }}</span>
                         </div>
                     </div>
                 </div>
@@ -437,21 +439,10 @@
                 <div class="billing-block">
                     <div class="billing-label">Bill To</div>
                     <div class="billing-content">
-                        <p><strong>John Anderson</strong></p>
-                        <p>Anderson Industries Corp</p>
-                        <p>456 Commerce Avenue</p>
-                        <p>New York, NY 10002</p>
-                        <p>Phone: +1 (555) 987-6543</p>
-                        <p>Email: john@anderson.com</p>
-                    </div>
-                </div>
-                <div class="billing-block">
-                    <div class="billing-label">Ship To</div>
-                    <div class="billing-content">
-                        <p><strong>Anderson Industries Corp</strong></p>
-                        <p>456 Commerce Avenue</p>
-                        <p>New York, NY 10002</p>
-                        <p>Attention: Receiving Department</p>
+                        <p><strong>{{ customer_name }}</strong></p>
+                        {% if customer_address %}<p>{{ customer_address }}</p>{% endif %}
+                        {% if customer_phone %}<p>Phone: {{ customer_phone }}</p>{% endif %}
+                        {% if customer_email %}<p>Email: {{ customer_email }}</p>{% endif %}
                     </div>
                 </div>
             </div>
@@ -470,42 +461,17 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% for item in items %}
                     <tr>
-                        <td class="item-code">SKU-001</td>
-                        <td class="item-description">Professional Business Services - Annual Consultation Package</td>
-                        <td class="text-center">1</td>
-                        <td class="text-right">$2,500.00</td>
-                        <td class="text-right">$0.00</td>
-                        <td class="text-right">$200.00</td>
-                        <td class="text-right">$2,700.00</td>
+                        <td class="item-code">{{ item.code }}</td>
+                        <td class="item-description">{{ item.name }}</td>
+                        <td class="text-center">{{ item.quantity }}</td>
+                        <td class="text-right">{{ currency }}{{ "%.2f"|format(item.unit_price) }}</td>
+                        <td class="text-right">{{ currency }}{{ "%.2f"|format(item.discount if item.discount else 0) }}</td>
+                        <td class="text-right">{{ currency }}{{ "%.2f"|format(item.tax_amount if item.tax_amount else 0) }}</td>
+                        <td class="text-right">{{ currency }}{{ "%.2f"|format(item.total) }}</td>
                     </tr>
-                    <tr>
-                        <td class="item-code">SKU-002</td>
-                        <td class="item-description">Premium Software License - 12 Months</td>
-                        <td class="text-center">3</td>
-                        <td class="text-right">$450.00</td>
-                        <td class="text-right">-$135.00</td>
-                        <td class="text-right">$94.50</td>
-                        <td class="text-right">$1,409.50</td>
-                    </tr>
-                    <tr>
-                        <td class="item-code">SKU-003</td>
-                        <td class="item-description">Implementation & Training Services</td>
-                        <td class="text-center">1</td>
-                        <td class="text-right">$1,200.00</td>
-                        <td class="text-right">$0.00</td>
-                        <td class="text-right">$96.00</td>
-                        <td class="text-right">$1,296.00</td>
-                    </tr>
-                    <tr>
-                        <td class="item-code">SKU-004</td>
-                        <td class="item-description">Technical Support & Maintenance - Monthly</td>
-                        <td class="text-center">6</td>
-                        <td class="text-right">$300.00</td>
-                        <td class="text-right">-$180.00</td>
-                        <td class="text-right">$163.20</td>
-                        <td class="text-right">$1,943.20</td>
-                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
 
@@ -514,32 +480,48 @@
                 <table class="totals-table">
                     <tr class="subtotal-row">
                         <td class="label">Subtotal:</td>
-                        <td class="value">$5,150.00</td>
+                        <td class="value">{{ currency_symbol }}{{ "%.2f"|format(subtotal) }}</td>
                     </tr>
+                    {% if discount_total > 0 %}
                     <tr>
                         <td class="label">Discount:</td>
-                        <td class="value">-$315.00</td>
+                        <td class="value">-{{ currency_symbol }}{{ "%.2f"|format(discount_total) }}</td>
                     </tr>
                     <tr>
                         <td class="label">Subtotal After Discount:</td>
-                        <td class="value">$4,835.00</td>
+                        <td class="value">{{ currency_symbol }}{{ "%.2f"|format(subtotal - discount_total) }}</td>
                     </tr>
+                    {% endif %}
+                    {% if tax_amount > 0 %}
                     <tr>
-                        <td class="label">Tax (8%):</td>
-                        <td class="value">$386.80</td>
+                        <td class="label">Tax ({{ tax_rate if tax_rate else 0 }}%):</td>
+                        <td class="value">{{ currency_symbol }}{{ "%.2f"|format(tax_amount) }}</td>
                     </tr>
+                    {% endif %}
                     <tr class="total-row">
-                        <td class="label">TOTAL DUE:</td>
-                        <td class="value">$5,221.80</td>
+                        <td class="label">TOTAL:</td>
+                        <td class="value">{{ currency_symbol }}{{ "%.2f"|format(total) }}</td>
                     </tr>
                     <tr>
                         <td class="label">Paid Amount:</td>
-                        <td class="value">$0.00</td>
+                        <td class="value">{{ currency_symbol }}{{ "%.2f"|format(paid_amount) }}</td>
                     </tr>
+                    {% if payment_method == 'Cash' %}
+                    <tr>
+                        <td class="label">Cash Given:</td>
+                        <td class="value">{{ currency_symbol }}{{ "%.2f"|format(cash_given) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Change:</td>
+                        <td class="value">{{ currency_symbol }}{{ "%.2f"|format(change) }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if balance_due > 0 %}
                     <tr class="balance-row">
-                        <td class="label">BALANCE DUE:</td>
-                        <td class="value">$5,221.80</td>
+                        <td class="label">BALANCE:</td>
+                        <td class="value">{{ currency_symbol }}{{ "%.2f"|format(balance_due) }}</td>
                     </tr>
+                    {% endif %}
                 </table>
             </div>
 
@@ -549,22 +531,11 @@
                     <div class="footer-label">Terms & Conditions</div>
                     <div class="footer-content">
                         <p style="margin-bottom: 1mm;"><strong>Payment Terms:</strong> Net 30</p>
-                        <p style="margin-bottom: 1mm;"><strong>Late Payment:</strong> 1.5% monthly interest</p>
-                        <p style="margin-bottom: 1mm;"><strong>Notes:</strong> Invoice is due within 30 days. Please reference invoice number in payment.</p>
+                        {% if warranty_info %}<p style="margin-bottom: 1mm;"><strong>Warranty:</strong> {{ warranty_info }}</p>{% endif %}
                     </div>
                 </div>
                 <div class="footer-section">
-                    <div class="thank-you">Thank You for Your Business!</div>
-                </div>
-                <div class="footer-section">
-                    <div class="footer-label">Authorized By</div>
-                    <div class="signature-area">
-                        <div class="signature-line"></div>
-                    </div>
-                </div>
-                <div class="footer-section">
-                    <div class="footer-label">Stamp Area</div>
-                    <div class="stamp-area">COMPANY<br>STAMP</div>
+                    <div class="thank-you">{% if thank_you_message %}{{ thank_you_message }}{% else %}Thank You for Your Business!{% endif %}</div>
                 </div>
             </div>
         </div>

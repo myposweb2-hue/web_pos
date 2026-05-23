@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, BooleanField, SubmitField
-from wtforms.validators import DataRequired, Length, EqualTo
+from wtforms.validators import DataRequired, Length, EqualTo, Email
 
 class LoginForm(FlaskForm):
     """Login form for user authentication."""
@@ -17,8 +17,11 @@ class LoginForm(FlaskForm):
 
 class ForgotPasswordForm(FlaskForm):
     """Form to request a password reset link using email."""
-    # Use simple validation to avoid external dependency on `email_validator`.
-    email = StringField('Email', validators=[DataRequired(), Length(max=255)])
+    email = StringField('Email', validators=[
+        DataRequired(message='Email is required'),
+        Email(message='Please enter a valid email address'),
+        Length(max=255, message='Email must be less than 255 characters')
+    ])
     submit = SubmitField('Send Reset Link')
 
 

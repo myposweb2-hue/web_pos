@@ -289,6 +289,63 @@
     </div>
 </div>
 
+<!-- Receipt Options Modal -->
+<div class="modal fade" id="receiptOptionsModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-invoice me-2"></i>Receipt Options
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" id="closeReceiptModal"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <p class="fs-6 mb-4">How would you like to proceed?</p>
+                <div class="d-grid gap-3">
+                    <button type="button" class="btn btn-lg btn-primary" id="printReceiptBtn" onclick="handlePrintReceipt()">
+                        <i class="fas fa-print me-2"></i>Print Receipt
+                    </button>
+                    <button type="button" class="btn btn-lg btn-success" id="sendWhatsappBtn" onclick="handleSendWhatsapp()">
+                        <i class="fab fa-whatsapp me-2"></i>Send on WhatsApp
+                    </button>
+                </div>
+                <hr class="my-3">
+                <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Skip for Now</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- WhatsApp Number Modal -->
+<div class="modal fade" id="whatsappNumberModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fab fa-whatsapp me-2"></i>Send Receipt via WhatsApp
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="whatsappNumber" class="form-label">Phone Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text">+</span>
+                        <input type="tel" class="form-control" id="whatsappNumber" placeholder="Enter phone number without +">
+                    </div>
+                    <small class="form-text text-muted">Enter phone number without country code</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmWhatsappBtn">
+                    <i class="fas fa-check me-2"></i>Send Receipt
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Edit Product Modal -->
 <div class="modal fade" id="editProductModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -404,6 +461,8 @@ let cart = [];
 let currentCustomer = null;
 let lastSaleId = null;
 let currentHeldBillId = null;
+let pendingSaleId = null;  // Store sale ID for receipt actions
+let receiptActionTimeout = null;  // Track timeout for cancellation
 let taxRate = 18.0;
 let showTaxInSales = true;
 let enableTax = true;
@@ -517,6 +576,67 @@ function setupEventListeners() {
     // Receipt buttons
     document.getElementById('downloadReceiptBtn').addEventListener('click', downloadReceipt);
     document.getElementById('printReceiptBtn').addEventListener('click', printReceipt);
+    
+    // Receipt options modal buttons
+    document.addEventListener('DOMContentLoaded', function() {
+        // Do nothing here, let the click handlers be added below
+    }, false);
+    
+    // Direct event listeners for receipt modal buttons
+    setTimeout(function() {
+        const printBtn = document.getElementById('printReceiptBtn');
+        const whatsappBtn = document.getElementById('sendWhatsappBtn');
+        
+        if (printBtn) {
+            console.log('Print button found, adding listener');
+            printBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Print receipt clicked');
+                const modal = bootstrap.Modal.getInstance(document.getElementById('receiptOptionsModal'));
+                if (modal) modal.hide();
+                if (receiptActionTimeout) clearTimeout(receiptActionTimeout);
+                printReceipt();
+                setTimeout(() => resetSale(), 2000);
+            });
+        }
+        
+        if (whatsappBtn) {
+            console.log('WhatsApp button found, adding listener');
+            whatsappBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Send WhatsApp clicked');
+                const modal = bootstrap.Modal.getInstance(document.getElementById('receiptOptionsModal'));
+                if (modal) modal.hide();
+                if (receiptActionTimeout) clearTimeout(receiptActionTimeout);
+                sendReceiptViaWhatsapp();
+            });
+        }
+    }, 100);
+    
+    const confirmWhatsappBtn = document.getElementById('confirmWhatsappBtn');
+    if (confirmWhatsappBtn) {
+        confirmWhatsappBtn.addEventListener('click', function() {
+            const phoneNumber = document.getElementById('whatsappNumber').value.trim();
+            if (!phoneNumber) {
+                alert('Please enter a phone number');
+                return;
+            }
+            
+            // Remove non-numeric characters
+            const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
+            if (!cleanNumber) {
+                alert('Please enter a valid phone number');
+                return;
+            }
+            
+            // Send receipt via WhatsApp
+            sendReceiptViaWhatsappAPI(cleanNumber);
+            
+            // Close modal
+            bootstrap.Modal.getInstance(document.getElementById('whatsappNumberModal')).hide();
+            document.getElementById('whatsappNumber').value = '';
+        });
+    }
     
     // Edit product modal save button
     document.getElementById('saveEditProductBtn').addEventListener('click', saveEditProduct);
@@ -1265,7 +1385,7 @@ function checkout() {
                 tax: item.tax
             })),
             cash_given: cashGiven,
-            balance: paymentMethod === 'Cash' ? cashGiven - total : 0
+            balance: 0
         };
 
         // Validate items before sending
@@ -1365,15 +1485,17 @@ function checkout() {
         .then(data => {
             if (data.success) {
                 lastSaleId = data.sale_id;
+                pendingSaleId = data.sale_id;  // Store for receipt actions
                 showNotification(`âœ“ Sale completed successfully! Sale #${data.sale_id}`, 'success');
-                showReceiptActions();
+                showReceiptOptionsModal();
                 
                 // Delete the held bill if one was loaded
                 if (heldBillIdToDelete) {
                     deleteHeldBillSilent(heldBillIdToDelete);
                 }
                 
-                setTimeout(() => resetSale(), 1500);
+                // Set timeout for auto-reset, can be cancelled if user takes action
+                receiptActionTimeout = setTimeout(() => resetSale(), 5000);
             } else {
                 showNotification(`Error: ${data.error || 'Failed to complete sale'}`, 'danger');
                 checkoutBtn.disabled = false;
@@ -2083,33 +2205,153 @@ function printReceipt() {
         return;
     }
 
-    // Get default format from settings, then open PDF for printing
+    console.log('Opening print window for sale:', lastSaleId);
+    
+    // Open receipt in new window - using unique name to avoid caching
+    const windowName = 'receipt_print_' + lastSaleId + '_' + Math.random().toString(36).substr(2, 9);
+    const receiptUrl = `/sales/${lastSaleId}/receipt/html?format=a4&t=${Date.now()}`;
+    
+    try {
+        const newWindow = window.open(receiptUrl, windowName, 'width=900,height=1000,resizable=yes,scrollbars=yes');
+        if (!newWindow) {
+            console.error('Window.open returned null - popup blocker may be active');
+            // Fallback: navigate to receipt in current window
+            window.location.href = receiptUrl;
+        } else {
+            console.log('Receipt window opened successfully');
+            // Try to focus the new window
+            newWindow.focus();
+            
+            // Wait for page to load, then trigger print dialog
+            newWindow.addEventListener('load', function() {
+                console.log('Receipt page loaded, triggering print dialog...');
+                setTimeout(() => {
+                    newWindow.print();
+                }, 500);
+            });
+        }
+    } catch (error) {
+        console.error('Error opening receipt window:', error);
+        // Fallback: navigate to receipt in current window
+        window.location.href = receiptUrl;
+    }
+}
+
+function showReceiptOptionsModal() {
+    // Show modal for choosing receipt action
+    const modal = new bootstrap.Modal(document.getElementById('receiptOptionsModal'));
+    modal.show();
+}
+
+function handlePrintReceipt() {
+    console.log('handlePrintReceipt called');
+    const modal = bootstrap.Modal.getInstance(document.getElementById('receiptOptionsModal'));
+    if (modal) modal.hide();
+    if (receiptActionTimeout) clearTimeout(receiptActionTimeout);
+    printReceipt();
+    setTimeout(() => resetSale(), 2000);
+}
+
+function handleSendWhatsapp() {
+    console.log('handleSendWhatsapp called');
+    const modal = bootstrap.Modal.getInstance(document.getElementById('receiptOptionsModal'));
+    if (modal) modal.hide();
+    if (receiptActionTimeout) clearTimeout(receiptActionTimeout);
+    sendReceiptViaWhatsapp();
+}
+
+function sendReceiptViaWhatsapp() {
+    // Show WhatsApp number input modal
+    console.log('sendReceiptViaWhatsapp called');
+    const whatsappModal = document.getElementById('whatsappNumberModal');
+    console.log('WhatsApp modal element:', whatsappModal);
+    
+    if (!whatsappModal) {
+        console.error('WhatsApp modal not found!');
+        alert('WhatsApp modal not found');
+        return;
+    }
+    
+    try {
+        const modal = new bootstrap.Modal(whatsappModal);
+        console.log('Modal created:', modal);
+        modal.show();
+        console.log('Modal shown');
+    } catch (err) {
+        console.error('Error showing modal:', err);
+        alert('Error opening WhatsApp dialog');
+    }
+}
+
+function sendReceiptViaWhatsappAPI(phoneNumber) {
+    // Use pendingSaleId instead of lastSaleId
+    const saleId = pendingSaleId;
+    
+    if (!saleId) {
+        alert('No recent sale to send receipt for');
+        return;
+    }
+    
+    // Cancel the auto-reset timeout
+    if (receiptActionTimeout) {
+        clearTimeout(receiptActionTimeout);
+    }
+    
+    // Get default format from settings, then send via WhatsApp
     fetch(`/api/settings/categories/receipt`, {
         headers: { 'Accept': 'application/json' }
     })
     .then(response => response.json())
     .then(settings => {
-        const format = settings.default_format || 'a4';
-        // Open the PDF in the selected format
-        const pdfUrl = `/sales/api/sales/${lastSaleId}/receipt/pdf?format=${format}`;
-        const printWindow = window.open(pdfUrl, '_blank');
-        if (!printWindow) {
-            alert('Failed to open receipt. Please check popup blocker settings.');
-        }
+        const format = settings.default_format || 'thermal';
+        
+        // Call WhatsApp API endpoint
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        fetch(`/sales/api/sales/${saleId}/send-receipt-whatsapp`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                phone_number: phoneNumber,
+                format: format
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.whatsapp_link) {
+                showNotification(`✓ Opening WhatsApp for ${phoneNumber}...`, 'success');
+                // Open WhatsApp in new tab/window
+                window.open(data.whatsapp_link, '_blank');
+                // Reset after successful send
+                setTimeout(() => resetSale(), 2000);
+            } else {
+                showNotification(`Error: ${data.error || 'Failed to send receipt'}`, 'danger');
+            }
+        })
+        .catch(err => {
+            console.error('Error sending receipt:', err);
+            showNotification('Failed to send receipt via WhatsApp', 'danger');
+        });
     })
     .catch(err => {
         console.error('Error getting settings:', err);
-        // Fallback to a4 if settings fail
-        const pdfUrl = `/sales/api/sales/${lastSaleId}/receipt/pdf?format=a4`;
-        const printWindow = window.open(pdfUrl, '_blank');
-    })
+        showNotification('Failed to get receipt settings', 'danger');
+    });
 }
 
 function resetSale() {
     cart = [];
     currentCustomer = null;
     lastSaleId = null;
+    pendingSaleId = null;  // Clear pending sale ID
     currentHeldBillId = null;
+    if (receiptActionTimeout) {
+        clearTimeout(receiptActionTimeout);
+        receiptActionTimeout = null;
+    }
     document.getElementById('customerName').textContent = 'Walk-in';
     document.getElementById('discountInput').value = '0';
     document.getElementById('pointsToRedeemInput').value = '0';

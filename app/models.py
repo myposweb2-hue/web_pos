@@ -162,8 +162,15 @@ class User(db.Model, UserMixin):
         return role in [UserRole.ADMIN, UserRole.SUPER_ADMIN]
     
     def get_reset_token(self, expires_sec=3600):
-        """Generate a URL-safe timed token for password reset."""
-        s = Serializer(current_app.config['SECRET_KEY'])
+        """Generate a URL-safe timed token for password reset.
+        
+        Args:
+            expires_sec: Token expiration time in seconds (default: 1 hour)
+            
+        Returns:
+            URL-safe timed token string
+        """
+        s = Serializer(current_app.config['SECRET_KEY'], expires_in=expires_sec)
         return s.dumps({'user_id': self.id})
 
     @staticmethod

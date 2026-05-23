@@ -417,16 +417,18 @@
         <div class="receipt-info">
             <div class="info-row">
                 <span class="info-label">Receipt #:</span>
-                <span class="info-value">0001234</span>
+                <span class="info-value">{{ invoice_number }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Date:</span>
-                <span class="info-value">05/19/2026</span>
+                <span class="info-value">{{ invoice_date }}</span>
             </div>
+            {% if sale_time %}
             <div class="info-row">
                 <span class="info-label">Time:</span>
-                <span class="info-value">14:32:45</span>
+                <span class="info-value">{{ sale_time }}</span>
             </div>
+            {% endif %}
             <div class="info-row">
                 <span class="info-label">Cashier:</span>
                 <span class="info-value">John Smith</span>
@@ -458,45 +460,17 @@
                 <div class="items-header-col4">Total</div>
             </div>
 
+            {% for item in items %}
             <div class="item-row">
-                <div class="item-col1">2</div>
+                <div class="item-col1">{{ item.qty }}</div>
                 <div class="item-col2">
-                    <div>Premium Item #1</div>
-                    <div class="item-code">SKU-001</div>
+                    <div>{{ item.description }}</div>
+                    <div class="item-code">{{ item.code }}</div>
                 </div>
-                <div class="item-col3">$25.00</div>
-                <div class="item-col4">$50.00</div>
+                <div class="item-col3">{{ currency_symbol }}{{ "%.2f"|format(item.unit_price) }}</div>
+                <div class="item-col4">{{ currency_symbol }}{{ "%.2f"|format(item.total) }}</div>
             </div>
-
-            <div class="item-row">
-                <div class="item-col1">1</div>
-                <div class="item-col2">
-                    <div>Service Package</div>
-                    <div class="item-code">SVC-002</div>
-                </div>
-                <div class="item-col3">$75.00</div>
-                <div class="item-col4">$75.00</div>
-            </div>
-
-            <div class="item-row">
-                <div class="item-col1">3</div>
-                <div class="item-col2">
-                    <div>Retail Product</div>
-                    <div class="item-code">SKU-003</div>
-                </div>
-                <div class="item-col3">$10.50</div>
-                <div class="item-col4">$31.50</div>
-            </div>
-
-            <div class="item-row">
-                <div class="item-col1">1</div>
-                <div class="item-col2">
-                    <div>Professional Service</div>
-                    <div class="item-code">SVC-004</div>
-                </div>
-                <div class="item-col3">$45.00</div>
-                <div class="item-col4">$45.00</div>
-            </div>
+            {% endfor %}
         </div>
 
         <div class="divider-dashed"></div>
@@ -505,28 +479,24 @@
         <div class="totals-section">
             <div class="total-row">
                 <span class="total-label">Subtotal:</span>
-                <span class="total-value">$201.50</span>
+                <span class="total-value">{{ currency_symbol }}{{ "%.2f"|format(subtotal) }}</span>
             </div>
+            {% if discount_total > 0 %}
             <div class="total-row">
                 <span class="total-label">Discount:</span>
-                <span class="total-value">-$10.08</span>
+                <span class="total-value">-{{ currency_symbol }}{{ "%.2f"|format(discount_total) }}</span>
             </div>
+            {% endif %}
+            {% if tax_amount > 0 %}
             <div class="total-row">
-                <span class="total-label">Subtotal:</span>
-                <span class="total-value">$191.42</span>
+                <span class="total-label">Tax ({{ tax_rate }}%):</span>
+                <span class="total-value">{{ currency_symbol }}{{ "%.2f"|format(tax_amount) }}</span>
             </div>
-            <div class="total-row">
-                <span class="total-label">Tax (8%):</span>
-                <span class="total-value">$15.31</span>
-            </div>
-            <div class="total-row total-row-bottom">
-                <span class="total-label">Delivery Fee:</span>
-                <span class="total-value">$5.00</span>
-            </div>
+            {% endif %}
 
             <div class="grand-total">
                 <span class="grand-total-label">TOTAL</span>
-                <span class="grand-total-value">$211.73</span>
+                <span class="grand-total-value">{{ currency_symbol }}{{ "%.2f"|format(total) }}</span>
             </div>
         </div>
 
@@ -534,30 +504,31 @@
 
         <!-- Payment Section -->
         <div class="payment-section">
-            <div class="payment-method">PAYMENT METHOD: CARD</div>
-            <div class="payment-ref">Reference: 123456789012</div>
-            <div class="payment-ref">Authorization: APPROVED</div>
+            <div class="payment-method">PAYMENT METHOD: {{ payment_method }}</div>
         </div>
 
         <div class="settlement-row">
-            <span class="settlement-label">Amount Tendered:</span>
-            <span class="settlement-value">$211.73</span>
+            <span class="settlement-label">Amount Paid:</span>
+            <span class="settlement-value">{{ currency_symbol }}{{ "%.2f"|format(paid_amount) }}</span>
         </div>
+        {% if balance_due > 0 %}
+        <div class="settlement-row">
+            <span class="settlement-label">Balance:</span>
+            <span class="settlement-value">{{ currency_symbol }}{{ "%.2f"|format(balance_due) }}</span>
+        </div>
+        {% endif %}
         <div class="settlement-row">
             <span class="settlement-label">Change:</span>
-            <span class="settlement-value">$0.00</span>
+            <span class="settlement-value">{{ currency_symbol }}{{ "%.2f"|format(change) }}</span>
         </div>
 
         <div class="divider-dashed"></div>
 
         <!-- Barcode / QR Code -->
         <div class="barcode-section">
-            <div class="barcode">|||||||||||||||</div>
-            <div class="barcode-label">Receipt Code</div>
-            <div class="qr-code">
-                [QR CODE]<br>
-                Scan for<br>
-                Receipt Copy
+            <div class="barcode">{{ invoice_number }}</div>
+            <div class="barcode-label">Receipt #</div>
+        </div>
             </div>
         </div>
 

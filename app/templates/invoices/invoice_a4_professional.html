@@ -525,42 +525,17 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {% for item in items %}
                     <tr>
-                        <td class="col-code">SKU-001</td>
-                        <td class="col-description">Professional Business Consultation Services</td>
-                        <td class="col-center">1</td>
-                        <td class="col-right">$2,500.00</td>
-                        <td class="col-right">$0.00</td>
-                        <td class="col-right">$200.00</td>
-                        <td class="col-right">$2,700.00</td>
+                        <td class="col-code">{{ item.code }}</td>
+                        <td class="col-description">{{ item.description }}</td>
+                        <td class="col-center">{{ item.qty }}</td>
+                        <td class="col-right">{{ currency_symbol }}{{ "%.2f"|format(item.unit_price) }}</td>
+                        <td class="col-right">{{ currency_symbol }}{{ "%.2f"|format(item.discount) }}</td>
+                        <td class="col-right">{{ currency_symbol }}{{ "%.2f"|format(item.tax) }}</td>
+                        <td class="col-right">{{ currency_symbol }}{{ "%.2f"|format(item.total) }}</td>
                     </tr>
-                    <tr>
-                        <td class="col-code">SKU-002</td>
-                        <td class="col-description">Premium Software License - Annual</td>
-                        <td class="col-center">3</td>
-                        <td class="col-right">$450.00</td>
-                        <td class="col-right">-$135.00</td>
-                        <td class="col-right">$94.50</td>
-                        <td class="col-right">$1,409.50</td>
-                    </tr>
-                    <tr>
-                        <td class="col-code">SKU-003</td>
-                        <td class="col-description">Implementation & Staff Training</td>
-                        <td class="col-center">1</td>
-                        <td class="col-right">$1,200.00</td>
-                        <td class="col-right">$0.00</td>
-                        <td class="col-right">$96.00</td>
-                        <td class="col-right">$1,296.00</td>
-                    </tr>
-                    <tr>
-                        <td class="col-code">SKU-004</td>
-                        <td class="col-description">Technical Support & Maintenance Services</td>
-                        <td class="col-center">6</td>
-                        <td class="col-right">$300.00</td>
-                        <td class="col-right">-$180.00</td>
-                        <td class="col-right">$163.20</td>
-                        <td class="col-right">$1,943.20</td>
-                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
 
@@ -569,32 +544,48 @@
                 <table class="totals">
                     <tr class="subtotal-row">
                         <td class="label-col">Subtotal:</td>
-                        <td class="value-col">$5,150.00</td>
+                        <td class="value-col">{{ currency_symbol }}{{ "%.2f"|format(subtotal) }}</td>
                     </tr>
+                    {% if discount_total > 0 %}
                     <tr>
                         <td class="label-col">Discount:</td>
-                        <td class="value-col">-$315.00</td>
+                        <td class="value-col">-{{ currency_symbol }}{{ "%.2f"|format(discount_total) }}</td>
                     </tr>
+                    {% endif %}
                     <tr>
                         <td class="label-col">Subtotal (After):</td>
-                        <td class="value-col">$4,835.00</td>
+                        <td class="value-col">{{ currency_symbol }}{{ "%.2f"|format(subtotal - discount_total) }}</td>
                     </tr>
+                    {% if tax_total > 0 %}
                     <tr>
-                        <td class="label-col">Tax (8%):</td>
-                        <td class="value-col">$386.80</td>
+                        <td class="label-col">Tax ({{ tax_rate }}%):</td>
+                        <td class="value-col">{{ currency_symbol }}{{ "%.2f"|format(tax_total) }}</td>
                     </tr>
+                    {% endif %}
                     <tr class="total-row">
-                        <td class="label-col">TOTAL DUE:</td>
-                        <td class="value-col">$5,221.80</td>
+                        <td class="label-col">TOTAL:</td>
+                        <td class="value-col">{{ currency_symbol }}{{ "%.2f"|format(total) }}</td>
                     </tr>
                     <tr>
                         <td class="label-col">Paid Amount:</td>
-                        <td class="value-col">$0.00</td>
+                        <td class="value-col">{{ currency_symbol }}{{ "%.2f"|format(paid_amount) }}</td>
                     </tr>
+                    {% if payment_method == 'Cash' %}
+                    <tr>
+                        <td class="label-col">Cash Given:</td>
+                        <td class="value-col">{{ currency_symbol }}{{ "%.2f"|format(cash_given) }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label-col">Change:</td>
+                        <td class="value-col">{{ currency_symbol }}{{ "%.2f"|format(change) }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if balance_due > 0 %}
                     <tr class="balance-row">
-                        <td class="label-col">BALANCE DUE:</td>
-                        <td class="value-col">$5,221.80</td>
+                        <td class="label-col">BALANCE:</td>
+                        <td class="value-col">{{ currency_symbol }}{{ "%.2f"|format(balance_due) }}</td>
                     </tr>
+                    {% endif %}
                 </table>
             </div>
 

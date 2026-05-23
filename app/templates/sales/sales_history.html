@@ -332,22 +332,22 @@ function viewSaleDetails(saleId) {
 }
 
 function viewReceipt(saleId) {
-    // Get default format from settings, then open PDF for viewing
+    // Get default format from settings, then open HTML receipt for viewing
     fetch(`/api/settings/categories/receipt`, {
         headers: { 'Accept': 'application/json' }
     })
     .then(response => response.json())
     .then(settings => {
-        const format = settings.default_format || 'a4';
-        // Open the PDF in the selected format
-        const pdfUrl = `/sales/api/sales/${saleId}/receipt/pdf?format=${format}`;
-        window.open(pdfUrl, '_blank');
+        const format = settings.default_format || 'thermal';
+        // Open the HTML receipt in the selected format
+        const receiptUrl = `/sales/${saleId}/receipt/html?format=${format}`;
+        window.open(receiptUrl, '_blank');
     })
     .catch(err => {
         console.error('Error getting settings:', err);
-        // Fallback to a4 if settings fail
-        const pdfUrl = `/sales/api/sales/${saleId}/receipt/pdf?format=a4`;
-        window.open(pdfUrl, '_blank');
+        // Fallback to thermal if settings fail
+        const receiptUrl = `/sales/${saleId}/receipt/html?format=thermal`;
+        window.open(receiptUrl, '_blank');
     });
 }
 
@@ -657,29 +657,51 @@ function showAlert(message, type = 'info') {
 }
 
 function printSaleReceipt(saleId) {
-    // Get default format from settings, then open PDF for printing
+    // Get default format from settings, then open HTML receipt for printing
     fetch(`/api/settings/categories/receipt`, {
         headers: { 'Accept': 'application/json' }
     })
     .then(response => response.json())
     .then(settings => {
-        const format = settings.default_format || 'a4';
-        // Open the PDF in the selected format
-        const pdfUrl = `/sales/api/sales/${saleId}/receipt/pdf?format=${format}`;
-        const printWindow = window.open(pdfUrl, '_blank');
-        if (!printWindow) {
-            showAlert('Failed to open receipt. Please check popup blocker settings.', 'warning');
-        }
+        const format = settings.default_format || 'thermal';
+        openPrintWindow(saleId, format);
     })
     .catch(err => {
         console.error('Error getting settings:', err);
-        // Fallback to a4 if settings fail
-        const pdfUrl = `/sales/api/sales/${saleId}/receipt/pdf?format=a4`;
-        const printWindow = window.open(pdfUrl, '_blank');
-        if (!printWindow) {
-            showAlert('Failed to open receipt. Please check popup blocker settings.', 'warning');
-        }
+        // Fallback to thermal if settings fail
+        openPrintWindow(saleId, 'thermal');
     });
+}
+
+function openPrintWindow(saleId, format) {
+    const windowName = 'receipt_print_' + saleId + '_' + Math.random().toString(36).substr(2, 9);
+    const receiptUrl = `/sales/${saleId}/receipt/html?format=${format}&t=${Date.now()}`;
+    
+    try {
+        const newWindow = window.open(receiptUrl, windowName, 'width=900,height=1000,resizable=yes,scrollbars=yes');
+        if (!newWindow) {
+            console.error('Window.open returned null - popup blocker may be active');
+            showAlert('Failed to open receipt. Please check popup blocker settings.', 'warning');
+            // Fallback: navigate to receipt in current window
+            window.location.href = receiptUrl;
+        } else {
+            console.log('Print window opened successfully');
+            newWindow.focus();
+            
+            // Wait for page to load, then trigger print dialog
+            newWindow.addEventListener('load', function() {
+                console.log('Receipt page loaded, triggering print dialog...');
+                setTimeout(() => {
+                    newWindow.print();
+                }, 500);
+            });
+        }
+    } catch (error) {
+        console.error('Error opening print window:', error);
+        showAlert('Failed to open receipt. Please check popup blocker settings.', 'warning');
+        // Fallback: navigate to receipt in current window
+        window.location.href = receiptUrl;
+    }
 }
 
 // View Receipt button in modal

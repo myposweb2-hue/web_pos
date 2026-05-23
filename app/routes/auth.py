@@ -53,18 +53,45 @@ def login():
 
 @auth_bp.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
-    """Render form to request a password reset link and send email."""
+    """Render form to request a password reset link and send email.
+    
+    GET: Display forgot password form
+    POST: Validate email and send reset link if account exists
+    """
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    
     form = ForgotPasswordForm()
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
         if user:
-            token = user.get_reset_token()
+            # Generate reset token (1 hour expiration)
+            token = user.get_reset_token(expires_sec=3600)
             reset_url = url_for('auth.reset_password', token=token, _external=True)
-            subject = f"{current_app.config.get('APP_NAME', 'POS System')} - Password Reset"
-            body = f"Hello {user.username},\n\nTo reset your password, click the link below:\n{reset_url}\n\nIf you did not request a password reset, please ignore this email."
+            
+            # Compose email
+            app_name = current_app.config.get('APP_NAME', 'POS System')
+            subject = f"{app_name} - Password Reset Request"
+            body = f"""Hello {user.username},
+
+We received a request to reset your password. Click the link below to set a new password:
+
+{reset_url}
+
+This link will expire in 1 hour.
+
+If you did not request a password reset, please ignore this email. Your account is safe.
+
+Best regards,
+{app_name} Team"""
+            
+            # Send reset email
             ok, msg = send_email(user.email, subject, body)
             if not ok:
-                current_app.logger.error('Failed to send reset email: %s', msg)
+                current_app.logger.error(f'Failed to send password reset email to {user.email}: {msg}')
+            else:
+                current_app.logger.info(f'Password reset email sent successfully to {user.email}')
+        
         # Always show the same message to avoid leaking account existence
         flash('If an account with that email exists, a password reset link has been sent.', 'info')
         return redirect(url_for('auth.login'))
@@ -74,7 +101,14 @@ def forgot_password():
 
 @auth_bp.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
-    """Verify token and allow user to set a new password."""
+    """Verify token and allow user to set a new password.
+    
+    GET: Display reset password form
+    POST: Validate and update password if token is valid
+    """
+    if current_user.is_authenticated:
+        return redirect(url_for('main.dashboard'))
+    
     user = User.verify_reset_token(token)
     if not user:
         flash('The password reset link is invalid or has expired.', 'danger')
@@ -84,6 +118,7 @@ def reset_password(token):
     if form.validate_on_submit():
         user.set_password(form.password.data)
         db.session.commit()
+        current_app.logger.info(f'Password reset successful for user: {user.username}')
         flash('Your password has been updated. You can now log in.', 'success')
         return redirect(url_for('auth.login'))
 

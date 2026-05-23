@@ -28,36 +28,56 @@ def get_receipt_settings(company_id=None):
                 current_app.logger.warning(f"Could not get current company: {str(e)}")
                 company_id = None
         
+        current_app.logger.info(f"[get_receipt_settings] Looking up settings for company_id: {company_id}")
+        
         settings_dict = {}
         
-        # First, try to get global settings (company_id = None)
-        global_settings = Setting.query.filter_by(
-            setting_category='receipt',
-            company_id=None
-        ).all()
-        
-        for setting in global_settings:
-            settings_dict[setting.setting_key] = setting.setting_value
-        
-        # If we have a specific company_id, overlay company-specific settings
+        # PRIORITY 1: If company_id is provided, get company-specific settings FIRST
         if company_id:
             company_settings = Setting.query.filter_by(
                 setting_category='receipt',
                 company_id=company_id
             ).all()
             
+            current_app.logger.info(f"[get_receipt_settings] Found {len(company_settings)} company-specific settings for company {company_id}")
+            
             for setting in company_settings:
-                # Only override if the value is not empty
-                if setting.setting_value:
+                settings_dict[setting.setting_key] = setting.setting_value
+                current_app.logger.debug(f"  - {setting.setting_key} = {setting.setting_value}")
+        
+        # PRIORITY 2: Fall back to global settings (company_id = None) for missing keys only
+        if settings_dict:
+            # Company has some settings, just fill in gaps with global
+            global_settings = Setting.query.filter_by(
+                setting_category='receipt',
+                company_id=None
+            ).all()
+            
+            current_app.logger.info(f"[get_receipt_settings] Found {len(global_settings)} global settings for fallback")
+            
+            for setting in global_settings:
+                if setting.setting_key not in settings_dict:
                     settings_dict[setting.setting_key] = setting.setting_value
+        else:
+            # No company settings found, use all global settings
+            global_settings = Setting.query.filter_by(
+                setting_category='receipt',
+                company_id=None
+            ).all()
+            
+            current_app.logger.info(f"[get_receipt_settings] No company settings found, using {len(global_settings)} global settings")
+            
+            for setting in global_settings:
+                settings_dict[setting.setting_key] = setting.setting_value
         
         # Debug logging
-        current_app.logger.info(f"Receipt settings found: {list(settings_dict.keys())}")
-        current_app.logger.info(f"Settings dict values: company_name={settings_dict.get('company_name')}, business_address={settings_dict.get('business_address')}, business_phone={settings_dict.get('business_phone')}")
+        current_app.logger.info(f"Final settings_dict keys: {list(settings_dict.keys())}")
         
         # Merge with defaults
+        business_name_value = settings_dict.get('business_name') or settings_dict.get('company_name', 'YOUR STORE')
         defaults = {
-            'company_name': settings_dict.get('business_name') or settings_dict.get('company_name', 'YOUR STORE'),
+            'business_name': business_name_value,  # Direct key for templates
+            'company_name': business_name_value,   # Alias for backwards compatibility
             'business_address': settings_dict.get('business_address', '123 Main Street, Suite 100'),
             'business_city': settings_dict.get('business_city', 'New York, NY 10001'),
             'business_phone': settings_dict.get('business_phone', 'Tel: (555) 123-4567'),
@@ -72,7 +92,7 @@ def get_receipt_settings(company_id=None):
             'receipt_type': settings_dict.get('receipt_type', 'thermal'),
         }
         
-        current_app.logger.info(f"Returning receipt settings: company_name={defaults['company_name']}, address={defaults['business_address']}, phone={defaults['business_phone']}")
+        current_app.logger.info(f"Returning receipt settings: business_name={defaults['business_name']}, footer_text={defaults['footer_text']}")
         return defaults
     
     except Exception as e:
