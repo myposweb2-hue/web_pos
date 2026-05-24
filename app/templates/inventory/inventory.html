@@ -439,8 +439,8 @@ function loadSuppliers() {
                 });
             }
         })
-        .fail(function() {
-            console.error('Failed to load suppliers');
+        .fail(function(xhr, status, error) {
+            console.warn('Failed to load suppliers - this is OK if you don\'t have supplier access:', error);
         });
 }
 
@@ -565,10 +565,14 @@ function debounce(func, wait) {
 function loadInventoryAnalytics() {
     $.get('/inventory/api/products', { per_page: 1 })
         .done(function(data) {
-            $('#totalProducts').text(data.total);
+            try {
+                $('#totalProducts').text(data.total);
+            } catch(e) {
+                console.error('Error processing total products:', e, 'data:', data);
+            }
         })
-        .fail(function() {
-            console.error('Failed to load total products');
+        .fail(function(xhr, status, error) {
+            console.error('Failed to load total products:', status, error);
         });
 
     $.get('/inventory/api/products', { per_page: 1000 })
