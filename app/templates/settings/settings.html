@@ -986,7 +986,13 @@
                             <button class="nav-link" id="reports-tab" data-bs-toggle="tab" data-bs-target="#reports-perms" type="button" role="tab" aria-controls="reports-perms" aria-selected="false">Reports</button>
                         </li>
                         <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="expenses-tab" data-bs-toggle="tab" data-bs-target="#expenses-perms" type="button" role="tab" aria-controls="expenses-perms" aria-selected="false">Expenses</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
                             <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings-perms" type="button" role="tab" aria-controls="settings-perms" aria-selected="false">Settings</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="audit-tab" data-bs-toggle="tab" data-bs-target="#audit-perms" type="button" role="tab" aria-controls="audit-perms" aria-selected="false">Audit</button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system-perms" type="button" role="tab" aria-controls="system-perms" aria-selected="false">System</button>
@@ -1031,9 +1037,21 @@
                                 <!-- Generated dynamically -->
                             </div>
                         </div>
+                        <!-- Expenses Permissions -->
+                        <div class="tab-pane fade" id="expenses-perms" role="tabpanel" aria-labelledby="expenses-tab">
+                            <div id="expensesPermsContainer" class="permissions-grid">
+                                <!-- Generated dynamically -->
+                            </div>
+                        </div>
                         <!-- Settings Permissions -->
                         <div class="tab-pane fade" id="settings-perms" role="tabpanel" aria-labelledby="settings-tab">
                             <div id="settingsPermsContainer" class="permissions-grid">
+                                <!-- Generated dynamically -->
+                            </div>
+                        </div>
+                        <!-- Audit Permissions -->
+                        <div class="tab-pane fade" id="audit-perms" role="tabpanel" aria-labelledby="audit-tab">
+                            <div id="auditPermsContainer" class="permissions-grid">
                                 <!-- Generated dynamically -->
                             </div>
                         </div>
@@ -1416,7 +1434,9 @@ document.addEventListener('DOMContentLoaded', function () {
             'Inventory': ['can_view_inventory', 'can_edit_inventory', 'can_access_warehouse'],
             'Customers': ['can_access_customers', 'can_view_sales_history', 'can_view_reports', 'can_view_profit'],
             'Reports': ['can_view_reports', 'can_view_profit', 'can_view_sales_history'],
-            'Settings': ['can_view_general_settings', 'can_view_receipt_settings', 'can_view_terminal_settings', 'can_view_backup_settings', 'can_view_hardware_settings'],
+            'Expenses': ['can_access_expenses'],
+            'Settings': ['can_view_general_settings', 'can_view_receipt_settings', 'can_view_terminal_settings', 'can_view_backup_settings', 'can_view_hardware_settings', 'can_access_settings'],
+            'Audit': ['can_access_audit_logs'],
             'System': ['can_access_scale']
         };
 

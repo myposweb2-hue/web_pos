@@ -1032,12 +1032,14 @@ def validate_single_company_assignment(user, num_companies):
 @login_required
 @require_permission('can_access_settings')
 def get_users():
-    """Get users (excluding ALL super admin users - they are hidden from management)."""
-    # SECURITY: Super admin users are NEVER shown in user management interface
-    # This ensures admins cannot see, edit, or delete super admin accounts
-    
+    """Get users for management. Returns all non-Super Admin users, plus current user if they're Super Admin."""
     # Get all users EXCEPT super admins
     users = User.query.filter(User.role != 'Super Admin').all()
+    
+    # If no other users exist AND current user is Super Admin, include current user
+    # This ensures the permission structure is always available
+    if not users and current_user.role == 'Super Admin':
+        users = [current_user]
     
     result = []
     for user in users:
@@ -1181,10 +1183,12 @@ def create_user():
             user.can_view_profit = True
             user.can_access_settings = False
             user.can_access_warehouse = True
-        else:
+        else:  # Cashier role default
             user.can_access_sales = True
             user.can_access_customers = True
             user.can_view_inventory = True
+            user.can_access_expenses = True
+            user.can_access_settings = True
 
         if 'permissions' in data and isinstance(data['permissions'], dict):
             for perm, value in data['permissions'].items():
