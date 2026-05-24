@@ -428,22 +428,6 @@ function loadCurrencySymbol() {
         });
 }
 
-function loadSuppliers() {
-    $.get('/suppliers/api/suppliers')
-        .done(function(data) {
-            const $supplierSelect = $('#productSupplier');
-            if (data && data.suppliers) {
-                $supplierSelect.find('option:not(:first)').remove();
-                data.suppliers.forEach(function(supplier) {
-                    $supplierSelect.append('<option value="' + supplier.id + '">' + supplier.name + '</option>');
-                });
-            }
-        })
-        .fail(function(xhr, status, error) {
-            console.warn('Failed to load suppliers - this is OK if you don\'t have supplier access:', error);
-        });
-}
-
 $(document).ready(function() {
     console.log('Inventory page loaded - initializing...');
     
@@ -466,7 +450,23 @@ $(document).ready(function() {
     }
     
     try {
-        loadSuppliers();
+        // Suppress supplier loading if user doesn't have permission
+        console.log('Attempting to load suppliers...');
+        $.get('/suppliers/api/suppliers', { per_page: 1000 })
+            .done(function(data) {
+                if (data && data.suppliers) {
+                    console.log('Suppliers loaded:', data.suppliers.length);
+                    const $supplierSelect = $('#productSupplier');
+                    $supplierSelect.find('option:not(:first)').remove();
+                    data.suppliers.forEach(function(supplier) {
+                        $supplierSelect.append('<option value="' + supplier.id + '">' + supplier.name + '</option>');
+                    });
+                }
+            })
+            .fail(function(xhr, status, error) {
+                console.warn('Suppliers API not accessible (permission denied or error):', error);
+                // Continue without suppliers - just log the warning
+            });
     } catch(e) {
         console.error('Error loading suppliers:', e);
     }
