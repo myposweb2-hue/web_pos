@@ -129,18 +129,18 @@ def get_customer(customer_id):
 
     return jsonify({
         'id': customer.id,
-        'name': customer.name,
-        'phone': customer.phone,
-        'email': customer.email,
-        'address': customer.address,
-        'loyalty_points': customer.loyalty_points,
-        'total_purchases': customer.total_purchases,
+        'name': customer.name or '',
+        'phone': customer.phone or '',
+        'email': customer.email or '',
+        'address': customer.address or '',
+        'loyalty_points': int(customer.loyalty_points) if customer.loyalty_points else 0,
+        'total_purchases': int(customer.total_purchases) if customer.total_purchases else 0,
         'last_purchase_date': customer.last_purchase_date.strftime('%Y-%m-%d') if customer.last_purchase_date else None,
         'registration_date': customer.registration_date.strftime('%Y-%m-%d') if customer.registration_date else None,
-        'notes': customer.notes,
-        'preferred_payment_method': customer.preferred_payment_method,
-        'credit_limit': customer.credit_limit,
-        'current_balance': customer.current_balance
+        'notes': customer.notes or '',
+        'preferred_payment_method': customer.preferred_payment_method or '',
+        'credit_limit': float(customer.credit_limit) if customer.credit_limit else 0.0,
+        'current_balance': float(customer.current_balance) if customer.current_balance else 0.0
     })
 
 @customers_bp.route('/api/customers', methods=['POST'])

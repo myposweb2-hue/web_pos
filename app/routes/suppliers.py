@@ -54,12 +54,12 @@ def get_suppliers():
         
         result['suppliers'].append({
             'id': supplier.id,
-            'name': supplier.name,
-            'contact_person': supplier.contact_person,
-            'phone': supplier.phone,
-            'email': supplier.email,
-            'address': supplier.address,
-            'purchase_count': purchase_count
+            'name': supplier.name or '',
+            'contact_person': supplier.contact_person or '',
+            'phone': supplier.phone or '',
+            'email': supplier.email or '',
+            'address': supplier.address or '',
+            'purchase_count': int(purchase_count)
         })
 
     return jsonify(result)

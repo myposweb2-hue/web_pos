@@ -327,8 +327,8 @@ def get_purchase_items(purchase_id):
         items.append({
             'product_id': item.product_id,
             'product_name': item.product.name,
-            'quantity_purchased': item.quantity,
-            'cost_price': item.cost_price
+            'quantity_purchased': float(item.quantity) if item.quantity else 0,
+            'cost_price': float(item.cost_price) if item.cost_price else 0
         })
     return jsonify({'supplier_id': purchase.supplier_id, 'items': items})
 
@@ -350,20 +350,20 @@ def get_purchase(purchase_id):
         items.append({
             'product_id': item.product_id,
             'product_name': item.product.name if item.product else 'Unknown Product',
-            'quantity': item.quantity,
-            'cost_price': item.cost_price,
-            'total_cost': item.total_cost
+            'quantity': float(item.quantity) if item.quantity else 0,
+            'cost_price': float(item.cost_price) if item.cost_price else 0,
+            'total_cost': float(item.total_cost) if item.total_cost else 0
         })
     
     return jsonify({
         'id': purchase.id,
         'date': purchase.date.strftime('%Y-%m-%d') if purchase.date else None,
-        'invoice_number': purchase.invoice_number,
+        'invoice_number': purchase.invoice_number or '',
         'supplier_id': purchase.supplier_id,
         'supplier_name': purchase.supplier.name if purchase.supplier else 'Unknown',
-        'total_amount': purchase.total_amount,
-        'amount_paid': purchase.amount_paid,
-        'status': purchase.status,
+        'total_amount': float(purchase.total_amount) if purchase.total_amount else 0,
+        'amount_paid': float(purchase.amount_paid) if purchase.amount_paid else 0,
+        'status': purchase.status or '',
         'items': items
     })
 
@@ -385,9 +385,9 @@ def get_purchase_return(return_id):
         items.append({
             'product_id': item.product_id,
             'product_name': item.product.name if item.product else 'Unknown Product',
-            'quantity': item.quantity,
-            'unit_cost': item.unit_cost,
-            'total_cost': item.total_cost
+            'quantity': float(item.quantity) if item.quantity else 0,
+            'unit_cost': float(item.unit_cost) if item.unit_cost else 0,
+            'total_cost': float(item.total_cost) if item.total_cost else 0
         })
     
     return jsonify({
@@ -395,9 +395,9 @@ def get_purchase_return(return_id):
         'date': purchase_return.date.strftime('%Y-%m-%d') if purchase_return.date else None,
         'original_purchase_id': purchase_return.original_purchase_id,
         'supplier_name': purchase_return.supplier.name if purchase_return.supplier else 'Unknown',
-        'return_reason': purchase_return.return_reason,
-        'refund_amount': purchase_return.refund_amount,
-        'notes': purchase_return.notes,
+        'return_reason': purchase_return.return_reason or '',
+        'refund_amount': float(purchase_return.refund_amount) if purchase_return.refund_amount else 0,
+        'notes': purchase_return.notes or '',
         'items': items
     })
 
@@ -436,10 +436,10 @@ def update_purchase(purchase_id):
             'message': 'Purchase updated successfully',
             'purchase': {
                 'id': purchase.id,
-                'status': purchase.status,
-                'amount_paid': purchase.amount_paid,
-                'total_amount': purchase.total_amount,
-                'balance': purchase.total_amount - purchase.amount_paid
+                'status': purchase.status or '',
+                'amount_paid': float(purchase.amount_paid) if purchase.amount_paid else 0,
+                'total_amount': float(purchase.total_amount) if purchase.total_amount else 0,
+                'balance': float(purchase.total_amount - purchase.amount_paid) if purchase.total_amount and purchase.amount_paid else 0
             }
         })
     except Exception as e:
