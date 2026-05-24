@@ -342,7 +342,7 @@ def get_notifications():
                     'type': 'warning',
                     'icon': 'fa-exclamation-triangle',
                     'title': 'Low Stock Alert',
-                    'message': f'Product "{product.name}" is running low (stock: {product.stock}).',
+                    'message': f'Product "{product.name}" is running low (stock: {float(product.stock) if product.stock else 0}).',
                     'time': 'Just now'
                 })
         except Exception as e:
