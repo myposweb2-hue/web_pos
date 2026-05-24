@@ -1036,6 +1036,244 @@ def download_receipt_pdf(sale_id):
         current_app.logger.error(f"PDF generation failed: {str(e)}", exc_info=True)
         return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
 
+
+@sales_bp.route('/api/sales/<int:sale_id>/receipt/html-public')
+def receipt_html_public(sale_id):
+    """Serve HTML receipt template without authentication (public link for WhatsApp/Email)."""
+    from app.routes.invoices import get_receipt_settings
+    from datetime import datetime, timedelta
+    
+    # Get sale without company restriction for public access
+    sale = Sale.query.get(sale_id)
+    if not sale:
+        return jsonify({'error': 'Sale not found'}), 404
+    
+    # Get format from query parameter, default to thermal
+    receipt_format = request.args.get('format', 'thermal').lower()
+    if receipt_format not in ['thermal', 'a4', 'a5']:
+        receipt_format = 'thermal'
+    
+    # Get sale items
+    items = SaleItem.query.filter_by(sale_id=sale.id).all()
+    
+    # Prepare item data for template (same as receipt_html)
+    items_data = []
+    subtotal = 0
+    for item in items:
+        product_name = item.product.name if hasattr(item, 'product') and item.product else 'Unknown Product'
+        product_code = 'N/A'
+        if hasattr(item, 'product') and item.product:
+            if hasattr(item.product, 'product_code') and item.product.product_code:
+                product_code = item.product.product_code
+            elif hasattr(item.product, 'barcode') and item.product.barcode:
+                product_code = item.product.barcode
+        
+        item_discount = item.discount if hasattr(item, 'discount') and item.discount else 0
+        item_tax = item.tax if hasattr(item, 'tax') and item.tax else 0
+        item_price_before_discount = item.price * item.quantity
+        item_total = item_price_before_discount - item_discount + item_tax
+        
+        item_data = {
+            'code': product_code,
+            'name': product_name,
+            'quantity': item.quantity,
+            'unit_price': item.price,
+            'discount': item_discount,
+            'tax_amount': item_tax,
+            'total': item_total
+        }
+        items_data.append(item_data)
+        subtotal += item_total
+    
+    discount_total = sum(item['discount'] for item in items_data)
+    tax_total = sum(item['tax_amount'] for item in items_data)
+    
+    tax_rate = 0
+    if tax_total > 0 and subtotal > 0:
+        tax_rate = round((tax_total / subtotal) * 100, 1)
+    
+    change = sale.cash_given - sale.total if sale.payment == 'Cash' else 0
+    
+    if sale.payment in ['Cash', 'Cheque']:
+        paid_amount = sale.total
+        balance_due = 0.0
+    else:
+        paid_amount = sale.total - (sale.balance if sale.balance > 0 else 0)
+        balance_due = max(0, sale.balance)
+    
+    # Get receipt settings using company_id from sale
+    company_id = sale.company_id if hasattr(sale, 'company_id') else None
+    receipt_settings = get_receipt_settings(company_id)
+    
+    # Get currency symbol
+    from app.models import Setting
+    currency_symbol = Setting.query.filter_by(
+        setting_category='currency',
+        setting_key='symbol',
+        company_id=company_id
+    ).first()
+    
+    if not currency_symbol:
+        currency_symbol = Setting.query.filter_by(
+            setting_category='general',
+            setting_key='currency_symbol',
+            company_id=company_id
+        ).first()
+    
+    currency_symbol_value = currency_symbol.setting_value if currency_symbol else 'Rs. '
+    
+    # Logo path resolution
+    import os
+    import base64
+    logo_data_uri = ''
+    
+    logo_setting = Setting.query.filter_by(
+        setting_category='general',
+        setting_key='logo_path',
+        company_id=company_id
+    ).first()
+    
+    if not logo_setting:
+        logo_setting = Setting.query.filter_by(
+            setting_category='receipt',
+            setting_key='receipt_logo',
+            company_id=company_id
+        ).first()
+    
+    if logo_setting and logo_setting.setting_value:
+        logo_path_raw = logo_setting.setting_value.strip()
+        if logo_path_raw.startswith('/static/uploads/'):
+            logo_path_raw = logo_path_raw[16:]
+        elif logo_path_raw.startswith('/'):
+            logo_path_raw = logo_path_raw[1:]
+        elif logo_path_raw.startswith('static/uploads/'):
+            logo_path_raw = logo_path_raw[15:]
+        elif logo_path_raw.startswith('uploads/'):
+            logo_path_raw = logo_path_raw[8:]
+        
+        logo_abs_path = os.path.abspath(os.path.join(
+            os.path.dirname(__file__), '..', 'static', 'uploads', os.path.basename(logo_path_raw)
+        ))
+        
+        if os.path.isfile(logo_abs_path):
+            try:
+                try:
+                    from PIL import Image
+                    from io import BytesIO
+                    img = Image.open(logo_abs_path)
+                    if img.mode == 'RGBA':
+                        background = Image.new('RGB', img.size, (255, 255, 255))
+                        background.paste(img, mask=img.split()[3] if len(img.split()) == 4 else None)
+                        img = background
+                    elif img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    img_bytes = BytesIO()
+                    ext = os.path.splitext(logo_abs_path)[1].lower()
+                    if ext in ['.jpg', '.jpeg']:
+                        img.save(img_bytes, format='JPEG', quality=95, optimize=False)
+                        mime_type = 'image/jpeg'
+                    else:
+                        img.save(img_bytes, format='PNG', optimize=True)
+                        mime_type = 'image/png'
+                    
+                    logo_bytes = img_bytes.getvalue()
+                    logo_b64 = base64.b64encode(logo_bytes).decode('utf-8')
+                    logo_data_uri = f'data:{mime_type};base64,{logo_b64}'
+                except ImportError:
+                    with open(logo_abs_path, 'rb') as f:
+                        logo_bytes = f.read()
+                        logo_b64 = base64.b64encode(logo_bytes).decode('utf-8')
+                        ext = os.path.splitext(logo_abs_path)[1].lower()
+                        mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif'}
+                        mime_type = mime_types.get(ext, 'image/jpeg')
+                        logo_data_uri = f'data:{mime_type};base64,{logo_b64}'
+            except Exception as e:
+                current_app.logger.warning(f"Failed to encode logo: {str(e)}")
+                logo_data_uri = ''
+    
+    logo_url = logo_data_uri
+    
+    # Cashier name
+    cashier_name = getattr(getattr(sale, 'user', None), 'username', 'Cashier')
+    
+    # Payment status
+    if balance_due == 0 and sale.total > 0:
+        payment_status = 'Paid'
+    elif balance_due > 0 and getattr(sale, 'paid_amount', 0) > 0:
+        payment_status = 'Partial'
+    else:
+        payment_status = 'Pending'
+    
+    # Convert UTC to local time
+    local_sale_date = sale.date + timedelta(hours=6)
+    due_date = (local_sale_date + timedelta(days=30)).strftime('%Y-%m-%d')
+    
+    context = {
+        'sale': sale,
+        'invoice_number': f"INV-{sale.id}",
+        'invoice_date': local_sale_date.strftime('%Y-%m-%d'),
+        'due_date': due_date,
+        'payment_status': payment_status,
+        'status': payment_status,
+        'sale_date': local_sale_date.strftime('%Y-%m-%d'),
+        'sale_time': local_sale_date.strftime('%H:%M'),
+        
+        'customer_name': sale.customer or 'Walk-in Customer',
+        'customer_address': getattr(sale, 'customer_address', ''),
+        'customer_phone': getattr(sale, 'customer_phone', ''),
+        'customer_email': getattr(sale, 'customer_email', ''),
+        
+        'shipping_name': getattr(sale, 'shipping_name', ''),
+        'shipping_address': getattr(sale, 'shipping_address', ''),
+        'shipping_phone': getattr(sale, 'shipping_phone', ''),
+        
+        'payment_method': sale.payment,
+        'cashier_name': cashier_name,
+        
+        'items': items_data,
+        
+        'subtotal': subtotal,
+        'discount': discount_total,
+        'discount_total': discount_total,
+        'tax_amount': tax_total,
+        'tax_total': tax_total,
+        'tax_rate': tax_rate,
+        'total': sale.total,
+        'paid_amount': paid_amount,
+        'balance_due': balance_due,
+        'cash_given': sale.cash_given,
+        'change': max(0, change),
+        'balance': getattr(sale, 'balance', 0),
+        
+        'business_name': receipt_settings.get('business_name', 'POS SYSTEM'),
+        'business_address': receipt_settings.get('business_address'),
+        'business_phone': receipt_settings.get('business_phone'),
+        'business_email': receipt_settings.get('business_email'),
+        'business_gst': receipt_settings.get('business_gst'),
+        'website': receipt_settings.get('website', ''),
+        'logo_url': logo_url,
+        
+        'thank_you_message': receipt_settings.get('thank_you_message', 'Thank You for Your Business!'),
+        'warranty_info': receipt_settings.get('warranty_info'),
+        'footer_text': receipt_settings.get('footer_text', 'Generated by Web POS System'),
+        'notes': receipt_settings.get('invoice_notes'),
+        'terms': receipt_settings.get('invoice_terms'),
+        
+        'currency': currency_symbol_value,
+        'currency_symbol': currency_symbol_value
+    }
+    
+    # Select template based on format
+    if receipt_format == 'a4':
+        template = 'invoices/invoice_a4.html'
+    elif receipt_format == 'a5':
+        template = 'invoices/invoice_a5.html'
+    else:
+        template = 'invoices/thermal_receipt_80mm_professional.html'
+    
+    return render_template(template, **context)
+
 @sales_bp.route('/api/sales/<int:sale_id>/receipt/pdf-public')
 def download_receipt_pdf_public(sale_id):
     """Download receipt as PDF without authentication (public link for WhatsApp/Email)."""
