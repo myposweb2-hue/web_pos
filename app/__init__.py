@@ -4,6 +4,7 @@ from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from flask_socketio import SocketIO
+from werkzeug.proxy_fix import ProxyFix
 from config import Config, get_config
 from app.models import db, User, Setting, Company
 
@@ -28,6 +29,10 @@ def create_app(config_class=None):
         config_obj = config_class
 
     app.config.from_object(config_obj)
+
+    # Configure ProxyFix for reverse proxy (nginx) headers
+    # This ensures that X-Forwarded-Proto, X-Forwarded-For, etc. are properly handled
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1)
 
     # Initialize extensions with app
     db.init_app(app)
