@@ -370,12 +370,12 @@ def get_inventory_transactions():
             'product_id': transaction.product_id,
             'product_name': transaction.product.name,
             'transaction_type': transaction.transaction_type,
-            'quantity': transaction.quantity,
-            'previous_stock': transaction.previous_stock,
-            'new_stock': transaction.new_stock,
-            'reference_id': transaction.reference_id,
+            'quantity': float(transaction.quantity) if transaction.quantity else 0,
+            'previous_stock': float(transaction.previous_stock) if transaction.previous_stock else 0,
+            'new_stock': float(transaction.new_stock) if transaction.new_stock else 0,
+            'reference_id': transaction.reference_id or '',
             'date': transaction.date.strftime('%Y-%m-%d %H:%M:%S'),
-            'notes': transaction.notes
+            'notes': transaction.notes or ''
         })
 
     return jsonify(result)
