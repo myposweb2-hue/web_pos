@@ -4,7 +4,7 @@ from flask_login import LoginManager, current_user
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from flask_socketio import SocketIO
-from werkzeug.proxy_fix import ProxyFix
+from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config, get_config
 from app.models import db, User, Setting, Company
 
