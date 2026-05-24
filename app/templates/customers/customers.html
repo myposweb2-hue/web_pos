@@ -623,6 +623,7 @@
 <script>
 let currentPage = 1;
 let currentCustomerId = null;
+
 var csrfToken = $('meta[name="csrf-token"]').attr('content');
 
 $.ajaxSetup({
@@ -633,6 +634,7 @@ $.ajaxSetup({
 
 
 $(document).ready(function() {
+    
     loadCustomerAnalytics();
     loadCustomers();
 
@@ -709,10 +711,15 @@ $(document).ready(function() {
     
     console.log('✓ toggleInactive function ready');
 
-    // Customer form submission
-    $('#customerForm').on('submit', function(e) {
+    // Customer form submission - use event delegation for modal elements
+    $(document).on('submit', '#customerForm', function(e) {
         e.preventDefault();
         saveCustomer();
+    });
+
+    // Also use event delegation for button click
+    $(document).on('click', '#saveCustomerBtn', function(e) {
+        console.log('Save customer button clicked');
     });
 });
 
@@ -903,9 +910,6 @@ function saveCustomer() {
         current_balance: $('#customerCurrentBalance').val()
     };
 
-    console.log('Saving customer:', customerData);
-    console.log('CSRF Token:', csrfToken);
-
     // Validate name
     if (!customerData.name || customerData.name.trim() === '') {
         showAlert('Customer name is required', 'danger');
@@ -914,8 +918,6 @@ function saveCustomer() {
 
     const url = currentCustomerId ? `/customers/api/customers/${currentCustomerId}` : '/customers/api/customers';
     const method = currentCustomerId ? 'PUT' : 'POST';
-
-    console.log('URL:', url, 'Method:', method);
 
     $.ajax({
         url: url,
@@ -927,7 +929,6 @@ function saveCustomer() {
         data: JSON.stringify(customerData)
     })
     .done(function(response) {
-        console.log('Success response:', response);
         if (response.success) {
             $('#addCustomerModal').modal('hide');
             $('#customerForm')[0].reset();
@@ -940,7 +941,6 @@ function saveCustomer() {
         }
     })
     .fail(function(jqXHR) {
-        console.error('Error response:', jqXHR.status, jqXHR.responseText);
         // Handle the case when an archived customer with same name exists
         try {
             const response = JSON.parse(jqXHR.responseText);
@@ -954,7 +954,7 @@ function saveCustomer() {
                 showAlert(response.error || 'Error saving customer', 'danger');
             }
         } catch (e) {
-            console.error('Parse error:', e);
+            console.error('Error parsing response:', e);
             showAlert('Error saving customer: ' + jqXHR.status + ' ' + jqXHR.statusText, 'danger');
         }
     });
