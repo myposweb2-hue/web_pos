@@ -90,12 +90,12 @@ def search_products():
         result.append({
             'id': product.id,
             'name': product.name,
-            'price': product.price,
-            'stock': product.stock,
-            'unit_type': product.unit_type,
-            'image_path': product.image_path,
-            'category': product.category,
-            'price_per_kg': product.price_per_kg if hasattr(product, 'price_per_kg') else None
+            'price': float(product.price) if product.price else 0,
+            'stock': float(product.stock) if product.stock else 0,
+            'unit_type': product.unit_type or '',
+            'image_path': product.image_path or '',
+            'category': product.category or '',
+            'price_per_kg': float(product.price_per_kg) if hasattr(product, 'price_per_kg') and product.price_per_kg else None
         })
 
     return jsonify(result)
@@ -310,8 +310,8 @@ def search_customers():
         result.append({
             'id': customer.id,
             'name': customer.name,
-            'phone': customer.phone,
-            'loyalty_points': customer.loyalty_points
+            'phone': customer.phone or '',
+            'loyalty_points': int(customer.loyalty_points) if customer.loyalty_points else 0
         })
 
     return jsonify(result)
@@ -1871,9 +1871,9 @@ def sale_profit(sale_id):
         cost = it.product.cost_price if it.product and it.product.cost_price else 0.0
         line_profit = (it.price - cost) * it.quantity
         profit += line_profit
-        details.append({'product': it.product.name if it.product else 'Unknown', 'qty': it.quantity, 'line_profit': line_profit})
+        details.append({'product': it.product.name if it.product else 'Unknown', 'qty': float(it.quantity) if it.quantity else 0, 'line_profit': float(line_profit)})
 
-    return jsonify({'sale_id': sale.id, 'profit': profit, 'details': details})
+    return jsonify({'sale_id': sale.id, 'profit': float(profit), 'details': details})
 
 
 @sales_bp.route('/api/sales/<int:sale_id>/exchange', methods=['POST'])
@@ -2102,13 +2102,13 @@ def get_held_bill(bill_id):
     return jsonify({
         'id': held_bill.id,
         'held_date': held_bill.held_date.strftime('%Y-%m-%d %H:%M:%S'),
-        'notes': held_bill.notes,
+        'notes': held_bill.notes or '',
         'cart': bill_data.get('cart', []),
         'customer': bill_data.get('customer'),
-        'subtotal': bill_data.get('subtotal', 0),
-        'discount': bill_data.get('discount', 0),
-        'tax': bill_data.get('tax', 0),
-        'total': bill_data.get('total', 0)
+        'subtotal': float(bill_data.get('subtotal', 0)),
+        'discount': float(bill_data.get('discount', 0)),
+        'tax': float(bill_data.get('tax', 0)),
+        'total': float(bill_data.get('total', 0))
     })
 
 @sales_bp.route('/api/sales/held/<int:bill_id>', methods=['DELETE'])
