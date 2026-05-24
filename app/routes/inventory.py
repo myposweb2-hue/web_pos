@@ -92,15 +92,15 @@ def get_products():
         result['products'].append({
             'id': product.id,
             'name': product.name,
-            'price': product.price,
-            'cost_price': product.cost_price,
-            'stock': product.stock,
-            'unit_type': product.unit_type,
-            'category': product.category,
-            'low_stock_threshold': product.low_stock_threshold,
-            'barcode': product.barcode,
-            'description': product.description,
-            'image_path': product.image_path,
+            'price': float(product.price) if product.price else 0,
+            'cost_price': float(product.cost_price) if product.cost_price else 0,
+            'stock': float(product.stock) if product.stock else 0,
+            'unit_type': product.unit_type or '',
+            'category': product.category or '',
+            'low_stock_threshold': float(product.low_stock_threshold) if product.low_stock_threshold else 0,
+            'barcode': product.barcode or '',
+            'description': product.description or '',
+            'image_path': product.image_path or '',
             'warehouse_id': product.warehouse_id,
             'supplier_id': product.supplier_id,
             'last_updated': product.last_updated.strftime('%Y-%m-%d %H:%M:%S') if product.last_updated else None
@@ -125,15 +125,15 @@ def get_product(product_id):
     return jsonify({
         'id': product.id,
         'name': product.name,
-        'price': product.price,
-        'cost_price': product.cost_price,
-        'stock': product.stock,
-        'unit_type': product.unit_type,
-        'category': product.category,
-        'low_stock_threshold': product.low_stock_threshold,
-        'barcode': product.barcode,
-        'description': product.description,
-        'image_path': product.image_path,
+        'price': float(product.price) if product.price else 0,
+        'cost_price': float(product.cost_price) if product.cost_price else 0,
+        'stock': float(product.stock) if product.stock else 0,
+        'unit_type': product.unit_type or '',
+        'category': product.category or '',
+        'low_stock_threshold': float(product.low_stock_threshold) if product.low_stock_threshold else 0,
+        'barcode': product.barcode or '',
+        'description': product.description or '',
+        'image_path': product.image_path or '',
         'warehouse_id': product.warehouse_id,
         'last_updated': product.last_updated.strftime('%Y-%m-%d %H:%M:%S') if product.last_updated else None,
         'supplier_id': product.supplier_id,
@@ -397,9 +397,9 @@ def get_low_stock_products():
         result.append({
             'id': product.id,
             'name': product.name,
-            'stock': product.stock,
-            'low_stock_threshold': product.low_stock_threshold,
-            'unit_type': product.unit_type
+            'stock': float(product.stock) if product.stock else 0,
+            'low_stock_threshold': float(product.low_stock_threshold) if product.low_stock_threshold else 0,
+            'unit_type': product.unit_type or ''
         })
 
     return jsonify(result)
