@@ -563,7 +563,13 @@ function debounce(func, wait) {
 }
 
 function loadInventoryAnalytics() {
-    $.get('/inventory/api/products', { per_page: 1 })
+    $.ajax({
+        url: '/inventory/api/products',
+        type: 'GET',
+        data: { per_page: 1 },
+        dataType: 'json',
+        timeout: 5000
+    })
         .done(function(data) {
             try {
                 $('#totalProducts').text(data.total);
@@ -572,10 +578,16 @@ function loadInventoryAnalytics() {
             }
         })
         .fail(function(xhr, status, error) {
-            console.error('Failed to load total products:', status, error);
+            console.warn('Failed to load total products:', status, error);
         });
 
-    $.get('/inventory/api/products', { per_page: 1000 })
+    $.ajax({
+        url: '/inventory/api/products',
+        type: 'GET',
+        data: { per_page: 1000 },
+        dataType: 'json',
+        timeout: 15000
+    })
         .done(function(data) {
             try {
                 if (!data || !data.products) {
@@ -603,10 +615,15 @@ function loadInventoryAnalytics() {
             }
         })
         .fail(function(xhr, status, error) {
-            console.error('Failed to load inventory analytics:', status, error);
+            console.warn('Failed to load inventory analytics:', status, error);
         });
 
-    $.get('/inventory/api/inventory/low-stock')
+    $.ajax({
+        url: '/inventory/api/inventory/low-stock',
+        type: 'GET',
+        dataType: 'json',
+        timeout: 5000
+    })
         .done(function(data) {
             try {
                 if (!Array.isArray(data)) {
@@ -629,7 +646,7 @@ function loadInventoryAnalytics() {
             }
         })
         .fail(function(xhr, status, error) {
-            console.error('Failed to load low stock products:', status, error);
+            console.warn('Failed to load low stock products:', status, error);
         });
 }
 
