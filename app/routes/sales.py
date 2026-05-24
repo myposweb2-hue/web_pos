@@ -601,13 +601,12 @@ def get_receipt(sale_id):
     return jsonify(receipt_data)
 
 @sales_bp.route('/<int:sale_id>/receipt/html')
-@login_required
 def receipt_html(sale_id):
     """Serve HTML receipt template - Professional Invoice."""
     from app.routes.invoices import get_receipt_settings
     from datetime import datetime, timedelta
     
-    sale = get_sale_secure(sale_id)
+    sale = Sale.query.get(sale_id)
     if not sale:
         return jsonify({'error': 'Sale not found'}), 404
     
