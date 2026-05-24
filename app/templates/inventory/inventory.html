@@ -577,43 +577,59 @@ function loadInventoryAnalytics() {
 
     $.get('/inventory/api/products', { per_page: 1000 })
         .done(function(data) {
-            let totalValue = 0;
-            let lowStock = 0;
-            let outOfStock = 0;
-
-            data.products.forEach(function(product) {
-                totalValue += (product.cost_price || 0) * (product.stock || 0);
-                if (product.stock <= 0) {
-                    outOfStock++;
-                } else if (product.stock <= (product.low_stock_threshold || 5)) {
-                    lowStock++;
+            try {
+                if (!data || !data.products) {
+                    console.error('Invalid analytics response: missing products array', data);
+                    return;
                 }
-            });
+                let totalValue = 0;
+                let lowStock = 0;
+                let outOfStock = 0;
 
-            $('#stockValue').text('₨ ' + totalValue.toFixed(2));
-            $('#lowStockCount').text(lowStock);
-            $('#outOfStockCount').text(outOfStock);
+                data.products.forEach(function(product) {
+                    totalValue += (product.cost_price || 0) * (product.stock || 0);
+                    if (product.stock <= 0) {
+                        outOfStock++;
+                    } else if (product.stock <= (product.low_stock_threshold || 5)) {
+                        lowStock++;
+                    }
+                });
+
+                $('#stockValue').text('₨ ' + totalValue.toFixed(2));
+                $('#lowStockCount').text(lowStock);
+                $('#outOfStockCount').text(outOfStock);
+            } catch(e) {
+                console.error('Error processing inventory analytics:', e, 'data:', data);
+            }
         })
-        .fail(function() {
-            console.error('Failed to load inventory analytics');
+        .fail(function(xhr, status, error) {
+            console.error('Failed to load inventory analytics:', status, error);
         });
 
     $.get('/inventory/api/inventory/low-stock')
         .done(function(data) {
-            if (data.length > 0) {
-                const lowStockList = $('#lowStockList');
-                lowStockList.empty();
-                data.slice(0, 5).forEach(function(product) {
-                    lowStockList.append('<li>' + product.name + ' - ' + product.stock + ' ' + product.unit_type + ' remaining</li>');
-                });
-                if (data.length > 5) {
-                    lowStockList.append('<li>... and ' + (data.length - 5) + ' more</li>');
+            try {
+                if (!Array.isArray(data)) {
+                    console.error('Invalid low-stock response: not an array', data);
+                    return;
                 }
-                $('#lowStockList').parent().show();
+                if (data.length > 0) {
+                    const lowStockList = $('#lowStockList');
+                    lowStockList.empty();
+                    data.slice(0, 5).forEach(function(product) {
+                        lowStockList.append('<li>' + product.name + ' - ' + product.stock + ' ' + product.unit_type + ' remaining</li>');
+                    });
+                    if (data.length > 5) {
+                        lowStockList.append('<li>... and ' + (data.length - 5) + ' more</li>');
+                    }
+                    $('#lowStockList').parent().show();
+                }
+            } catch(e) {
+                console.error('Error processing low-stock products:', e, 'data:', data);
             }
         })
-        .fail(function() {
-            console.error('Failed to load low stock products');
+        .fail(function(xhr, status, error) {
+            console.error('Failed to load low stock products:', status, error);
         });
 }
 
