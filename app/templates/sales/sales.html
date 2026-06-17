@@ -962,7 +962,8 @@ function addToCart(productId, name, price, unitType) {
                     price: price,
                     quantity: 1,
                     unit_type: unitType,
-                    discount: 0,
+                    discount_value: 0,
+                    discount_type: 'amount', // or 'percent'
                     tax: itemTax
                 });
             }
@@ -1000,7 +1001,8 @@ function addToCart(productId, name, price, unitType) {
                     price: price,
                     quantity: 1,
                     unit_type: unitType,
-                    discount: 0,
+                    discount_value: 0,
+                    discount_type: 'amount', // or 'percent'
                     tax: itemTax
                 });
             }
@@ -1040,7 +1042,13 @@ function updateCartDisplay() {
     let html = '';
 
     cart.forEach((item, index) => {
-        const itemTotal = item.price * item.quantity;
+        // Calculate per-item totals (do not include tax here to avoid double-counting)
+        const itemPriceTotal = item.price * item.quantity;
+        const discountValue = parseFloat(item.discount_value) || 0;
+        const discountType = item.discount_type || 'amount';
+        // Compute discount amount depending on type
+        const itemDiscount = discountType === 'percent' ? (itemPriceTotal * (discountValue / 100)) : discountValue;
+        const itemTotal = itemPriceTotal - itemDiscount;
         subtotal += itemTotal;
 
         html += `
@@ -1051,9 +1059,22 @@ function updateCartDisplay() {
                 </div>
                 <div class="cart-item-controls">
                     <button class="btn-qty" onclick="changeQuantity(${index}, -1)">-</button>
-                <input type="number" class="qty-input" value="${item.quantity}" 
+                    <input type="number" class="qty-input" value="${item.quantity}" 
                            onchange="setQuantity(${index}, this.value)" min="0.01" step="0.01">
                     <button class="btn-qty" onclick="changeQuantity(${index}, 1)">+</button>
+                </div>
+                <div class="cart-item-discount d-flex align-items-center">
+                    <div class="me-2">
+                        <label class="small">Discount</label>
+                        <input type="number" class="item-discount form-control form-control-sm" value="${discountValue}" onchange="setItemDiscount(${index}, this.value)" step="0.01" min="0" style="width:120px">
+                    </div>
+                    <div>
+                        <label class="small d-block">Type</label>
+                        <select class="form-select form-select-sm" onchange="setItemDiscountType(${index}, this.value)">
+                            <option value="amount" ${discountType === 'amount' ? 'selected' : ''}>Rs</option>
+                            <option value="percent" ${discountType === 'percent' ? 'selected' : ''}>%</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="cart-item-total">${currencySymbol} ${itemTotal.toFixed(2)}</div>
                 <button class="btn-remove" onclick="removeFromCart(${index})">
@@ -1071,11 +1092,13 @@ function updateCartDisplay() {
     const pointsRedeemed = parseInt(document.getElementById('pointsToRedeemInput').value) || 0;
     const pointsDiscount = pointsRedeemed * loyaltyPointsConversionRate; // Use conversion rate from settings
     const totalDiscount = discount + pointsDiscount;
+
+    // taxable amount is subtotal after per-item discounts but before sale-level discounts
     const taxableAmount = subtotal - totalDiscount;
-    
+
     let tax = 0;
     let total = taxableAmount;
-    
+
     if (showTaxInSales && enableTax) {
         tax = taxableAmount > 0 ? taxableAmount * (taxRate / 100) : 0;
         total = taxableAmount + tax;
@@ -1139,6 +1162,22 @@ function removeFromCart(index) {
     cart.splice(index, 1);
     updateCartDisplay();
     showPaymentSection();
+}
+
+function setItemDiscount(index, value) {
+    const v = parseFloat(value);
+    if (isNaN(v) || v < 0) {
+        cart[index].discount_value = 0;
+    } else {
+        cart[index].discount_value = v;
+    }
+    updateCartDisplay();
+}
+
+function setItemDiscountType(index, type) {
+    if (type !== 'amount' && type !== 'percent') type = 'amount';
+    cart[index].discount_type = type;
+    updateCartDisplay();
 }
 
 function setupPointsListener() {
@@ -1377,13 +1416,21 @@ function checkout() {
             discount: discount + pointsDiscount,
             tax: tax,
             points_redeemed: pointsToRedeem,
-            items: cart.map(item => ({
-                product_id: item.product_id,
-                quantity: item.quantity,
-                price: item.price,
-                discount: item.discount,
-                tax: item.tax
-            })),
+            items: cart.map(item => {
+                const itemPriceTotal = item.price * item.quantity;
+                const val = parseFloat(item.discount_value) || 0;
+                const type = item.discount_type || 'amount';
+                const computedDiscount = type === 'percent' ? (itemPriceTotal * (val / 100)) : val;
+                return {
+                    product_id: item.product_id,
+                    quantity: item.quantity,
+                    price: item.price,
+                    discount: parseFloat(computedDiscount.toFixed(2)) || 0,
+                    tax: item.tax,
+                    discount_type: type,
+                    discount_value: val
+                };
+            }),
             cash_given: cashGiven,
             balance: 0
         };
