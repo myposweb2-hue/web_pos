@@ -603,6 +603,20 @@
                         <label class="form-label">Reference Number</label>
                         <input type="text" class="form-control" id="paymentReference" placeholder="Cheque number, transaction ID, etc.">
                     </div>
+                    <div id="paymentChequeDetails" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Cheque Number</label>
+                            <input type="text" class="form-control" id="chequeNumber" placeholder="Enter cheque number">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bank Name</label>
+                            <input type="text" class="form-control" id="bankName" placeholder="Bank name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Cheque Date</label>
+                            <input type="date" class="form-control" id="chequeDate">
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Notes</label>
                         <textarea class="form-control" id="paymentNotes" rows="2" placeholder="Optional notes"></textarea>
@@ -1276,6 +1290,34 @@ function toggleSupply(customerId, stop) {
 // Payment Recording - Use event delegation for modal buttons
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Payment handler setup starting...');
+    // Setup cheque field toggle for payment modal
+    function toggleChequeFieldsCustomer() {
+        try {
+            var pm = document.getElementById('paymentMethod');
+            var chequeDiv = document.getElementById('paymentChequeDetails');
+            if (!chequeDiv) return;
+            var val = pm && pm.value ? pm.value : null;
+            console.log('toggleChequeFieldsCustomer called, paymentMethod=', val);
+            if (val && val.toLowerCase() === 'cheque') {
+                chequeDiv.classList.remove('d-none');
+                chequeDiv.classList.add('d-block');
+                var cn = document.getElementById('chequeNumber');
+                var pref = document.getElementById('paymentReference');
+                if (cn && (!cn.value || cn.value.trim() === '') && pref && pref.value) cn.value = pref.value;
+            } else {
+                chequeDiv.classList.remove('d-block');
+                chequeDiv.classList.add('d-none');
+            }
+        } catch (e) { console.error('toggleChequeFieldsCustomer error', e); }
+    }
+    // Attach listeners
+    var pmElCust = document.getElementById('paymentMethod');
+    if (pmElCust) {
+        pmElCust.addEventListener('change', toggleChequeFieldsCustomer);
+        pmElCust.addEventListener('input', toggleChequeFieldsCustomer);
+    }
+    document.addEventListener('change', function(e){ if (e.target && e.target.id === 'paymentMethod') toggleChequeFieldsCustomer(); });
+    try { window.toggleChequeFieldsCustomer = toggleChequeFieldsCustomer; } catch(e) {}
     
     // Use event delegation on document level for modal button
     document.addEventListener('click', function(e) {
@@ -1334,6 +1376,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 reference_number: reference,
                 notes: notes
             };
+            // Include cheque details if payment method is Cheque
+            if (paymentMethod && paymentMethod.toLowerCase() === 'cheque') {
+                requestBody.cheque_number = (document.getElementById('chequeNumber') && document.getElementById('chequeNumber').value) || reference;
+                requestBody.cheque_bank = (document.getElementById('bankName') && document.getElementById('bankName').value) || '';
+                requestBody.cheque_date = (document.getElementById('chequeDate') && document.getElementById('chequeDate').value) || '';
+            }
             console.log('Request body:', requestBody);
             
             fetch(paymentUrl, {

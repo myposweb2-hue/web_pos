@@ -1,6 +1,6 @@
-from flask import Blueprint, render_template, request, jsonify, flash
+from flask import Blueprint, render_template, request, jsonify, flash, current_app
 from flask_login import login_required, current_user
-from app.models import db, Customer, Sale, SaleItem, Product, Setting, Return, CustomerPayment
+from app.models import db, Customer, Sale, SaleItem, Product, Setting, Return, CustomerPayment, Cheque
 from app.utils.permissions import require_permission
 from app.utils.security import get_company_id, require_company_context
 from app.utils.audit import log_create, log_update, log_delete, log_audit
@@ -911,6 +911,50 @@ def get_customer_ledger(customer_id):
             'is_overdue': False
         }
         ledger_entries.append(entry)
+
+    # Process payments for this customer within date range
+    payments = CustomerPayment.query.filter(
+        CustomerPayment.customer_id == customer.id,
+        CustomerPayment.date >= start_date,
+        CustomerPayment.date <= end_date
+    ).order_by(CustomerPayment.date.desc()).all()
+
+    for payment in payments:
+        # Try to find a matching Cheque record if payment method is Cheque
+        cheque_info = None
+        try:
+            if payment.payment_method and payment.payment_method.lower() == 'cheque' and payment.reference_number:
+                cheque = Cheque.query.filter(
+                    Cheque.cheque_number == payment.reference_number,
+                    Cheque.customer_id == customer.id,
+                    Cheque.amount == payment.amount
+                ).first()
+                if cheque:
+                    cheque_info = {
+                        'cheque_bank': cheque.bank_name,
+                        'cheque_date': cheque.cheque_date.strftime('%Y-%m-%d') if cheque.cheque_date else None
+                    }
+        except Exception:
+            cheque_info = None
+
+        entry = {
+            'date': payment.date.strftime('%Y-%m-%d'),
+            'time': payment.date.strftime('%H:%M:%S'),
+            'type': 'Payment',
+            'reference': payment.reference_number or f'PAY-{payment.id:06d}',
+            'debit': 0,
+            'credit': float(payment.amount),
+            'balance': 0,
+            'payment_method': payment.payment_method,
+            'notes': payment.notes or '',
+            'days_old': (datetime.utcnow() - payment.date).days,
+            'is_overdue': False
+        }
+
+        if cheque_info:
+            entry.update(cheque_info)
+
+        ledger_entries.append(entry)
     
     # Sort by date descending
     ledger_entries.sort(key=lambda x: (x['date'], x['time']), reverse=True)
@@ -952,111 +996,173 @@ def record_customer_payment(customer_id):
     customer = get_customer_secure(customer_id)
     if not customer:
         return jsonify({'error': 'Customer not found'}), 404
+
     data = request.get_json()
-    
     if not data:
         return jsonify({'error': 'No data provided'}), 400
-    
-    amount = float(data.get('amount', 0))
+
+    try:
+        amount = float(data.get('amount', 0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid payment amount'}), 400
+
     if amount <= 0:
         return jsonify({'error': 'Invalid payment amount'}), 400
-    
+
     payment_method = data.get('payment_method', 'Cash')
     notes = data.get('notes', '')
     reference_number = data.get('reference_number', '')
     sale_id = data.get('sale_id')  # Optional: link to specific sale
-    
-    # Get company_id if it exists
-    company_id = None
-    if hasattr(customer, 'company_id'):
-        company_id = customer.company_id
-    
-    # Create a CustomerPayment record to track this payment
-    payment = CustomerPayment(
-        customer_id=customer.id,
-        sale_id=sale_id,
-        amount=amount,
-        payment_method=payment_method,
-        reference_number=reference_number,
-        notes=notes,
-        user_id=current_user.id if hasattr(current_user, 'id') else None,
-        company_id=company_id
-    )
-    db.session.add(payment)
-    
-    # Get the customer's unpaid sales and apply payment to oldest first
-    company_id = get_company_id()
-    unpaid_sales = Sale.query.filter(
-        Sale.customer == customer.name,
-        Sale.balance > 0,
-        Sale.company_id == company_id
-    ).order_by(Sale.date.asc()).all()
-    
-    remaining_payment = amount
-    
-    for sale in unpaid_sales:
-        if remaining_payment <= 0:
-            break
-        
-        # Apply payment to this sale
-        payment_for_sale = min(remaining_payment, sale.balance)
-        sale.balance = max(0, sale.balance - payment_for_sale)
-        remaining_payment -= payment_for_sale
-    
-    db.session.commit()
-    
-    # Now recalculate the customer's current balance
-    company_id = get_company_id()
-    total_balance = sum(sale.balance for sale in Sale.query.filter(
-        Sale.customer == customer.name,
-        Sale.company_id == company_id
-    ).all())
-    
-    customer.current_balance = total_balance
-    
-    # Recalculate aging
-    from datetime import timedelta
-    now = datetime.utcnow()
-    thirty_days_ago = now - timedelta(days=30)
-    sixty_days_ago = now - timedelta(days=60)
-    ninety_days_ago = now - timedelta(days=90)
-    
-    outstanding_0_30 = 0.0
-    outstanding_30_60 = 0.0
-    outstanding_60_90 = 0.0
-    outstanding_90_plus = 0.0
-    
-    for sale in Sale.query.filter(Sale.customer == customer.name, Sale.balance > 0, Sale.company_id == company_id).all():
-        days_old = (now - sale.date).days
-        if days_old <= 30:
-            outstanding_0_30 += sale.balance
-        elif days_old <= 60:
-            outstanding_30_60 += sale.balance
-        elif days_old <= 90:
-            outstanding_60_90 += sale.balance
-        else:
-            outstanding_90_plus += sale.balance
-    
-    customer.outstanding_0_30 = outstanding_0_30
-    customer.outstanding_30_60 = outstanding_30_60
-    customer.outstanding_60_90 = outstanding_60_90
-    customer.outstanding_90_plus = outstanding_90_plus
-    customer.last_balance_update = now
-    
-    # Resume supply if balance is now low enough
-    if customer.current_balance < customer.credit_limit * 0.5:
-        customer.supply_stopped = False
-    
-    db.session.commit()
-    
-    # Log audit
-    log_audit('Payment', payment.id, 'create', 
-              new_values={'amount': amount, 'payment_method': payment_method, 'customer_id': customer_id, 'reference': reference_number},
-              description=f"Payment of ₨{amount} recorded from customer '{customer.name}'")
-    
-    return jsonify({
-        'success': True,
-        'message': f'Payment of {amount} recorded successfully',
-        'new_balance': customer.current_balance,
-        'payment_id': payment.id
-    })
+
+    # Company context
+    company_id = customer.company_id if hasattr(customer, 'company_id') else None
+
+    try:
+        # Create payment record
+        payment = CustomerPayment(
+            customer_id=customer.id,
+            sale_id=sale_id,
+            amount=amount,
+            payment_method=payment_method,
+            reference_number=reference_number,
+            notes=notes,
+            user_id=current_user.id if hasattr(current_user, 'id') else None,
+            company_id=company_id
+        )
+        db.session.add(payment)
+
+        # If payment is by cheque, optionally create Cheque record
+        if payment_method and payment_method.lower() == 'cheque':
+            cheque_number = (data.get('cheque_number') or reference_number or '').strip()
+            cheque_bank = (data.get('cheque_bank') or '').strip()
+            cheque_date_str = data.get('cheque_date')
+
+            if cheque_number:
+                try:
+                    cheque_date = datetime.strptime(cheque_date_str, '%Y-%m-%d').date() if cheque_date_str else datetime.utcnow().date()
+                except Exception:
+                    cheque_date = datetime.utcnow().date()
+
+                # Avoid inserting duplicate cheques (unique constraint on cheque_number + bank_name)
+                existing_cheque = Cheque.query.filter(
+                    Cheque.cheque_number == cheque_number,
+                    Cheque.bank_name == (cheque_bank if cheque_bank else 'Unknown')
+                ).first()
+
+                if existing_cheque:
+                    try:
+                        current_app.logger.info(f"Found existing Cheque (id={existing_cheque.id}) for number={cheque_number}, bank={cheque_bank}")
+                    except Exception:
+                        pass
+
+                    # Ensure the existing cheque is linked to this customer/sale so it appears in received cheques
+                    updated = False
+                    if not existing_cheque.customer_id:
+                        existing_cheque.customer_id = customer.id
+                        updated = True
+                    if sale_id and not existing_cheque.sale_id:
+                        existing_cheque.sale_id = sale_id
+                        updated = True
+                    if not existing_cheque.payer_name:
+                        existing_cheque.payer_name = customer.name
+                        updated = True
+                    if existing_cheque.notes != notes and notes:
+                        existing_cheque.notes = (existing_cheque.notes or '') + '\n' + notes
+                        updated = True
+                    if existing_cheque.status != 'pending':
+                        existing_cheque.status = 'pending'
+                        updated = True
+
+                    if updated:
+                        try:
+                            db.session.add(existing_cheque)
+                        except Exception:
+                            pass
+                else:
+                    cheque = Cheque(
+                        cheque_number=cheque_number,
+                        bank_name=cheque_bank if cheque_bank else 'Unknown',
+                        branch=None,
+                        cheque_date=cheque_date,
+                        amount=amount,
+                        payer_name=customer.name,
+                        customer_id=customer.id,
+                        notes=notes,
+                        created_by=current_user.id if hasattr(current_user, 'id') else None,
+                        company_id=company_id,
+                        sale_id=sale_id
+                    )
+                    db.session.add(cheque)
+
+        # Apply payment to unpaid sales (oldest first)
+        unpaid_sales = Sale.query.filter(
+            Sale.customer == customer.name,
+            Sale.balance > 0,
+            Sale.company_id == get_company_id()
+        ).order_by(Sale.date.asc()).all()
+
+        remaining_payment = amount
+        for sale in unpaid_sales:
+            if remaining_payment <= 0:
+                break
+            apply_amt = min(remaining_payment, sale.balance)
+            sale.balance = max(0, sale.balance - apply_amt)
+            remaining_payment -= apply_amt
+
+        # Persist changes
+        db.session.commit()
+
+        # Recalculate customer's current balance and aging
+        company_id = get_company_id()
+        total_balance = sum(s.balance for s in Sale.query.filter(Sale.customer == customer.name, Sale.company_id == company_id).all())
+        customer.current_balance = total_balance
+
+        from datetime import timedelta
+        now = datetime.utcnow()
+        outstanding_0_30 = outstanding_30_60 = outstanding_60_90 = outstanding_90_plus = 0.0
+        for s in Sale.query.filter(Sale.customer == customer.name, Sale.balance > 0, Sale.company_id == company_id).all():
+            days_old = (now - s.date).days
+            if days_old <= 30:
+                outstanding_0_30 += s.balance
+            elif days_old <= 60:
+                outstanding_30_60 += s.balance
+            elif days_old <= 90:
+                outstanding_60_90 += s.balance
+            else:
+                outstanding_90_plus += s.balance
+
+        customer.outstanding_0_30 = outstanding_0_30
+        customer.outstanding_30_60 = outstanding_30_60
+        customer.outstanding_60_90 = outstanding_60_90
+        customer.outstanding_90_plus = outstanding_90_plus
+        customer.last_balance_update = now
+
+        # Resume supply if balance low
+        if hasattr(customer, 'credit_limit') and customer.current_balance < (customer.credit_limit or 0) * 0.5:
+            customer.supply_stopped = False
+
+        db.session.commit()
+
+        # Log audit
+        try:
+            log_audit('Payment', payment.id, 'create',
+                      new_values={'amount': amount, 'payment_method': payment_method, 'customer_id': customer_id, 'reference': reference_number},
+                      description=f"Payment of ₨{amount} recorded from customer '{customer.name}'")
+        except Exception:
+            pass
+
+        return jsonify({
+            'success': True,
+            'message': f'Payment of {amount} recorded successfully',
+            'new_balance': customer.current_balance,
+            'payment_id': payment.id
+        })
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        tb = traceback.format_exc()
+        try:
+            current_app.logger.error('Error in record_customer_payment: %s', tb)
+        except Exception:
+            pass
+        return jsonify({'error': 'Server error', 'exception': str(e), 'trace': tb}), 500

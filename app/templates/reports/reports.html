@@ -334,6 +334,20 @@
                                             <label class="form-label">Reference Number</label>
                                             <input type="text" class="form-control" id="paymentReference" placeholder="Cheque number, transaction ID, etc.">
                                         </div>
+                                        <div id="paymentChequeDetails" class="d-none">
+                                            <div class="mb-3">
+                                                <label class="form-label">Cheque Number</label>
+                                                <input type="text" class="form-control" id="chequeNumber" placeholder="Enter cheque number">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Bank Name</label>
+                                                <input type="text" class="form-control" id="bankName" placeholder="Bank name">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Cheque Date</label>
+                                                <input type="date" class="form-control" id="chequeDate">
+                                            </div>
+                                        </div>
                                         <div class="mb-3">
                                             <label class="form-label">Notes</label>
                                             <textarea class="form-control" id="paymentNotes" rows="2" placeholder="Optional notes"></textarea>
@@ -466,7 +480,7 @@
                                 <div class="card-body">
                                     <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                         <table class="table table-striped table-sm" id="customerLedgerTable">
-                                            <thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th><th>Payment Method</th></tr></thead>
+                                            <thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Reference</th><th>Debit</th><th>Credit</th><th>Balance</th><th>Payment Method</th><th>Cheque Bank</th><th>Cheque Date</th></tr></thead>
                                             <tbody id="customerLedgerTableBody"></tbody>
                                             <tfoot id="customerLedgerTableFoot"></tfoot>
                                         </table>
@@ -1537,7 +1551,7 @@ function loadCustomerLedgerForCustomer(customerId, startDate, endDate) {
             
             var totalDebit = 0, totalCredit = 0;
             
-            if (data.ledger && data.ledger.length > 0) {
+                if (data.ledger && data.ledger.length > 0) {
                 data.ledger.forEach(function(entry) {
                     totalDebit += entry.debit;
                     totalCredit += entry.credit;
@@ -1550,7 +1564,9 @@ function loadCustomerLedgerForCustomer(customerId, startDate, endDate) {
                         '<td>₨'+entry.debit.toFixed(2)+'</td>' +
                         '<td>₨'+entry.credit.toFixed(2)+'</td>' +
                         '<td>₨'+(entry.balance || 0).toFixed(2)+'</td>' +
-                        '<td>'+(entry.payment_method || '-')+'</td>';
+                        '<td>'+(entry.payment_method || '-')+'</td>' +
+                        '<td>'+(entry.cheque_bank || '-')+'</td>' +
+                        '<td>'+(entry.cheque_date || '-')+'</td>';
                     tableBody.appendChild(row);
                 });
                 
@@ -1559,9 +1575,11 @@ function loadCustomerLedgerForCustomer(customerId, startDate, endDate) {
                     '<td>₨'+totalDebit.toFixed(2)+'</td>' +
                     '<td>₨'+totalCredit.toFixed(2)+'</td>' +
                     '<td></td>' +
+                    '<td></td>' +
+                    '<td></td>' +
                     '<td></td></tr>';
             } else {
-                tableBody.innerHTML = '<tr><td colspan="8" class="text-center">No ledger transactions found</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="10" class="text-center">No ledger transactions found</td></tr>';
                 tableFoot.innerHTML = '';
             }
         })
@@ -1677,12 +1695,92 @@ document.addEventListener('DOMContentLoaded', function() {
     // Payment Modal - Save Payment Button
     var savePaymentBtn = document.getElementById('savePaymentBtn');
     if (savePaymentBtn) {
+        // Toggle cheque detail fields when payment method changes
+        var paymentMethodSelect = document.getElementById('paymentMethod');
+        var chequeDetailsDiv = document.getElementById('paymentChequeDetails');
+        var paymentReferenceInput = document.getElementById('paymentReference');
+
+        function toggleChequeFields() {
+            try {
+                var pmEl = document.getElementById('paymentMethod');
+                var val = pmEl && pmEl.value ? pmEl.value : null;
+                console.log('toggleChequeFields called, paymentMethod=', val);
+                var chequeDiv = document.getElementById('paymentChequeDetails');
+                if (!chequeDiv) return;
+                if (val && val.toLowerCase() === 'cheque') {
+                    chequeDiv.classList.remove('d-none');
+                    chequeDiv.classList.add('d-block');
+                    // If cheque number empty, copy from reference input
+                    var cn = document.getElementById('chequeNumber');
+                    var pref = document.getElementById('paymentReference');
+                    if (cn && (!cn.value || cn.value.trim() === '') && pref && pref.value) {
+                        cn.value = pref.value;
+                    }
+                } else {
+                    chequeDiv.classList.remove('d-block');
+                    chequeDiv.classList.add('d-none');
+                }
+            } catch (e) {
+                console.error('toggleChequeFields error', e);
+            }
+        }
+
+        if (paymentMethodSelect) {
+            paymentMethodSelect.addEventListener('change', toggleChequeFields);
+            // also listen for input in case some browsers/fire events differently
+            paymentMethodSelect.addEventListener('input', toggleChequeFields);
+        } else {
+            console.warn('paymentMethodSelect not found');
+        }
+
+        // Expose for debugging from console
+        try { window.toggleChequeFields = toggleChequeFields; } catch (e) { /* ignore */ }
+
+        // Fallback: listen at document level for changes to paymentMethod in case the element is replaced dynamically
+        document.addEventListener('change', function(e) {
+            try {
+                if (e.target && e.target.id === 'paymentMethod') {
+                    console.log('document change event caught for paymentMethod, value=', e.target.value);
+                    toggleChequeFields();
+                }
+            } catch (err) {
+                console.error('document change listener error', err);
+            }
+        });
+
+        // Also catch click events on the select/options for UI libraries that don't fire change reliably
+        document.addEventListener('click', function(e) {
+            try {
+                var el = e.target.closest && e.target.closest('#paymentModal');
+                if (!el) return;
+                var pm = document.getElementById('paymentMethod');
+                if (pm) {
+                    setTimeout(toggleChequeFields, 50);
+                }
+            } catch (err) {
+                // ignore
+            }
+        });
+        // Also toggle on modal open if needed
+        var paymentModalEl = document.getElementById('paymentModal');
+        if (paymentModalEl) {
+            paymentModalEl.addEventListener('show.bs.modal', function () {
+                toggleChequeFields();
+            });
+        }
+
+        // Ensure initial state matches current selection
+        try { toggleChequeFields(); } catch (e) { console.error('initial toggle error', e); }
+
         savePaymentBtn.addEventListener('click', function() {
             console.log('Save payment button clicked');
             var customerId = document.getElementById('paymentCustomerId').value;
             var amount = parseFloat(document.getElementById('paymentAmount').value);
             var paymentMethod = document.getElementById('paymentMethod').value;
             var reference = document.getElementById('paymentReference').value;
+            var chequeNumber = document.getElementById('chequeNumber') ? document.getElementById('chequeNumber').value : '';
+            var chequeBank = document.getElementById('bankName') ? document.getElementById('bankName').value : '';
+            var chequeDate = document.getElementById('chequeDate') ? document.getElementById('chequeDate').value : '';
             var notes = document.getElementById('paymentNotes').value;
             
             console.log('Recording payment:', { customerId, amount, paymentMethod, reference, notes });
@@ -1709,7 +1807,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     amount: amount,
                     payment_method: paymentMethod,
                     reference_number: reference,
-                    notes: notes
+                    notes: notes,
+                    cheque_number: chequeNumber,
+                    cheque_bank: chequeBank,
+                    cheque_date: chequeDate
                 })
             })
             .then(response => {

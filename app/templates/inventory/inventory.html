@@ -651,24 +651,38 @@ function loadInventoryAnalytics() {
 }
 
 function loadCategories() {
-    $.get('/inventory/api/products', { per_page: 1000 })
+    $.ajax({
+        url: '/inventory/api/products',
+        type: 'GET',
+        data: { per_page: 1000 },
+        dataType: 'json',
+        timeout: 15000
+    })
         .done(function(data) {
-            console.log('Loaded products for categories:', data.products.length);
-            const categorySet = new Set();
-            data.products.forEach(function(product) {
-                if (product.category) {
-                    categorySet.add(product.category);
+            try {
+                if (!data || !data.products || !Array.isArray(data.products)) {
+                    console.error('Invalid categories response:', data);
+                    return;
                 }
-            });
+                console.log('Loaded products for categories:', data.products.length);
+                const categorySet = new Set();
+                data.products.forEach(function(product) {
+                    if (product.category) {
+                        categorySet.add(product.category);
+                    }
+                });
 
-            categories = Array.from(categorySet).sort();
-            console.log('Found categories:', categories);
-            const $categoryFilter = $('#categoryFilter');
-            $categoryFilter.find('option:not(:first)').remove();
-            categories.forEach(function(category) {
-                $categoryFilter.append('<option value="' + category + '">' + category + '</option>');
-            });
-            console.log('Categories dropdown loaded with', categories.length, 'options');
+                categories = Array.from(categorySet).sort();
+                console.log('Found categories:', categories);
+                const $categoryFilter = $('#categoryFilter');
+                $categoryFilter.find('option:not(:first)').remove();
+                categories.forEach(function(category) {
+                    $categoryFilter.append('<option value="' + category + '">' + category + '</option>');
+                });
+                console.log('Categories dropdown loaded with', categories.length, 'options');
+            } catch(e) {
+                console.error('Error processing categories:', e, 'data:', data);
+            }
         })
         .fail(function(xhr, status, error) {
             console.error('Failed to load categories:', error, status, xhr);
