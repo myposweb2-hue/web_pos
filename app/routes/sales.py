@@ -620,25 +620,24 @@ def receipt_html(sale_id):
     
     # Prepare item data for template
     items_data = []
-    subtotal = 0
+    subtotal_before = 0.0
+    subtotal_after = 0.0
     for item in items:
         # Get product name with fallback
         product_name = item.product.name if hasattr(item, 'product') and item.product else 'Unknown Product'
-        
-        # Get product code with fallback logic
-        product_code = 'N/A'
-        if hasattr(item, 'product') and item.product:
-            if hasattr(item.product, 'product_code') and item.product.product_code:
-                product_code = item.product.product_code
-            elif hasattr(item.product, 'barcode') and item.product.barcode:
-                product_code = item.product.barcode
-        
+
+        # Use product ID as item code (fallback to sale_item.product_id or 'N/A')
+        if hasattr(item, 'product') and item.product and getattr(item.product, 'id', None):
+            product_code = str(item.product.id)
+        else:
+            product_code = str(getattr(item, 'product_id', 'N/A') or 'N/A')
+
         # Calculate item totals using actual SaleItem attributes
         item_discount = item.discount if hasattr(item, 'discount') and item.discount else 0
         item_tax = item.tax if hasattr(item, 'tax') and item.tax else 0
         item_price_before_discount = item.price * item.quantity
         item_total = item_price_before_discount - item_discount + item_tax
-        
+
         item_data = {
             'code': product_code,
             'name': product_name,
@@ -649,16 +648,20 @@ def receipt_html(sale_id):
             'total': item_total
         }
         items_data.append(item_data)
-        subtotal += item_total
+        subtotal_before += item_price_before_discount
+        subtotal_after += item_total
     
     # Calculate derived values
-    discount_total = sum(item['discount'] for item in items_data)
+    discount_total = sum(item['discount'] for item in items_data) + (getattr(sale, 'discount', 0) or 0)
     tax_total = sum(item['tax_amount'] for item in items_data)
-    
-    # Calculate tax rate from totals
+
+    # Determine taxable base (pre-discount)
+    taxable_base = max(0.0, subtotal_before - discount_total)
+
+    # Calculate tax rate from totals (relative to taxable base)
     tax_rate = 0
-    if tax_total > 0 and subtotal > 0:
-        tax_rate = round((tax_total / subtotal) * 100, 1)
+    if tax_total > 0 and taxable_base > 0:
+        tax_rate = round((tax_total / taxable_base) * 100, 1)
     
     change = sale.cash_given - sale.total if sale.payment == 'Cash' else 0
     
@@ -842,9 +845,10 @@ def receipt_html(sale_id):
         
         # Items
         'items': items_data,
-        
+
         # Totals
-        'subtotal': subtotal,
+        'subtotal': subtotal_before,
+        'subtotal_after_discount': subtotal_after,
         'discount': discount_total,
         'discount_total': discount_total,
         'tax_amount': tax_total,
@@ -922,13 +926,11 @@ def download_receipt_pdf(sale_id):
             # Get product name from relationship
             product_name = sale_item.product.name if hasattr(sale_item, 'product') and sale_item.product else 'Unknown Product'
             
-            # Get product code with fallback logic
-            product_code = 'N/A'
-            if hasattr(sale_item, 'product') and sale_item.product:
-                if hasattr(sale_item.product, 'product_code') and sale_item.product.product_code:
-                    product_code = sale_item.product.product_code
-                elif hasattr(sale_item.product, 'barcode') and sale_item.product.barcode:
-                    product_code = sale_item.product.barcode
+            # Use product ID as item code (fallback to sale_item.product_id or 'N/A')
+            if hasattr(sale_item, 'product') and sale_item.product and getattr(sale_item.product, 'id', None):
+                product_code = str(sale_item.product.id)
+            else:
+                product_code = str(getattr(sale_item, 'product_id', 'N/A') or 'N/A')
             
             # Get price from SaleItem (correct attribute name)
             unit_price = float(sale_item.price) if hasattr(sale_item, 'price') else 0.0
@@ -1306,13 +1308,11 @@ def download_receipt_pdf_public(sale_id):
             # Get product name from relationship
             product_name = sale_item.product.name if hasattr(sale_item, 'product') and sale_item.product else 'Unknown Product'
             
-            # Get product code with fallback logic
-            product_code = 'N/A'
-            if hasattr(sale_item, 'product') and sale_item.product:
-                if hasattr(sale_item.product, 'product_code') and sale_item.product.product_code:
-                    product_code = sale_item.product.product_code
-                elif hasattr(sale_item.product, 'barcode') and sale_item.product.barcode:
-                    product_code = sale_item.product.barcode
+            # Use product ID as item code (fallback to sale_item.product_id or 'N/A')
+            if hasattr(sale_item, 'product') and sale_item.product and getattr(sale_item.product, 'id', None):
+                product_code = str(sale_item.product.id)
+            else:
+                product_code = str(getattr(sale_item, 'product_id', 'N/A') or 'N/A')
             
             # Get price from SaleItem (correct attribute name)
             unit_price = float(sale_item.price) if hasattr(sale_item, 'price') else 0.0
@@ -1472,13 +1472,11 @@ def print_receipt(sale_id):
             # Get product name from relationship
             product_name = sale_item.product.name if hasattr(sale_item, 'product') and sale_item.product else 'Unknown Product'
             
-            # Get product code with fallback logic
-            product_code = 'N/A'
-            if hasattr(sale_item, 'product') and sale_item.product:
-                if hasattr(sale_item.product, 'product_code') and sale_item.product.product_code:
-                    product_code = sale_item.product.product_code
-                elif hasattr(sale_item.product, 'barcode') and sale_item.product.barcode:
-                    product_code = sale_item.product.barcode
+            # Use product ID as item code (fallback to sale_item.product_id or 'N/A')
+            if hasattr(sale_item, 'product') and sale_item.product and getattr(sale_item.product, 'id', None):
+                product_code = str(sale_item.product.id)
+            else:
+                product_code = str(getattr(sale_item, 'product_id', 'N/A') or 'N/A')
             
             # Get price from SaleItem (correct attribute name)
             unit_price = float(sale_item.price) if hasattr(sale_item, 'price') else 0.0

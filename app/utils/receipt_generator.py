@@ -325,9 +325,11 @@ Business: {qr_business_name}
         story.append(Paragraph("───────────────────────────────────", self.small_style))
         story.append(Spacer(1, 3))
 
-        # Calculate tax amount
-        tax_amount = sale_data.get('total', 0) - sale_data.get('subtotal', 0)
-        
+        # Calculate tax amount correctly: total - (subtotal_before - discount_total)
+        discount_total = sale_data.get('discount_total', sale_data.get('discount', 0) or 0)
+        taxable_base = max(0.0, sale_data.get('subtotal', 0) - discount_total)
+        tax_amount = max(0.0, sale_data.get('total', 0) - (sale_data.get('subtotal', 0) - discount_total))
+
         # Check if show_tax_in_sales setting is enabled (default to True)
         show_tax_in_sales = business_settings.get('tax', {}).get('show_tax_in_sales', 'true').lower() == 'true'
         
@@ -342,10 +344,11 @@ Business: {qr_business_name}
                 Paragraph(f"₨ {tax_amount:.2f}", self.normal_style)
             ])
 
-        if sale_data.get('discount', 0) > 0:
+        # Show discount if any (per-item discounts aggregated or overall sale discount)
+        if discount_total and discount_total > 0:
             totals_data.append([
                 Paragraph("Discount", self.normal_style), 
-                Paragraph(f"-₨ {sale_data.get('discount', 0):.2f}", self.normal_style)
+                Paragraph(f"-₨ {discount_total:.2f}", self.normal_style)
             ])
 
         # Grand Total - highlighted with background
@@ -460,27 +463,46 @@ Business: {qr_business_name}
             'time': time_str,
             'customer': sale.customer,
             'items': [],
-            'subtotal': 0,
+            # 'subtotal' will be the pre-discount subtotal (sum of unit_price * qty)
+            'subtotal': 0.0,
             'total': sale.total,
+            # overall sale discount (if any); per-item discounts aggregated below into discount_total
             'discount': getattr(sale, 'discount', 0) or 0,
+            'discount_total': 0.0,
             'payment': sale.payment if hasattr(sale, 'payment') else 'Cash',
             'cash_given': getattr(sale, 'cash_given', 0) or 0,
             'balance': getattr(sale, 'balance', 0) or 0,
-            'tax_rate': 18  # Default tax rate
+            'tax_rate': 18,  # Default tax rate
+            'tax_total': 0.0
         }
 
         for item in items:
+            qty = item.quantity
+            unit_price = item.price
+            item_discount = getattr(item, 'discount', 0) or 0
+            item_tax = getattr(item, 'tax', 0) or 0
+            item_price_before = unit_price * qty
+            item_total = item_price_before - item_discount + item_tax
+
             item_data = {
                 'name': item.product.name if item.product else 'Unknown',
-                'quantity': item.quantity,
-                'price': item.price,
-                'total': item.quantity * item.price
+                'quantity': qty,
+                'price': unit_price,
+                'discount': item_discount,
+                'tax_amount': item_tax,
+                'total': item_total
             }
             sale_data['items'].append(item_data)
-            sale_data['subtotal'] += item_data['total']
+            sale_data['subtotal'] += item_price_before
+            sale_data['discount_total'] += item_discount
+            sale_data['tax_total'] += item_tax
 
-        # Calculate tax rate from totals
-        if sale_data['subtotal'] > 0:
-            sale_data['tax_rate'] = round((sale_data['total'] - sale_data['subtotal'] + sale_data['discount']) / sale_data['subtotal'] * 100, 2)
+        # Include any overall sale.discount (if set) in discount_total
+        sale_data['discount_total'] = sale_data.get('discount_total', 0.0) + (sale_data.get('discount', 0.0) or 0.0)
+
+        # Calculate tax rate from totals (relative to taxable base)
+        taxable_base = max(0.0, sale_data['subtotal'] - sale_data['discount_total'])
+        if sale_data['tax_total'] > 0 and taxable_base > 0:
+            sale_data['tax_rate'] = round((sale_data['tax_total'] / taxable_base) * 100, 2)
 
         return self.generate_receipt(sale_data, business_settings)
