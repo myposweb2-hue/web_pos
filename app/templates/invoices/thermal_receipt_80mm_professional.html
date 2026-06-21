@@ -397,12 +397,14 @@
         </div>
 
         <!-- QR CODE (Optional) -->
+        {% if show_qr_code %}
         <div class="qr-code">
             <div class="qr-placeholder">
                 [QR CODE]<br>
                 Scan for details
             </div>
         </div>
+        {% endif %}
 
         <!-- FOOTER -->
         <div class="footer">
