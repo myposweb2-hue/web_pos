@@ -605,6 +605,17 @@ def receipt_html(sale_id):
     """Serve HTML receipt template - Professional Invoice."""
     from app.routes.invoices import get_receipt_settings
     from datetime import datetime, timedelta
+
+    # Helper: safely convert receipt setting values to boolean
+    def _bool_setting(val):
+        if isinstance(val, bool):
+            return val
+        if val is None:
+            return False
+        try:
+            return str(val).strip().lower() in ('true', '1', 'yes')
+        except Exception:
+            return False
     
     sale = Sale.query.get(sale_id)
     if not sale:
@@ -879,7 +890,9 @@ def receipt_html(sale_id):
         
         # Currency
         'currency': currency_symbol_value,
-        'currency_symbol': currency_symbol_value
+        'currency_symbol': currency_symbol_value,
+        # Whether to show QR code on receipt
+        'show_qr_code': _bool_setting(receipt_settings.get('show_qr_code', 'true'))
     }
     
     # Select template based on format
@@ -994,7 +1007,8 @@ def download_receipt_pdf(sale_id):
             'tax': f"Rs. {tax_total:.2f}",
             'total': f"Rs. {total:.2f}",
             'paid_amount': f"Rs. {paid_amount:.2f}",
-            'balance_due': f"Rs. {balance_due:.2f}"
+            'balance_due': f"Rs. {balance_due:.2f}",
+            'show_qr_code': _bool_setting(receipt_settings.get('show_qr_code', 'true'))
         }
         
         # Select template based on format
@@ -1577,6 +1591,7 @@ def print_receipt(sale_id):
             'website': receipt_settings.get('business_website', ''),
             'footer_text': 'Receipt',
             'sale_time': (sale.date + timedelta(hours=6)).strftime('%H:%M') if sale.date else '',
+            'show_qr_code': _bool_setting(receipt_settings.get('show_qr_code', 'true'))
         }
         
         # Render HTML template
