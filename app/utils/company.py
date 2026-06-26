@@ -23,10 +23,18 @@ def get_current_company():
     return None
 
 def get_user_companies(user_id):
-    """Get all ACTIVE companies a user has access to (excludes deleted companies)."""
+    """Get all ACTIVE companies a user has access to (excludes deleted companies).
+
+    Super Admin users should be able to see all active companies even if they are not
+    associated with a specific company record. This returns all active companies for
+    Super Admins, otherwise returns only the user's associated active companies.
+    """
     user = User.query.get(user_id)
     if user:
-        # Filter to only return active companies
+        # Super Admin can view all active companies regardless of association
+        if user.role and user.role.lower() == 'super admin':
+            return Company.query.filter_by(is_active=True).all()
+        # Filter to only return active companies for regular users
         return [c for c in user.companies if c.is_active]
     return []
 

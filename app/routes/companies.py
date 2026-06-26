@@ -110,12 +110,6 @@ def create_company():
         )
         
         db.session.add(company)
-        db.session.flush()  # Get company ID
-        
-        # Add current user as company admin
-        if current_user not in company.users:
-            company.users.append(current_user)
-        
         db.session.commit()
         
         return jsonify({
