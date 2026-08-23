@@ -84,7 +84,6 @@
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label for="original_purchase_id" class="form-label">Original Purchase</label>
-                                    <input type="text" id="purchaseSearchInput" class="form-control mb-2" placeholder="Search purchase by ID, invoice or supplier">
                                     <select class="form-select" id="original_purchase_id" name="original_purchase_id" required>
                                         <option value="" disabled selected>Select a purchase to return from</option>
                                         {% for p in purchases %}
@@ -113,9 +112,6 @@
                             <h6 class="m-0 font-weight-bold text-danger">Total Refund: <span id="totalRefundDisplay">0.00</span></h6>
                         </div>
                         <div class="card-body">
-                            <div class="mb-2">
-                                <input type="text" id="itemSearchInput" class="form-control" placeholder="Filter items by product name">
-                            </div>
                             <div class="table-responsive">
                                 <table class="table table-bordered" id="itemsTable">
                                     <thead>
@@ -473,42 +469,6 @@ document.addEventListener('DOMContentLoaded', function() {
             updateSummary();
         }
     });
-
-    // Keep a copy of the original options so we can filter client-side
-    const originalPurchaseOptions = Array.from(purchaseSelect.options).map(o => ({ value: o.value, text: o.text }));
-
-    // Purchase search input filtering
-    const purchaseSearchInput = document.getElementById('purchaseSearchInput');
-    if (purchaseSearchInput) {
-        purchaseSearchInput.addEventListener('input', function() {
-            const q = this.value.trim().toLowerCase();
-            purchaseSelect.innerHTML = '';
-            // re-add placeholder if present in original list
-            const placeholder = originalPurchaseOptions.find(o => !o.value);
-            if (placeholder) {
-                const opt = document.createElement('option'); opt.value = ''; opt.disabled = true; opt.selected = true; opt.textContent = placeholder.text; purchaseSelect.appendChild(opt);
-            }
-            originalPurchaseOptions.forEach(optData => {
-                if (!optData.value) return;
-                if (!q || optData.text.toLowerCase().includes(q)) {
-                    const o = document.createElement('option'); o.value = optData.value; o.textContent = optData.text; purchaseSelect.appendChild(o);
-                }
-            });
-        });
-    }
-
-    // Item filter input for table
-    const itemSearchInput = document.getElementById('itemSearchInput');
-    if (itemSearchInput) {
-        itemSearchInput.addEventListener('input', function() {
-            const q = this.value.trim().toLowerCase();
-            itemsTableBody.querySelectorAll('tr').forEach(row => {
-                const productCell = row.querySelector('td');
-                if (!productCell) return;
-                row.style.display = (!q || productCell.textContent.toLowerCase().includes(q)) ? '' : 'none';
-            });
-        });
-    }
 
     function updateSummary() {
         returnItems = [];
