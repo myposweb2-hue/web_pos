@@ -1,9 +1,11 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file, current_app
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, send_file, current_app, session
 from flask_login import login_required, current_user
-from app.models import db, Product, Sale, SaleItem, Customer, Setting, HeldBill, Return, ReturnItem, InventoryTransaction
-from app.models import Exchange, ExchangeItem, Cheque
+from app.models import db, Product, Sale, SaleRequest, SaleItem, Customer, Setting, HeldBill, Return, ReturnItem, InventoryTransaction
+from app.models import Exchange, ExchangeItem, Cheque, CustomerPayment
 from app.utils.permissions import require_permission
 from app.utils.security import get_company_id, require_company_context
+from app.utils.sales_totals import sale_total_for_display
+from app.utils.inventory_batches import allocate_batches, restore_batches
 from app.utils.company import column_exists_in_db
 from datetime import datetime, timedelta
 from sqlalchemy import desc, case, or_
@@ -19,6 +21,133 @@ from app.utils.receipt_generator import ReceiptGenerator
 from app import csrf
 
 sales_bp = Blueprint('sales', __name__, template_folder='../../templates')
+
+
+
+
+def _sale_total_for_display(sale):
+    """Compatibility wrapper around the shared canonical sale-total helper."""
+    return sale_total_for_display(sale)
+
+
+def _receipt_settlement(sale):
+    """Return paid amount, balance, and change using current linked payments.
+
+    Order payments are recorded in CustomerPayment and may be added after the
+    original sale. The sale balance remains the source of truth, while linked
+    payments provide a safe fallback for older orders whose balance was not
+    updated by the legacy payment flow.
+    """
+    total = _sale_total_for_display(sale)
+    stored_balance = max(0.0, float(getattr(sale, 'balance', 0) or 0))
+    linked_paid = 0.0
+    linked_method = None
+    try:
+        query = CustomerPayment.query.filter(CustomerPayment.sale_id == sale.id)
+        if getattr(sale, 'company_id', None) is not None:
+            query = query.filter(CustomerPayment.company_id == sale.company_id)
+        linked_payments = query.order_by(CustomerPayment.date.desc(), CustomerPayment.id.desc()).all()
+        linked_paid = sum(float(p.amount or 0) for p in linked_payments)
+        if linked_payments:
+            linked_method = linked_payments[0].payment_method or None
+    except Exception:
+        linked_paid = 0.0
+
+    if sale.payment == 'Cash':
+        # An order may have been created with Cash as its original method and
+        # receive a later payment from the Orders tab. Count both sources.
+        cash_paid = max(0.0, float(getattr(sale, 'cash_given', 0) or 0))
+        paid = min(total, max(cash_paid, linked_paid))
+    elif sale.payment == 'Cheque':
+        paid = total
+    else:
+        # Prefer the latest stored balance, but recover payments linked to the
+        # order when the old workflow left the balance unchanged.
+        paid = min(total, max(total - stored_balance, linked_paid))
+
+    balance = max(0.0, total - paid)
+    original_cash = max(0.0, float(getattr(sale, 'cash_given', 0) or 0))
+    # A payment recorded later from the Orders tab is not the original
+    # checkout tender. Label it explicitly so receipts do not show it as
+    # Cash received for the original sale.
+    if linked_method and linked_paid > 0:
+        effective_method = f"Order Payment - {linked_method}"
+    else:
+        effective_method = sale.payment or 'Cash'
+    display_cash_received = original_cash if effective_method == 'Cash' else 0.0
+    change = max(0.0, display_cash_received - total) if effective_method == 'Cash' else 0.0
+    status = 'Paid' if total > 0 and balance <= 0.005 else ('Partial' if paid > 0 else 'Pending')
+    return paid, balance, change, status, linked_paid, effective_method, display_cash_received
+
+def _receipt_customer_details(sale, company_id=None):
+    """Resolve durable customer contact details for receipt rendering.
+
+    Sales keep the customer name as a snapshot, so receipts safely look up the
+    current customer record by name and company. Walk-in sales intentionally
+    return empty contact fields.
+    """
+    name = (getattr(sale, 'customer', None) or '').strip()
+    details = {'name': name or 'Walk-in Customer', 'phone': '', 'address': '', 'email': ''}
+    if not name or name.lower() in {'walk-in', 'walk-in customer'}:
+        return details
+    query = Customer.query.filter(Customer.name == name)
+    if company_id and hasattr(Customer, 'company_id'):
+        query = query.filter(Customer.company_id == company_id)
+    customer = query.first()
+    if customer:
+        details.update({
+            'name': customer.name or details['name'],
+            'phone': customer.phone or '',
+            'address': customer.address or '',
+            'email': customer.email or '',
+        })
+    return details
+
+def _receipt_logo_data_uri(logo_setting):
+    """Resolve an uploaded logo setting into a browser/PDF-safe data URI."""
+    if not logo_setting or not getattr(logo_setting, 'setting_value', None):
+        return ''
+    import base64
+    import os
+    from io import BytesIO
+
+    raw = str(logo_setting.setting_value).strip()
+    if raw.startswith('data:image/'):
+        return raw
+
+    filename = os.path.basename(raw.replace('\\', '/'))
+    candidates = []
+    if os.path.isabs(raw):
+        candidates.append(raw)
+    candidates.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'uploads', filename)))
+    candidates.append(os.path.abspath(os.path.join(current_app.root_path, 'static', 'uploads', filename)))
+    logo_path = next((candidate for candidate in candidates if os.path.isfile(candidate)), None)
+    if not logo_path:
+        current_app.logger.warning('Receipt logo file not found for setting: %s', raw)
+        return ''
+
+    try:
+        from PIL import Image
+        image = Image.open(logo_path)
+        if image.mode == 'RGBA':
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            background.paste(image, mask=image.getchannel('A'))
+            image = background
+        elif image.mode != 'RGB':
+            image = image.convert('RGB')
+        output = BytesIO()
+        extension = os.path.splitext(logo_path)[1].lower()
+        if extension in ('.jpg', '.jpeg'):
+            image.save(output, format='JPEG', quality=95)
+            mime_type = 'image/jpeg'
+        else:
+            image.save(output, format='PNG', optimize=True)
+            mime_type = 'image/png'
+        encoded = base64.b64encode(output.getvalue()).decode('ascii')
+        return f'data:{mime_type};base64,{encoded}'
+    except Exception as exc:
+        current_app.logger.warning('Unable to encode receipt logo %s: %s', logo_path, exc)
+        return ''
 
 def get_company_filter(model_class):
     """Get company filter for a model if company_id column exists."""
@@ -68,12 +197,14 @@ def search_products():
         # Prioritize exact barcode match at the top of the results
         order_logic = case(
             (Product.barcode.ilike(query), 0),
+            (Product.product_code.ilike(query), 0),
             else_=1
         )
         products_query = products_query.filter(
             db.or_(
                 Product.name.ilike(f'%{query}%'),
-                Product.barcode.ilike(query)
+                Product.barcode.ilike(f'%{query}%'),
+                Product.product_code.ilike(f'%{query}%')
             )
         ).order_by(order_logic, Product.name)
     else:
@@ -95,6 +226,8 @@ def search_products():
             'unit_type': product.unit_type or '',
             'image_path': product.image_path or '',
             'category': product.category or '',
+            'barcode': product.barcode or '',
+            'product_code': product.product_code or '',
             'price_per_kg': float(product.price_per_kg) if hasattr(product, 'price_per_kg') and product.price_per_kg else None
         })
 
@@ -311,6 +444,7 @@ def search_customers():
             'id': customer.id,
             'name': customer.name,
             'phone': customer.phone or '',
+            'email': customer.email or '',
             'loyalty_points': int(customer.loyalty_points) if customer.loyalty_points else 0
         })
 
@@ -360,10 +494,33 @@ def create_sale():
     
     # Log incoming data for debugging
     current_app.logger.info(f"SALES CREATE - Received data: {data}")
+
     if not data:
         current_app.logger.error("SALES CREATE ERROR: No JSON data received")
         return jsonify({'error': 'Invalid sale data - no data'}), 400
-    
+
+    # Idempotency key prevents a network retry from creating a duplicate sale.
+    client_request_id = str(
+        data.get('client_request_id') or request.headers.get('Idempotency-Key') or ''
+    ).strip()
+    if len(client_request_id) > 128:
+        return jsonify({'error': 'Invalid checkout request ID'}), 400
+    request_company_id = get_company_id()
+    if client_request_id:
+        request_query = SaleRequest.query.filter_by(request_id=client_request_id)
+        if request_company_id:
+            request_query = request_query.filter(SaleRequest.company_id == request_company_id)
+        previous_request = request_query.first()
+        if previous_request:
+            return jsonify({
+                'success': True,
+                'sale_id': previous_request.sale_id,
+                'already_processed': True,
+                'message': f'Sale already completed successfully! Sale #{previous_request.sale_id}',
+                'receipt_html_url': f'/sales/{previous_request.sale_id}/receipt/html?format=a4',
+                'receipt_pdf_url': f'/api/sales/{previous_request.sale_id}/receipt/pdf?format=a4',
+                'receipt_print_url': f'/api/sales/{previous_request.sale_id}/print-receipt'
+            })
     if 'items' not in data:
         current_app.logger.error(f"SALES CREATE ERROR: Missing 'items' key. Keys present: {list(data.keys())}")
         return jsonify({'error': 'Invalid sale data - missing items'}), 400
@@ -375,7 +532,16 @@ def create_sale():
     try:
         # Validate payment method and amount first
         payment_method = data.get('payment_method', 'Cash')
-        total = float(data.get('total', 0.0))
+        total = float(data.get('total', 0.0) or 0.0)
+        # Never persist a zero total when the checkout contains priced lines.
+        # This protects against stale clients and older formatted-number bugs.
+        if total <= 0:
+            total = max(0.0, sum(
+                (float(item.get('price', 0) or 0) * float(item.get('quantity', 0) or 0))
+                - float(item.get('discount', 0) or 0)
+                + float(item.get('tax', 0) or 0)
+                for item in data.get('items', [])
+            ))
         current_app.logger.info(f"SALES CREATE - Payment method: {payment_method}, Total: {total}")
         current_app.logger.info(f"SALES CREATE - Full payment data received: {{'payment_method': '{payment_method}', 'balance': {data.get('balance', 0)}, 'cash_given': {data.get('cash_given', 0)}}}")
         
@@ -383,6 +549,24 @@ def create_sale():
             cash_given = float(data.get('cash_given', 0.0))
             if cash_given < total:
                 return jsonify({'error': 'Insufficient cash payment'}), 400
+
+        # Discounts above 10% require a manager/admin to authorize the sale.
+        subtotal_for_approval = float(data.get('subtotal', 0.0) or 0.0)
+        requested_discount = float(data.get('discount', 0.0) or 0.0)
+        role_name = (getattr(current_user, 'role', '') or '').lower()
+        is_manager = role_name in ('manager', 'admin', 'super admin')
+        discount_percent = (requested_discount / subtotal_for_approval * 100) if subtotal_for_approval > 0 else 0
+        approval = session.get('manager_approval') or {}
+        approval_age = datetime.utcnow().timestamp() - float(approval.get('approved_at', 0) or 0)
+        has_one_time_approval = bool(approval.get('user_id')) and 0 <= approval_age <= 120
+        if discount_percent > 10 and not is_manager and not has_one_time_approval:
+            return jsonify({
+                'error': 'Manager approval required for discounts above 10%',
+                'approval_required': True,
+                'discount_percent': round(discount_percent, 2)
+            }), 403
+        if discount_percent > 10 and has_one_time_approval:
+            session.pop('manager_approval', None)
 
         # Fetch all products in one query
         product_ids = [item['product_id'] for item in data['items']]
@@ -414,13 +598,27 @@ def create_sale():
             discount=float(data.get('discount', 0.0)),
             tax=float(data.get('tax', 0.0)),
             # Set balance correctly: 0 for paid sales (Cash/Cheque), balance_due for credit
-            balance=0.0 if payment_method in ['Cash', 'Cheque'] else float(data.get('balance', 0.0)),
+            balance=(
+                max(0.0, float(data.get('total', 0.0)) - float(data.get('cash_given', 0.0)))
+                if payment_method == 'Cash'
+                else (0.0 if payment_method == 'Cheque' else float(data.get('balance', 0.0)))
+            ),
             user_id=current_user.id,
             company_id=company_id
         )
 
         db.session.add(sale)
         db.session.flush()  # Get sale ID
+
+        # The unique request_id is committed in the same transaction as the sale.
+        # If a retry uses the same key, the lookup above returns this sale.
+        if client_request_id:
+            db.session.add(SaleRequest(
+                request_id=client_request_id,
+                sale_id=sale.id,
+                company_id=company_id
+            ))
+            db.session.flush()
 
         # Create cheque record if payment method is cheque
         if payment_method == 'Cheque':
@@ -483,6 +681,16 @@ def create_sale():
                 'company_id': company_id
             })
             
+            # Allocate tracked stock from supplier batches using the company policy.
+            # Legacy/untracked remainder continues through product-level stock.
+            allocate_batches(
+                product_id=product.id,
+                quantity=item['quantity'],
+                company_id=company_id,
+                sale_id=sale.id,
+                allocation_type='sale'
+            )
+
             # Update product stock in memory
             product.stock = new_stock
             
@@ -585,7 +793,8 @@ def create_sale():
             'message': f'Sale completed successfully! Sale #{sale.id}',
             'receipt_html_url': f'/sales/{sale.id}/receipt/html?format=a4',
             'receipt_pdf_url': f'/api/sales/{sale.id}/receipt/pdf?format=a4',
-            'receipt_print_url': f'/api/sales/{sale.id}/print-receipt'
+            'receipt_print_url': f'/api/sales/{sale.id}/print-receipt',
+            'client_request_id': client_request_id or None
         })
 
     except Exception as e:
@@ -609,9 +818,9 @@ def get_receipt(sale_id):
         'customer': sale.customer,
         'items': [],
         'subtotal': 0,
-        'total': sale.total,
+        'total': _sale_total_for_display(sale),
         'payment': sale.payment,
-        'cash_given': sale.cash_given,
+        'cash_given': display_cash_received,
         'balance': sale.balance
     }
 
@@ -708,17 +917,11 @@ def receipt_html(sale_id):
     if tax_total > 0 and taxable_base > 0:
         tax_rate = round((tax_total / taxable_base) * 100, 1)
     
-    change = sale.cash_given - sale.total if sale.payment == 'Cash' else 0
-    
-    # Calculate paid amount correctly
+    # Calculate paid amount, balance, change, and status from the sale and
+    # any payments linked to this specific order.
     # For Cash/Cheque: always fully paid
     # For Credit: paid_amount = total - balance
-    if sale.payment in ['Cash', 'Cheque']:
-        paid_amount = sale.total
-        balance_due = 0.0
-    else:
-        paid_amount = sale.total - (sale.balance if sale.balance > 0 else 0)
-        balance_due = max(0, sale.balance)
+    paid_amount, balance_due, calculated_change, calculated_payment_status, linked_payment_total, effective_payment_method, display_cash_received = _receipt_settlement(sale)
     
     # Get receipt settings using the integrated function
     company_id = get_company_id()
@@ -747,114 +950,32 @@ def receipt_html(sale_id):
     
     currency_symbol_value = currency_symbol.setting_value if currency_symbol else 'Rs. '
     
-    # Logo path resolution - convert to base64 data URI for xhtml2pdf
-    import os
-    import base64
-    from app.models import Setting
-    logo_data_uri = ''
-    
-    # Try to get logo from general settings first (upload-logo saves here)
+    # Resolve the uploaded business logo, including legacy unscoped settings.
     logo_setting = Setting.query.filter_by(
-        setting_category='general',
-        setting_key='logo_path',
-        company_id=company_id
+        setting_category='general', setting_key='logo_path', company_id=company_id
     ).first()
-    
     if not logo_setting:
-        # Fallback to receipt settings
         logo_setting = Setting.query.filter_by(
-            setting_category='receipt',
-            setting_key='receipt_logo',
-            company_id=company_id
+            setting_category='receipt', setting_key='receipt_logo', company_id=company_id
         ).first()
-    
-    # Convert to base64 if logo setting exists
-    if logo_setting and logo_setting.setting_value:
-        logo_path_raw = logo_setting.setting_value.strip()
-        
-        # Remove leading '/' or '/static/uploads/' if present
-        if logo_path_raw.startswith('/static/uploads/'):
-            logo_path_raw = logo_path_raw[16:]
-        elif logo_path_raw.startswith('/'):
-            logo_path_raw = logo_path_raw[1:]
-        elif logo_path_raw.startswith('static/uploads/'):
-            logo_path_raw = logo_path_raw[15:]
-        elif logo_path_raw.startswith('uploads/'):
-            logo_path_raw = logo_path_raw[8:]
-        
-        # Build absolute path
-        logo_abs_path = os.path.abspath(os.path.join(
-            os.path.dirname(__file__), '..', 'static', 'uploads', os.path.basename(logo_path_raw)
-        ))
-        
-        # Convert to base64 if file exists
-        if os.path.isfile(logo_abs_path):
-            try:
-                # Try to use PIL for better image handling and optimization
-                try:
-                    from PIL import Image
-                    from io import BytesIO
-                    
-                    # Open image with PIL
-                    img = Image.open(logo_abs_path)
-                    
-                    # Convert RGBA to RGB if necessary (for JPEG)
-                    if img.mode == 'RGBA':
-                        # Create white background
-                        background = Image.new('RGB', img.size, (255, 255, 255))
-                        background.paste(img, mask=img.split()[3] if len(img.split()) == 4 else None)
-                        img = background
-                    elif img.mode != 'RGB':
-                        img = img.convert('RGB')
-                    
-                    # Optimize image - don't resize, just encode at high quality
-                    img_bytes = BytesIO()
-                    ext = os.path.splitext(logo_abs_path)[1].lower()
-                    
-                    if ext in ['.jpg', '.jpeg']:
-                        img.save(img_bytes, format='JPEG', quality=95, optimize=False)
-                        mime_type = 'image/jpeg'
-                    else:  # PNG
-                        img.save(img_bytes, format='PNG', optimize=True)
-                        mime_type = 'image/png'
-                    
-                    logo_bytes = img_bytes.getvalue()
-                    logo_b64 = base64.b64encode(logo_bytes).decode('utf-8')
-                    logo_data_uri = f'data:{mime_type};base64,{logo_b64}'
-                    current_app.logger.info(f"Logo optimized and encoded as data URI from {logo_abs_path}, size: {len(logo_data_uri)} bytes")
-                    
-                except ImportError:
-                    # Fallback to direct file encoding if PIL not available
-                    current_app.logger.warning("PIL not available, encoding logo directly")
-                    with open(logo_abs_path, 'rb') as f:
-                        logo_bytes = f.read()
-                        logo_b64 = base64.b64encode(logo_bytes).decode('utf-8')
-                        ext = os.path.splitext(logo_abs_path)[1].lower()
-                        mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif'}
-                        mime_type = mime_types.get(ext, 'image/jpeg')
-                        logo_data_uri = f'data:{mime_type};base64,{logo_b64}'
-                        current_app.logger.info(f"Logo encoded as data URI from {logo_abs_path}, size: {len(logo_data_uri)} bytes")
-                
-            except Exception as e:
-                current_app.logger.warning(f"Failed to encode logo: {str(e)}")
-                logo_data_uri = ''
-        else:
-            current_app.logger.warning(f"Logo file not found: {logo_abs_path}")
-            logo_data_uri = ''
-    
-    # Pass to template as logo_url (will be used in img src)
-    logo_url = logo_data_uri
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'general', Setting.setting_key == 'logo_path',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'receipt', Setting.setting_key == 'receipt_logo',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    logo_url = _receipt_logo_data_uri(logo_setting)
+
     
     # Cashier name from user
     cashier_name = getattr(getattr(sale, 'user', None), 'username', 'Cashier')
     
     # Payment status determination
-    if balance_due == 0 and sale.total > 0:
-        payment_status = 'Paid'
-    elif balance_due > 0 and getattr(sale, 'paid_amount', 0) > 0:
-        payment_status = 'Partial'
-    else:
-        payment_status = 'Pending'
+    payment_status = calculated_payment_status
     
     # Convert UTC time to local time (add 6 hours for Asia/Kolkata timezone)
     local_sale_date = sale.date + timedelta(hours=6)
@@ -862,6 +983,10 @@ def receipt_html(sale_id):
     # Due date calculation (30 days from invoice date)
     due_date = (local_sale_date + timedelta(days=30)).strftime('%Y-%m-%d')
     
+    discount_base = sum(float(item.get('unit_price', 0) or 0) * float(item.get('quantity', 0) or 0) for item in items_data)
+    discount_percentage = round((discount_total / discount_base) * 100, 2) if discount_base > 0 else 0.0
+    receipt_customer = _receipt_customer_details(sale, company_id)
+
     context = {
         # Basic sale info
         'sale': sale,
@@ -874,10 +999,10 @@ def receipt_html(sale_id):
         'sale_time': local_sale_date.strftime('%H:%M'),
         
         # Customer info
-        'customer_name': sale.customer or 'Walk-in Customer',
-        'customer_address': getattr(sale, 'customer_address', ''),
-        'customer_phone': getattr(sale, 'customer_phone', ''),
-        'customer_email': getattr(sale, 'customer_email', ''),
+        'customer_name': receipt_customer['name'],
+        'customer_address': receipt_customer['address'],
+        'customer_phone': receipt_customer['phone'],
+        'customer_email': receipt_customer['email'],
         
         # Shipping info (if applicable)
         'shipping_name': getattr(sale, 'shipping_name', ''),
@@ -885,7 +1010,7 @@ def receipt_html(sale_id):
         'shipping_phone': getattr(sale, 'shipping_phone', ''),
         
         # Payment info
-        'payment_method': sale.payment,
+        'payment_method': effective_payment_method,
         'cashier_name': cashier_name,
         
         # Items
@@ -896,14 +1021,16 @@ def receipt_html(sale_id):
         'subtotal_after_discount': subtotal_after,
         'discount': discount_total,
         'discount_total': discount_total,
+        'discount_percentage': discount_percentage,
         'tax_amount': tax_total,
         'tax_total': tax_total,
         'tax_rate': tax_rate,
-        'total': sale.total,
+        'total': _sale_total_for_display(sale),
         'paid_amount': paid_amount,
+        'linked_payment_total': linked_payment_total,
         'balance_due': balance_due,
-        'cash_given': sale.cash_given,
-        'change': max(0, change),
+        'cash_given': display_cash_received,
+        'change': calculated_change,
         'balance': getattr(sale, 'balance', 0),
         
         # Business info - Use business_name key which is now available from get_receipt_settings
@@ -1000,19 +1127,17 @@ def download_receipt_pdf(sale_id):
         subtotal = sum(item['unit_price'] * item['qty'] for item in items)
         discount_total = sum(item['discount'] for item in items)
         tax_total = sum(item['tax'] for item in items)
-        total = sale.total
+        total = _sale_total_for_display(sale)
         
         # Calculate paid amount correctly
         # For Cash/Cheque: always fully paid
         # For Credit: paid_amount = total - balance
-        if sale.payment in ['Cash', 'Cheque']:
-            paid_amount = sale.total
-            balance_due = 0.0
-        else:
-            paid_amount = sale.total - (sale.balance if sale.balance > 0 else 0)
-            balance_due = max(0, sale.balance)
+        paid_amount, balance_due, calculated_change, calculated_payment_status, linked_payment_total, effective_payment_method, display_cash_received = _receipt_settlement(sale)
         
         # Build template data
+        discount_base = subtotal + discount_total
+        discount_percentage = round((discount_total / discount_base) * 100, 2) if discount_base > 0 else 0.0
+        receipt_customer = _receipt_customer_details(sale, company_id)
         template_data = {
             'company': {
                 'name': business_name,
@@ -1024,20 +1149,22 @@ def download_receipt_pdf(sale_id):
                 'tax_id': receipt_settings.get('business_gst', ''),
             },
             'customer': {
-                'name': sale.customer.name if (hasattr(sale, 'customer') and hasattr(sale.customer, 'name')) else (str(sale.customer) if sale.customer else 'Walk-in Customer'),
-                'company': sale.customer.company_name if sale.customer and hasattr(sale.customer, 'company_name') else '',
-                'address': sale.customer.address if sale.customer and hasattr(sale.customer, 'address') else '',
-                'city': sale.customer.city if sale.customer and hasattr(sale.customer, 'city') else '',
-                'phone': sale.customer.phone if sale.customer and hasattr(sale.customer, 'phone') else '',
-                'email': sale.customer.email if sale.customer and hasattr(sale.customer, 'email') else '',
+                'name': receipt_customer['name'],
+                'company': '',
+                'address': receipt_customer['address'],
+                'city': '',
+                'phone': receipt_customer['phone'],
+                'email': receipt_customer['email'],
             },
             'invoice_number': f"RECEIPT-{sale.id}",
             'invoice_date': sale.date.strftime('%m/%d/%Y') if sale.date else datetime.now().strftime('%m/%d/%Y'),
             'due_date': '',
-            'status': 'Paid',
+            'status': calculated_payment_status,
             'items': items,
             'subtotal': f"Rs. {subtotal:.2f}",
             'discount': f"Rs. {discount_total:.2f}",
+            'discount_total': discount_total,
+            'discount_percentage': discount_percentage,
             'tax': f"Rs. {tax_total:.2f}",
             'total': f"Rs. {total:.2f}",
             'paid_amount': f"Rs. {paid_amount:.2f}",
@@ -1135,20 +1262,15 @@ def receipt_html_public(sale_id):
         subtotal += item_total
     
     discount_total = sum(item['discount'] for item in items_data)
+    discount_base = subtotal + discount_total
+    discount_percentage = round((discount_total / discount_base) * 100, 2) if discount_base > 0 else 0.0
     tax_total = sum(item['tax_amount'] for item in items_data)
     
     tax_rate = 0
     if tax_total > 0 and subtotal > 0:
         tax_rate = round((tax_total / subtotal) * 100, 1)
     
-    change = sale.cash_given - sale.total if sale.payment == 'Cash' else 0
-    
-    if sale.payment in ['Cash', 'Cheque']:
-        paid_amount = sale.total
-        balance_due = 0.0
-    else:
-        paid_amount = sale.total - (sale.balance if sale.balance > 0 else 0)
-        balance_due = max(0, sale.balance)
+    paid_amount, balance_due, calculated_change, calculated_payment_status, linked_payment_total, effective_payment_method, display_cash_received = _receipt_settlement(sale)
     
     # Get receipt settings using company_id from sale
     company_id = sale.company_id if hasattr(sale, 'company_id') else None
@@ -1171,93 +1293,38 @@ def receipt_html_public(sale_id):
     
     currency_symbol_value = currency_symbol.setting_value if currency_symbol else 'Rs. '
     
-    # Logo path resolution
-    import os
-    import base64
-    logo_data_uri = ''
-    
+    # Resolve the uploaded business logo, including legacy unscoped settings.
     logo_setting = Setting.query.filter_by(
-        setting_category='general',
-        setting_key='logo_path',
-        company_id=company_id
+        setting_category='general', setting_key='logo_path', company_id=company_id
     ).first()
-    
     if not logo_setting:
         logo_setting = Setting.query.filter_by(
-            setting_category='receipt',
-            setting_key='receipt_logo',
-            company_id=company_id
+            setting_category='receipt', setting_key='receipt_logo', company_id=company_id
         ).first()
-    
-    if logo_setting and logo_setting.setting_value:
-        logo_path_raw = logo_setting.setting_value.strip()
-        if logo_path_raw.startswith('/static/uploads/'):
-            logo_path_raw = logo_path_raw[16:]
-        elif logo_path_raw.startswith('/'):
-            logo_path_raw = logo_path_raw[1:]
-        elif logo_path_raw.startswith('static/uploads/'):
-            logo_path_raw = logo_path_raw[15:]
-        elif logo_path_raw.startswith('uploads/'):
-            logo_path_raw = logo_path_raw[8:]
-        
-        logo_abs_path = os.path.abspath(os.path.join(
-            os.path.dirname(__file__), '..', 'static', 'uploads', os.path.basename(logo_path_raw)
-        ))
-        
-        if os.path.isfile(logo_abs_path):
-            try:
-                try:
-                    from PIL import Image
-                    from io import BytesIO
-                    img = Image.open(logo_abs_path)
-                    if img.mode == 'RGBA':
-                        background = Image.new('RGB', img.size, (255, 255, 255))
-                        background.paste(img, mask=img.split()[3] if len(img.split()) == 4 else None)
-                        img = background
-                    elif img.mode != 'RGB':
-                        img = img.convert('RGB')
-                    
-                    img_bytes = BytesIO()
-                    ext = os.path.splitext(logo_abs_path)[1].lower()
-                    if ext in ['.jpg', '.jpeg']:
-                        img.save(img_bytes, format='JPEG', quality=95, optimize=False)
-                        mime_type = 'image/jpeg'
-                    else:
-                        img.save(img_bytes, format='PNG', optimize=True)
-                        mime_type = 'image/png'
-                    
-                    logo_bytes = img_bytes.getvalue()
-                    logo_b64 = base64.b64encode(logo_bytes).decode('utf-8')
-                    logo_data_uri = f'data:{mime_type};base64,{logo_b64}'
-                except ImportError:
-                    with open(logo_abs_path, 'rb') as f:
-                        logo_bytes = f.read()
-                        logo_b64 = base64.b64encode(logo_bytes).decode('utf-8')
-                        ext = os.path.splitext(logo_abs_path)[1].lower()
-                        mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif'}
-                        mime_type = mime_types.get(ext, 'image/jpeg')
-                        logo_data_uri = f'data:{mime_type};base64,{logo_b64}'
-            except Exception as e:
-                current_app.logger.warning(f"Failed to encode logo: {str(e)}")
-                logo_data_uri = ''
-    
-    logo_url = logo_data_uri
-    
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'general', Setting.setting_key == 'logo_path',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'receipt', Setting.setting_key == 'receipt_logo',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    logo_url = _receipt_logo_data_uri(logo_setting)
+
     # Cashier name
     cashier_name = getattr(getattr(sale, 'user', None), 'username', 'Cashier')
     
     # Payment status
-    if balance_due == 0 and sale.total > 0:
-        payment_status = 'Paid'
-    elif balance_due > 0 and getattr(sale, 'paid_amount', 0) > 0:
-        payment_status = 'Partial'
-    else:
-        payment_status = 'Pending'
+    payment_status = calculated_payment_status
     
     # Convert UTC to local time
     local_sale_date = sale.date + timedelta(hours=6)
     due_date = (local_sale_date + timedelta(days=30)).strftime('%Y-%m-%d')
     
+    receipt_customer = _receipt_customer_details(sale, company_id)
+
     context = {
         'sale': sale,
         'invoice_number': f"INV-{sale.id}",
@@ -1268,31 +1335,34 @@ def receipt_html_public(sale_id):
         'sale_date': local_sale_date.strftime('%Y-%m-%d'),
         'sale_time': local_sale_date.strftime('%H:%M'),
         
-        'customer_name': sale.customer or 'Walk-in Customer',
-        'customer_address': getattr(sale, 'customer_address', ''),
-        'customer_phone': getattr(sale, 'customer_phone', ''),
-        'customer_email': getattr(sale, 'customer_email', ''),
+        'customer_name': receipt_customer['name'],
+        'customer_address': receipt_customer['address'],
+        'customer_phone': receipt_customer['phone'],
+        'customer_email': receipt_customer['email'],
         
         'shipping_name': getattr(sale, 'shipping_name', ''),
         'shipping_address': getattr(sale, 'shipping_address', ''),
         'shipping_phone': getattr(sale, 'shipping_phone', ''),
         
-        'payment_method': sale.payment,
+        'payment_method': effective_payment_method,
         'cashier_name': cashier_name,
         
         'items': items_data,
         
         'subtotal': subtotal,
+        'subtotal_after_discount': max(0.0, subtotal - discount_total),
         'discount': discount_total,
         'discount_total': discount_total,
+        'discount_percentage': discount_percentage,
         'tax_amount': tax_total,
         'tax_total': tax_total,
         'tax_rate': tax_rate,
-        'total': sale.total,
+        'total': _sale_total_for_display(sale),
         'paid_amount': paid_amount,
+        'linked_payment_total': linked_payment_total,
         'balance_due': balance_due,
-        'cash_given': sale.cash_given,
-        'change': max(0, change),
+        'cash_given': display_cash_received,
+        'change': calculated_change,
         'balance': getattr(sale, 'balance', 0),
         
         'business_name': receipt_settings.get('business_name', 'POS SYSTEM'),
@@ -1383,19 +1453,17 @@ def download_receipt_pdf_public(sale_id):
         subtotal = sum(item['unit_price'] * item['qty'] for item in items)
         discount_total = sum(item['discount'] for item in items)
         tax_total = sum(item['tax'] for item in items)
-        total = sale.total
+        total = _sale_total_for_display(sale)
         
         # Calculate paid amount correctly
         # For Cash/Cheque: always fully paid
         # For Credit: paid_amount = total - balance
-        if sale.payment in ['Cash', 'Cheque']:
-            paid_amount = sale.total
-            balance_due = 0.0
-        else:
-            paid_amount = sale.total - (sale.balance if sale.balance > 0 else 0)
-            balance_due = max(0, sale.balance)
+        paid_amount, balance_due, calculated_change, calculated_payment_status, linked_payment_total, effective_payment_method, display_cash_received = _receipt_settlement(sale)
         
         # Build template data
+        discount_base = subtotal + discount_total
+        discount_percentage = round((discount_total / discount_base) * 100, 2) if discount_base > 0 else 0.0
+        receipt_customer = _receipt_customer_details(sale, company_id)
         template_data = {
             'company': {
                 'name': business_name,
@@ -1407,24 +1475,34 @@ def download_receipt_pdf_public(sale_id):
                 'tax_id': receipt_settings.get('business_gst', ''),
             },
             'customer': {
-                'name': sale.customer.name if (hasattr(sale, 'customer') and hasattr(sale.customer, 'name')) else (str(sale.customer) if sale.customer else 'Walk-in'),
-                'company': sale.customer.company_name if sale.customer and hasattr(sale.customer, 'company_name') else '',
-                'address': sale.customer.address if sale.customer and hasattr(sale.customer, 'address') else '',
-                'city': sale.customer.city if sale.customer and hasattr(sale.customer, 'city') else '',
-                'phone': sale.customer.phone if sale.customer and hasattr(sale.customer, 'phone') else '',
-                'email': sale.customer.email if sale.customer and hasattr(sale.customer, 'email') else '',
+                'name': receipt_customer['name'],
+                'company': '',
+                'address': receipt_customer['address'],
+                'city': '',
+                'phone': receipt_customer['phone'],
+                'email': receipt_customer['email'],
             },
             'invoice_number': f"RECEIPT-{sale.id}",
             'invoice_date': sale.date.strftime('%m/%d/%Y') if sale.date else datetime.now().strftime('%m/%d/%Y'),
             'due_date': '',
-            'status': 'Paid',
+            'status': calculated_payment_status,
             'items': items,
-            'subtotal': f"Rs. {subtotal:.2f}",
-            'discount': f"Rs. {discount_total:.2f}",
-            'tax': f"Rs. {tax_total:.2f}",
-            'total': f"Rs. {total:.2f}",
-            'paid_amount': f"Rs. {paid_amount:.2f}",
-            'balance_due': f"Rs. {balance_due:.2f}"
+            'subtotal': subtotal,
+            'discount': discount_total,
+            'discount_total': discount_total,
+            'discount_percentage': discount_percentage,
+            'tax': tax_total,
+            'tax_amount': tax_total,
+            'tax_total': tax_total,
+            'tax_rate': tax_total / subtotal * 100 if subtotal > 0 else 0,
+            'total': total,
+            'paid_amount': paid_amount,
+            'balance_due': balance_due,
+            'payment_status': calculated_payment_status,
+            'cash_given': display_cash_received,
+            'change': calculated_change,
+            'payment_method': effective_payment_method,
+            'currency_symbol': 'Rs. '
         }
         
         # Select template based on format
@@ -1547,19 +1625,15 @@ def print_receipt(sale_id):
         subtotal = sum(item['unit_price'] * item['qty'] for item in items)
         discount_total = sum(item['discount'] for item in items)
         tax_total = sum(item['tax'] for item in items)
-        total = sale.total
+        total = _sale_total_for_display(sale)
         
         # Calculate paid amount correctly
         # For Cash/Cheque: always fully paid
         # For Credit: paid_amount = total - balance
-        if sale.payment in ['Cash', 'Cheque']:
-            paid_amount = sale.total
-            balance_due = 0.0
-        else:
-            paid_amount = sale.total - (sale.balance if sale.balance > 0 else 0)
-            balance_due = max(0, sale.balance)
+        paid_amount, balance_due, calculated_change, calculated_payment_status, linked_payment_total, effective_payment_method, display_cash_received = _receipt_settlement(sale)
         
         # Build template data
+        receipt_customer = _receipt_customer_details(sale, company_id)
         template_data = {
             'company': {
                 'name': business_name,
@@ -1571,20 +1645,22 @@ def print_receipt(sale_id):
                 'tax_id': receipt_settings.get('business_gst', ''),
             },
             'customer': {
-                'name': sale.customer.name if (hasattr(sale, 'customer') and hasattr(sale.customer, 'name')) else (str(sale.customer) if sale.customer else 'Walk-in Customer'),
-                'company': sale.customer.company_name if sale.customer and hasattr(sale.customer, 'company_name') else '',
-                'address': sale.customer.address if sale.customer and hasattr(sale.customer, 'address') else '',
-                'city': sale.customer.city if sale.customer and hasattr(sale.customer, 'city') else '',
-                'phone': sale.customer.phone if sale.customer and hasattr(sale.customer, 'phone') else '',
-                'email': sale.customer.email if sale.customer and hasattr(sale.customer, 'email') else '',
+                'name': receipt_customer['name'],
+                'company': '',
+                'address': receipt_customer['address'],
+                'city': '',
+                'phone': receipt_customer['phone'],
+                'email': receipt_customer['email'],
             },
             'invoice_number': f"RECEIPT-{sale.id}",
             'invoice_date': sale.date.strftime('%m/%d/%Y') if sale.date else datetime.now().strftime('%m/%d/%Y'),
             'due_date': '',
-            'status': 'Paid',
+            'status': calculated_payment_status,
             'items': items,
             'subtotal': f"Rs. {subtotal:.2f}",
             'discount': f"Rs. {discount_total:.2f}",
+            'discount_total': discount_total,
+            'discount_percentage': round((discount_total / (subtotal + discount_total)) * 100, 2) if (subtotal + discount_total) > 0 else 0.0,
             'tax': f"Rs. {tax_total:.2f}",
             'total': f"Rs. {total:.2f}",
             'paid_amount': f"Rs. {paid_amount:.2f}",
@@ -1606,19 +1682,21 @@ def print_receipt(sale_id):
             'invoice_number': template_data['invoice_number'],
             'invoice_date': template_data['invoice_date'],
             'due_date': template_data['due_date'],
-            'status': template_data['status'],
+            'status': calculated_payment_status,
             'items': items,
             'subtotal': subtotal,
             'discount_total': discount_total,
+            'discount_percentage': round((discount_total / (subtotal + discount_total)) * 100, 2) if (subtotal + discount_total) > 0 else 0.0,
+            'payment_status': calculated_payment_status,
             'tax_amount': tax_total,
             'tax_total': tax_total,
             'tax_rate': tax_total / subtotal * 100 if subtotal > 0 else 0,
             'total': total,
             'paid_amount': paid_amount,
             'balance_due': balance_due,
-            'cash_given': sale.cash_given,
-            'change': max(0, sale.cash_given - total) if sale.payment == 'Cash' else 0,
-            'payment_method': sale.payment,
+            'cash_given': display_cash_received,
+            'change': calculated_change,
+            'payment_method': effective_payment_method,
             'currency_symbol': 'Rs. ',
             'thank_you_message': receipt_settings.get('thank_you_message', 'Thank You'),
             'business_name': business_name,
@@ -1711,29 +1789,35 @@ def send_receipt_whatsapp(sale_id):
         # Calculate totals
         discount_total = sale.discount or 0
         tax_amount = sale.tax or 0
-        total = sale.total or (subtotal - discount_total + tax_amount)
+        total = _sale_total_for_display(sale) or (subtotal - discount_total + tax_amount)
         
-        # Get the base URL for receipt link
-        from urllib.parse import urljoin
+        # Use public receipt routes so customers can open the links without staff login.
         base_url = request.host_url.rstrip('/')
-        receipt_url = f"{base_url}/sales/{sale_id}/receipt/html?format={format_type}"
-        
-        # Build message text with receipt link
-        message_text = f"""Thank you for your purchase!
+        receipt_url = f"{base_url}/sales/api/sales/{sale_id}/receipt/html-public?format={format_type}"
+        receipt_pdf_url = f"{base_url}/sales/api/sales/{sale_id}/receipt/pdf-public?format={format_type}"
+        paid_amount, balance_due, calculated_change, payment_status, _, _, _ = _receipt_settlement(sale)
+        business_name = receipt_settings.get('business_name') or receipt_settings.get('company_name') or 'Our Store'
+        message_text = f"""*{business_name}*
+*Receipt #{sale.id}*
+Date: {sale.date.strftime('%d %b %Y, %I:%M %p') if sale.date else '-'}
 
-Sale #: {sale.id}
+{items_text.rstrip()}
 
-{items_text}
-Discount: {currency_symbol}{discount_total:.2f}
-Tax: {currency_symbol}{tax_amount:.2f}
-Total: {currency_symbol}{total:.2f}
+Subtotal: {currency_symbol}{subtotal:,.2f}
+Discount: {currency_symbol}{discount_total:,.2f}
+Tax: {currency_symbol}{tax_amount:,.2f}
+*Total: {currency_symbol}{total:,.2f}*
+Paid: {currency_symbol}{paid_amount:,.2f}
+Balance: {currency_symbol}{balance_due:,.2f}
+Status: {payment_status}
+Payment method: {sale.payment or '-'}
 
-Payment: {sale.payment}
-
-View Receipt:
+View your receipt online:
 {receipt_url}
+Download your PDF receipt:
+{receipt_pdf_url}
 
-{receipt_settings.get('thank_you_message', 'Thank you for shopping with us!')}"""
+{receipt_settings.get('thank_you_message', 'Thank you for shopping with us. We appreciate your business.')}"""
         
         # Generate WhatsApp link
         whatsapp_link = generate_whatsapp_link(phone_number, message_text)
@@ -1775,10 +1859,11 @@ def send_email_receipt(sale_id):
     data = request.get_json() or {}
     to_email = data.get('email')
     format_type = data.get('format')
-    
+
     if not to_email:
         return jsonify({'error': 'Email address required'}), 400
-    
+    if '@' not in to_email or '.' not in to_email.rsplit('@', 1)[-1]:
+        return jsonify({'error': 'Please provide a valid email address'}), 400
     company_id = get_company_id()
     # If no format specified, use default from settings
     if not format_type:
@@ -1794,7 +1879,10 @@ def send_email_receipt(sale_id):
 
     # Get receipt settings
     receipt_settings = get_receipt_settings(company_id)
-    
+    currency_symbol_value = receipt_settings.get('currency_symbol', 'Rs. ')
+    if format_type == 'a3':
+        # Public receipt routes support thermal, A5, and A4 only.
+        format_type = 'a4'
     # Format business_settings for the generator
     # Map company_name to business_name for generator compatibility
     mapped_settings = receipt_settings.copy()
@@ -1807,11 +1895,37 @@ def send_email_receipt(sale_id):
     pdf_buffer.seek(0)
     pdf_bytes = pdf_buffer.read()
 
-    # Get business name from receipt settings
-    business_name = receipt_settings.get('company_name', 'POS System')
-    
-    subject = f'Receipt from {business_name} - Sale #{sale_id}'
-    body = f'Thank you for your purchase. Please find attached your {format_type.upper()} receipt for Sale #{sale_id}.'
+    # Include both a browser link and the attached PDF for convenient customer access.
+    business_name = receipt_settings.get('business_name') or receipt_settings.get('company_name') or 'Our Store'
+    base_url = request.host_url.rstrip('/')
+    receipt_url = f"{base_url}/sales/api/sales/{sale_id}/receipt/html-public?format={format_type}"
+    receipt_pdf_url = f"{base_url}/sales/api/sales/{sale_id}/receipt/pdf-public?format={format_type}"
+    paid_amount, balance_due, calculated_change, payment_status, _, _, _ = _receipt_settlement(sale)
+    subject = f'Receipt #{sale_id} from {business_name}'
+    body = f"""Dear Customer,
+
+Thank you for your purchase from {business_name}.
+
+Receipt number: #{sale_id}
+Date: {sale.date.strftime('%d %b %Y, %I:%M %p') if sale.date else '-'}
+Total: {currency_symbol_value}{float(sale.total or 0):,.2f}
+Paid: {currency_symbol_value}{paid_amount:,.2f}
+Balance: {currency_symbol_value}{balance_due:,.2f}
+Payment status: {payment_status}
+Payment method: {sale.payment or '-'}
+
+View your receipt online:
+{receipt_url}
+
+Download the receipt PDF:
+{receipt_pdf_url}
+
+A PDF copy is also attached to this email.
+
+{receipt_settings.get('thank_you_message', 'Thank you for shopping with us. We appreciate your business.')}
+
+Kind regards,
+{business_name}"""
 
     filename = f'receipt_{sale_id}_{format_type}.pdf'
     ok, msg = send_email(to_email, subject, body, attachments=[(filename, pdf_bytes, 'application/pdf')])
@@ -1833,7 +1947,9 @@ def send_whatsapp_receipt(sale_id):
     
     # Server-side validation (matches frontend)
     phone_digits = ''.join(c for c in phone if c.isdigit())
-    
+    # Customer records commonly store Sri Lankan mobile numbers as 07XXXXXXXX.
+    if phone_digits.startswith('0') and len(phone_digits) == 10:
+        phone_digits = '94' + phone_digits[1:]
     if len(phone_digits) < 10:
         return jsonify({'success': False, 'error': 'Invalid phone number. Need 10+ digits (e.g. 94771234567)'}), 400
     
@@ -1856,30 +1972,39 @@ def send_whatsapp_receipt(sale_id):
         for item in sale.items
     ])
     
-    # Get base URL for links
-    from urllib.parse import urljoin
+    # Use the same canonical total and settlement calculation as all other receipts.
+    from app.routes.invoices import get_receipt_settings
+    receipt_settings = get_receipt_settings(get_company_id())
+    currency_symbol = receipt_settings.get('currency_symbol', 'Rs. ')
+    total = _sale_total_for_display(sale)
+    paid_amount, balance_due, calculated_change, payment_status, _, effective_method, display_cash_received = _receipt_settlement(sale)
     base_url = request.host_url.rstrip('/')
-    receipt_html_url = f"{base_url}/sales/{sale.id}/receipt/html?format=a4"
-    
-    text = f"""*POS SYSTEM*
-
-🧾 *RECEIPT # {sale.id}*
-Date: {sale.date.strftime('%Y-%m-%d %H:%M')}
+    receipt_html_url = f"{base_url}/sales/api/sales/{sale.id}/receipt/html-public?format=a4"
+    receipt_pdf_url = f"{base_url}/sales/api/sales/{sale.id}/receipt/pdf-public?format=a4"
+    business_name = receipt_settings.get('business_name') or receipt_settings.get('company_name') or 'Our Store'
+    text = f"""*{business_name}*
+*Receipt #{sale.id}*
+Date: {sale.date.strftime('%d %b %Y, %I:%M %p') if sale.date else '-'}
 Cashier: {cashier}
-Payment: {sale.payment}
+Payment method: {effective_method}
 
-ITEMS:
 {items}
 
-Subtotal     Rs.{subtotal:>9.2f}
-*Total       Rs.{sale.total:>9.2f}*
-Paid:        Rs.{sale.cash_given:>9.2f}
-Balance:     Rs.{sale.balance:>9.2f}
+Subtotal: {currency_symbol}{subtotal:,.2f}
+Discount: {currency_symbol}{float(sale.discount or 0):,.2f}
+Tax: {currency_symbol}{float(sale.tax or 0):,.2f}
+*Total: {currency_symbol}{total:,.2f}*
+Paid: {currency_symbol}{paid_amount:,.2f}
+Balance: {currency_symbol}{balance_due:,.2f}
+Status: {payment_status}
+Change: {currency_symbol}{calculated_change:,.2f}
 
-View Receipt (Same as Sales History):
+View your receipt online:
 {receipt_html_url}
+Download your PDF receipt:
+{receipt_pdf_url}
 
-Thank you for shopping!"""
+{receipt_settings.get('thank_you_message', 'Thank you for shopping with us. We appreciate your business.')}"""
 
     # Prefer Twilio if configured and available
     twilio_enabled = (send_whatsapp_via_twilio is not None and 
@@ -2206,7 +2331,7 @@ def get_all_sales():
             # Show sales that either match the current company OR have NULL company_id (legacy sales)
             from sqlalchemy import or_
             query = query.filter(
-                Sale.company_id == company_id
+                or_(Sale.company_id == company_id, Sale.company_id.is_(None))
             )
 
         if search:
@@ -2244,8 +2369,10 @@ def get_all_sales():
                 'id': sale.id,
                 'date': sale.date.strftime('%Y-%m-%d %H:%M:%S'),
                 'customer': sale.customer,
-                'total': sale.total,
+                'total': _sale_total_for_display(sale),
                 'payment': sale.payment,
+                'paid_amount': _receipt_settlement(sale)[0],
+                'balance': _receipt_settlement(sale)[1],
                 'items_count': len(sale.items),
                 'user': sale.user.username if sale.user else 'Unknown'
             })
@@ -2265,11 +2392,14 @@ def get_sale(sale_id):
     if not sale:
         return jsonify({'error': 'Sale not found'}), 404
 
+    customer_details = _receipt_customer_details(sale, get_company_id())
     sale_data = {
         'id': sale.id,
         'date': sale.date.strftime('%Y-%m-%d %H:%M:%S'),
         'customer': sale.customer,
-        'total': sale.total,
+        'customer_phone': customer_details.get('phone', ''),
+        'customer_email': customer_details.get('email', ''),
+        'total': _sale_total_for_display(sale),
         'payment': sale.payment,
         'cash_given': sale.cash_given,
         'balance': sale.balance,
@@ -2351,7 +2481,7 @@ def get_sale_items_for_return(sale_id):
         'sale_id': sale.id,
         'sale_date': sale.date.strftime('%Y-%m-%d %H:%M:%S'),
         'customer': sale.customer,
-        'total': sale.total,
+        'total': _sale_total_for_display(sale),
         'payment': sale.payment,
         'items': items
     })
@@ -2440,6 +2570,12 @@ def create_return():
             # Restore stock
             product = Product.query.get(sale_item.product_id)
             if product:
+                restore_batches(
+                    product_id=product.id,
+                    quantity=return_qty,
+                    company_id=get_company_id(),
+                    return_id=return_record.id
+                )
                 product.stock += return_qty
                 
                 # Create inventory transaction for stock restoration

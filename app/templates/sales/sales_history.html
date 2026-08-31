@@ -67,6 +67,8 @@
                                     <th>Customer</th>
                                     <th>Items</th>
                                     <th>Total</th>
+                                    <th>Paid</th>
+                                    <th>Balance</th>
                                     <th>Payment</th>
                                     <th>User</th>
                                     <th>Actions</th>
@@ -106,6 +108,8 @@
                     </div>
                     <div class="col-md-6">
                         <p><strong>Payment Method:</strong> <span id="salePayment"></span></p>
+                        <p><strong>Paid:</strong> <span id="salePaid"></span></p>
+                        <p><strong>Balance:</strong> <span id="saleBalance"></span></p>
                         <p><strong>Cashier:</strong> <span id="saleUser"></span></p>
                     </div>
                 </div>
@@ -231,7 +235,7 @@ function renderSales(sales) {
     tbody.innerHTML = '';
 
     if (sales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center">No sales found</td></tr>';
+        tbody.innerHTML = '<tr>                            <td colspan="10" class="text-center">No sales found</td></tr>';
         return;
     }
 
@@ -242,7 +246,9 @@ function renderSales(sales) {
             <td>${window.formatTimestamp(sale.date, true)}</td>
             <td>${sale.customer}</td>
             <td>${sale.items_count}</td>
-            <td><strong>${currencySymbol} ${sale.total.toFixed(2)}</strong></td>
+            <td><strong>${currencySymbol} ${Number(sale.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
+            <td class="text-success">${currencySymbol} ${Number(sale.paid_amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="${Number(sale.balance || 0) > 0 ? 'text-danger fw-semibold' : 'text-success'}">${currencySymbol} ${Number(sale.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
             <td>${sale.payment}</td>
             <td>${sale.user}</td>
             <td>
@@ -305,8 +311,10 @@ function viewSaleDetails(saleId) {
             document.getElementById('saleDate').textContent = window.formatTimestamp(data.date, true);
             document.getElementById('saleCustomer').textContent = data.customer;
             document.getElementById('salePayment').textContent = data.payment;
+            document.getElementById('salePaid').textContent = currencySymbol + ' ' + Number((data.total || 0) - (data.balance || 0)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('saleBalance').textContent = currencySymbol + ' ' + Number(data.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('saleUser').textContent = data.user;
-            document.getElementById('saleTotal').textContent = data.total.toFixed(2);
+            document.getElementById('saleTotal').textContent = data.total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
             // Render items
             const tbody = document.getElementById('saleItemsBody');
@@ -316,8 +324,8 @@ function viewSaleDetails(saleId) {
                 row.innerHTML = `
                     <td>${item.product_name}</td>
                     <td>${item.quantity}</td>
-                    <td>${currencySymbol} ${item.price.toFixed(2)}</td>
-                    <td>${currencySymbol} ${item.total.toFixed(2)}</td>
+                    <td>${currencySymbol} ${item.price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${currencySymbol} ${item.total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -396,6 +404,13 @@ function showEmailModal(saleId) {
     
     const modalElement = document.getElementById('emailModal');
     const m = new bootstrap.Modal(modalElement);
+    fetch(`/sales/api/sales/${saleId}`)
+        .then(response => response.ok ? response.json() : null)
+        .then(data => {
+            const emailInput = document.getElementById('emailInput');
+            if (emailInput && data?.customer_email) emailInput.value = data.customer_email;
+        })
+        .catch(() => {});
     
     modalElement.addEventListener('shown.bs.modal', function() {
         const emailInput = document.getElementById('emailInput');
@@ -485,7 +500,7 @@ function sendEmailReceipt(saleId) {
     showEmailModal(saleId);
 }
 
-function showWhatsappPhoneModal(saleId) {
+function showWhatsappPhoneModalManual(saleId, prefilledPhone = '') {
     const html = `
     <div class="modal fade" id="whatsappPhoneModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">
@@ -509,7 +524,7 @@ function showWhatsappPhoneModal(saleId) {
                                 <i class="fab fa-whatsapp"></i>
                             </span>
                             <input type="tel" id="whatsappPhone" class="form-control form-control-lg" 
-                                   placeholder="+94771234567" autocomplete="off" 
+                                   placeholder="+94771234567" autocomplete="off" value="${prefilledPhone || ''}"
                                    style="font-size: 1.1rem; letter-spacing: 0.1em;" />
                         </div>
                     </div>
@@ -640,7 +655,44 @@ function showWhatsappPhoneModal(saleId) {
     m.show();
 }
 
-// Wrapper function to trigger the modal
+function showWhatsappPhoneModal(saleId) {
+    fetch(`/sales/api/sales/${saleId}`)
+        .then(response => response.ok ? response.json() : null)
+        .then(data => {
+            const savedPhone = data?.customer_phone || '';
+            if (savedPhone) {
+                sendHistoricalWhatsapp(saleId, savedPhone);
+            } else {
+                showWhatsappPhoneModalManual(saleId);
+            }
+        })
+        .catch(() => showWhatsappPhoneModalManual(saleId));
+}
+
+function sendHistoricalWhatsapp(saleId, phone) {
+    let phoneDigits = String(phone).replace(/\D/g, '');
+    if (phoneDigits.startsWith('0') && phoneDigits.length === 10) phoneDigits = '94' + phoneDigits.slice(1);
+    if (!phoneDigits) return showWhatsappPhoneModalManual(saleId);
+    fetch(`/api/settings/categories/receipt`, {headers: {'Accept': 'application/json'}})
+        .then(response => response.json())
+        .then(settings => fetch(`/sales/api/sales/${saleId}/send-whatsapp`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''},
+            body: JSON.stringify({phone: phoneDigits, format: settings.default_format || 'a4'})
+        }))
+        .then(response => response.json().then(data => ({ok: response.ok, data})))
+        .then(({ok, data}) => {
+            if (ok && data.success && data.wa_link) {
+                window.open(data.wa_link, '_blank');
+                showAlert('WhatsApp opened with the customer receipt prepared.', 'success');
+            } else {
+                showAlert(data.error || 'Unable to prepare WhatsApp receipt.', 'danger');
+            }
+        })
+        .catch(error => showAlert('Unable to prepare WhatsApp receipt: ' + error.message, 'danger'));
+}
+
+// Wrapper function to trigger the automatic customer-aware flow.
 function sendWhatsappReceipt(saleId) {
     showWhatsappPhoneModal(saleId);
 }

@@ -2,6 +2,21 @@ from functools import wraps
 from flask import flash, redirect, url_for, abort, request, jsonify
 from flask_login import current_user
 
+
+def _normalized_role(role):
+    """Return a canonical role label for legacy and current database values."""
+    value = getattr(role, 'value', role)
+    value = str(value or '').strip().lower()
+    # Older records may contain the enum representation rather than its value.
+    if value.startswith('userrole.'):
+        value = value.split('.', 1)[1].replace('_', ' ')
+    return ' '.join(value.split())
+
+
+def _is_admin_role(role):
+    return _normalized_role(role) in {'admin', 'super admin'}
+
+
 def require_permission(permission):
     """Decorator to require specific permission for a route."""
     def decorator(f):
@@ -18,7 +33,7 @@ def require_permission(permission):
                 return redirect(url_for('auth.login'))
 
             # Admins and super admins automatically have access to everything
-            if current_user.role and current_user.role.lower() in ['admin', 'super admin']:
+            if _is_admin_role(current_user.role):
                 return f(*args, **kwargs)
 
             # For non-admins, check specific permission
@@ -32,6 +47,36 @@ def require_permission(permission):
         return decorated_function
     return decorator
 
+def require_any_permission(*permissions):
+    """Require at least one of the supplied permissions for a route."""
+    if not permissions:
+        raise ValueError('At least one permission is required')
+
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            is_api_request = (request.headers.get('Accept') == 'application/json' or
+                              '/api/' in request.path or
+                              (request.blueprint and 'api' in request.blueprint))
+            if not current_user.is_authenticated:
+                if is_api_request:
+                    return jsonify({'error': 'Session expired. Please log in again.', 'code': 'SESSION_EXPIRED'}), 401
+                return redirect(url_for('auth.login'))
+
+            if _is_admin_role(current_user.role):
+                return f(*args, **kwargs)
+
+            if any(getattr(current_user, permission, False) for permission in permissions):
+                return f(*args, **kwargs)
+
+            if is_api_request:
+                return jsonify({'error': 'Permission denied'}), 403
+            flash('You do not have permission to access this feature.', 'danger')
+            return redirect(url_for('main.dashboard'))
+        return decorated_function
+    return decorator
+
+
 def require_any_settings_permission():
     """Decorator to require at least one settings permission."""
     def decorator(f):
@@ -43,7 +88,7 @@ def require_any_settings_permission():
                 return redirect(url_for('auth.login'))
 
             # Admins and super admins automatically have access to everything
-            if current_user.role and current_user.role.lower() in ['admin', 'super admin']:
+            if _is_admin_role(current_user.role):
                 return f(*args, **kwargs)
 
             # For non-admins, check if they have any granular settings permission
@@ -63,7 +108,7 @@ def has_permission(permission):
         return False
     
     # Admins and super admins always have all permissions
-    if current_user.role and current_user.role.lower() in ['admin', 'super admin']:
+    if _is_admin_role(current_user.role):
         return True
     
     return getattr(current_user, permission, False)
@@ -74,7 +119,7 @@ def has_any_settings_permission():
         return False
     
     # Admins and super admins always have all permissions
-    if current_user.role and current_user.role.lower() in ['admin', 'super admin']:
+    if _is_admin_role(current_user.role):
         return True
     
     settings_permissions = [
@@ -112,7 +157,7 @@ def get_user_permissions():
 
     for perm in permission_fields:
         # Admins and super admins always have all permissions
-        if current_user.role and current_user.role.lower() in ['admin', 'super admin']:
+        if _is_admin_role(current_user.role):
             permissions[perm] = True
         else:
             permissions[perm] = getattr(current_user, perm, False)

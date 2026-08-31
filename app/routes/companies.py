@@ -2,11 +2,11 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from flask_login import login_required, current_user
 from sqlalchemy import or_, text
 from app.models import (
-    db, Company, User, Sale, SaleItem, Return, Exchange, ExchangeItem, ReturnItem,
+    db, Company, User, Sale, SaleItem, SaleRequest, Return, Exchange, ExchangeItem, ReturnItem,
     Cheque, ChequeDeposit, Customer, Supplier, Product, Expense, Warehouse, Promotion,
     InventoryTransaction, CustomerFeedback, HeldBill, SerialNumber, CustomerPayment,
-    AuditLog, Purchase, PurchaseItem, PurchaseReturn, PurchaseReturnItem,
-    PurchaseOrder, PurchaseOrderItem, Setting
+    AuditLog, CashierShift, Purchase, PurchaseItem, PurchaseReturn, PurchaseReturnItem,
+    PurchaseOrder, PurchaseOrderItem, StockCountItem, Setting
 )
 from app import csrf
 from app.utils.permissions import require_permission
@@ -242,6 +242,7 @@ def delete_company(company_id):
             customer_ids = [c[0] for c in db.session.query(Customer.id).filter(Customer.company_id == company_id_val).all()]
             supplier_ids = [s[0] for s in db.session.query(Supplier.id).filter(Supplier.company_id == company_id_val).all()]
             purchase_ids = [p[0] for p in db.session.query(Purchase.id).filter(Purchase.company_id == company_id_val).all()]
+            product_ids = [p[0] for p in db.session.query(Product.id).filter(Product.company_id == company_id_val).all()]
             
             # Delete cheques linked through any of these relationships
             cheques_to_delete = db.session.query(Cheque.id).filter(
@@ -279,6 +280,13 @@ def delete_company(company_id):
                 db.session.flush()
             
             if sales_ids:
+                db.session.query(SaleRequest).filter(
+                    SaleRequest.sale_id.in_(sales_ids)
+                ).delete(synchronize_session=False)
+                db.session.query(CustomerPayment).filter(
+                    CustomerPayment.sale_id.in_(sales_ids)
+                ).delete(synchronize_session=False)
+                db.session.flush()
                 db.session.query(Sale).filter(
                     Sale.company_id == company_id_val
                 ).delete(synchronize_session=False)
@@ -286,6 +294,15 @@ def delete_company(company_id):
             
             # Delete other company data
             
+            # Delete product dependents by product_id before the Product rows.
+            if product_ids:
+                for dependent_model in (StockCountItem, InventoryTransaction, ReturnItem,
+                                        ExchangeItem, SerialNumber, SaleItem, PurchaseItem):
+                    db.session.query(dependent_model).filter(
+                        dependent_model.product_id.in_(product_ids)
+                    ).delete(synchronize_session=False)
+                    db.session.flush()
+
             tables_to_delete = [
                 (PurchaseReturnItem, 'PurchaseReturnItem'),
                 (PurchaseOrderItem, 'PurchaseOrderItem'),
@@ -299,6 +316,7 @@ def delete_company(company_id):
                 (Expense, 'Expense'),
                 (SerialNumber, 'SerialNumber'),
                 (CustomerPayment, 'CustomerPayment'),
+                (CashierShift, 'CashierShift'),
                 (AuditLog, 'AuditLog'),
                 (Promotion, 'Promotion'),
                 (Product, 'Product'),

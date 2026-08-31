@@ -5,9 +5,9 @@ import pandas as pd
 from flask import Blueprint, render_template, request, jsonify, flash, send_file
 from flask_login import login_required
 from flask_wtf.csrf import CSRFProtect
-from app.models import db, Product, InventoryTransaction, Warehouse
+from app.models import db, Product, InventoryTransaction, Warehouse, Purchase, PurchaseItem, Sale, SaleItem, Setting
 from app.utils.security import get_company_id, require_company_context
-from app.utils.permissions import require_permission
+from app.utils.permissions import require_permission, require_any_permission
 from app.utils.audit import log_create, log_update, log_delete, log_audit
 from app import csrf
 from sqlalchemy import or_
@@ -43,7 +43,7 @@ def warehouses():
 @csrf.exempt
 @login_required
 @require_company_context
-@require_permission('can_view_inventory')
+@require_any_permission('can_view_inventory', 'can_access_sales')
 def get_products():
     """API endpoint to get products with pagination and filtering."""
     company_id = get_company_id()
@@ -79,22 +79,53 @@ def get_products():
         except ValueError:
             pass  # Invalid warehouse_id, ignore the filter
 
-    products = query.paginate(page=page, per_page=per_page)
+    # Collapse identical master-product records before pagination. Older imports or
+    # repeated product creation can leave several rows with the same SKU identity.
+    product_records = query.order_by(Product.name, Product.id).all()
+    grouped_products = {}
+    for product in product_records:
+        identity = (
+            (product.name or '').strip().casefold(),
+            (product.barcode or '').strip().casefold(),
+            round(float(product.price or 0), 4),
+            round(float(product.cost_price or 0), 4),
+            (product.unit_type or 'unit').strip().casefold(),
+            (product.category or 'General').strip().casefold()
+        )
+        if identity not in grouped_products:
+            grouped_products[identity] = {
+                'product': product,
+                'stock': float(product.stock or 0),
+                'duplicate_ids': [product.id],
+                'last_updated': product.last_updated
+            }
+        else:
+            grouped_products[identity]['stock'] += float(product.stock or 0)
+            grouped_products[identity]['duplicate_ids'].append(product.id)
+            if product.last_updated and (not grouped_products[identity]['last_updated'] or product.last_updated > grouped_products[identity]['last_updated']):
+                grouped_products[identity]['last_updated'] = product.last_updated
+
+    unique_records = list(grouped_products.values())
+    total = len(unique_records)
+    pages = max(1, (total + per_page - 1) // per_page) if per_page > 0 else 1
+    start = max(0, (page - 1) * per_page)
+    page_records = unique_records[start:start + per_page] if per_page > 0 else unique_records
 
     result = {
         'products': [],
-        'total': products.total,
-        'pages': products.pages,
-        'current_page': products.page
+        'total': total,
+        'pages': pages,
+        'current_page': page
     }
 
-    for product in products.items:
+    for record in page_records:
+        product = record['product']
         result['products'].append({
             'id': product.id,
             'name': product.name,
             'price': float(product.price) if product.price else 0,
             'cost_price': float(product.cost_price) if product.cost_price else 0,
-            'stock': float(product.stock) if product.stock else 0,
+            'stock': record['stock'],
             'unit_type': product.unit_type or '',
             'category': product.category or '',
             'low_stock_threshold': float(product.low_stock_threshold) if product.low_stock_threshold else 0,
@@ -103,7 +134,9 @@ def get_products():
             'image_path': product.image_path or '',
             'warehouse_id': product.warehouse_id,
             'supplier_id': product.supplier_id,
-            'last_updated': product.last_updated.strftime('%Y-%m-%d %H:%M:%S') if product.last_updated else None
+            'duplicate_ids': record['duplicate_ids'],
+            'records_merged': len(record['duplicate_ids']),
+            'last_updated': record['last_updated'].strftime('%Y-%m-%d %H:%M:%S') if record['last_updated'] else None
         })
 
     return jsonify(result)
@@ -111,7 +144,7 @@ def get_products():
 @inventory_bp.route('/api/products/<int:product_id>', methods=['GET'])
 @csrf.exempt
 @login_required
-@require_permission('can_view_inventory')
+@require_any_permission('can_view_inventory', 'can_access_sales')
 def get_product(product_id):
     """Get single product details."""
     company_id = get_company_id()
@@ -142,10 +175,111 @@ def get_product(product_id):
         'supplier_email': product.supplier.email if product.supplier else '-'
     })
 
-@inventory_bp.route('/api/products', methods=['POST'])
+@inventory_bp.route('/api/products/<int:product_id>/supplier-history', methods=['GET'])
+@csrf.exempt
+@login_required
+@require_any_permission('can_view_inventory', 'can_access_sales', 'can_access_purchases')
+def get_product_supplier_history(product_id):
+    """Return supplier purchase history and a non-destructive FIFO stock estimate."""
+    company_id = get_company_id()
+    product = Product.query.filter(
+        Product.id == product_id,
+        Product.company_id == company_id
+    ).first()
+    if not product:
+        return jsonify({'error': 'Product not found'}), 404
+
+    purchases = db.session.query(PurchaseItem, Purchase).join(
+        Purchase, Purchase.id == PurchaseItem.purchase_id
+    ).filter(
+        PurchaseItem.product_id == product_id,
+        PurchaseItem.company_id == company_id,
+        Purchase.company_id == company_id
+    ).order_by(Purchase.date.asc(), Purchase.id.asc(), PurchaseItem.id.asc()).all()
+
+    sold_quantity = db.session.query(
+        db.func.coalesce(db.func.sum(SaleItem.quantity), 0)
+    ).join(Sale, Sale.id == SaleItem.sale_id).filter(
+        SaleItem.product_id == product_id,
+        Sale.company_id == company_id
+    ).scalar() or 0
+    remaining_to_allocate = max(0.0, float(sold_quantity))
+    rows = []
+    total_received = 0.0
+    for item, purchase in purchases:
+        received = max(0.0, float(item.quantity or 0))
+        total_received += received
+        sold_from_batch = min(received, remaining_to_allocate)
+        remaining_to_allocate -= sold_from_batch
+        rows.append({
+            'purchase_id': purchase.id,
+            'reference': purchase.invoice_number or f'PUR-{purchase.id}',
+            'date': purchase.date.strftime('%Y-%m-%d') if purchase.date else None,
+            'supplier_id': purchase.supplier_id,
+            'supplier_name': purchase.supplier.name if purchase.supplier else 'Unknown supplier',
+            'quantity_received': received,
+            'quantity_sold_estimate': sold_from_batch,
+            'quantity_remaining_estimate': max(0.0, received - sold_from_batch),
+            'unit_cost': float(item.cost_price or 0),
+            'total_cost': float(item.total_cost or 0),
+            'status': purchase.status or 'received'
+        })
+
+    return jsonify({
+        'product_id': product.id,
+        'product_name': product.name,
+        'current_stock': float(product.stock or 0),
+        'total_received': total_received,
+        'total_sold': float(sold_quantity),
+        'allocation_method': 'FIFO estimate from purchase history; current stock remains authoritative',
+        'rows': rows
+    })
+
+@inventory_bp.route('/api/inventory/batch-policy', methods=['GET'])
+@csrf.exempt
+@login_required
+@require_any_permission('can_view_inventory', 'can_access_sales', 'can_access_purchases')
+def get_batch_policy():
+    company_id = get_company_id()
+    setting = Setting.query.filter_by(
+        company_id=company_id,
+        setting_category='inventory',
+        setting_key='batch_allocation_policy'
+    ).first()
+    policy = (setting.setting_value if setting else 'FIFO') or 'FIFO'
+    policy = policy.upper() if policy.upper() in {'FIFO', 'FEFO'} else 'FIFO'
+    return jsonify({'policy': policy, 'options': ['FIFO', 'FEFO']})
+
+@inventory_bp.route('/api/inventory/batch-policy', methods=['POST'])
 @csrf.exempt
 @login_required
 @require_permission('can_edit_inventory')
+def set_batch_policy():
+    policy = str((request.get_json(silent=True) or {}).get('policy', '')).upper().strip()
+    if policy not in {'FIFO', 'FEFO'}:
+        return jsonify({'error': 'Policy must be FIFO or FEFO'}), 400
+    company_id = get_company_id()
+    setting = Setting.query.filter_by(
+        company_id=company_id,
+        setting_category='inventory',
+        setting_key='batch_allocation_policy'
+    ).first()
+    if setting:
+        setting.setting_value = policy
+    else:
+        db.session.add(Setting(
+            company_id=company_id,
+            setting_category='inventory',
+            setting_key='batch_allocation_policy',
+            setting_value=policy
+        ))
+    db.session.commit()
+    return jsonify({'success': True, 'policy': policy})
+
+@inventory_bp.route('/api/products', methods=['POST'])
+@csrf.exempt
+@login_required
+@require_any_permission('can_edit_inventory', 'can_access_suppliers')
 def create_product():
     """Create a new product."""
     data = request.get_json()

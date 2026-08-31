@@ -46,19 +46,20 @@ def api_get_customers_for_messaging():
             )
         )
     
-    if with_balance:
-        query = query.filter(Customer.current_balance > 0)
-    
+    # Balance filtering is applied after calculating live unpaid-sale totals below.
     customers = query.order_by(Customer.name).limit(50).all()
-    
+    scheduler = MessageScheduler()
     result = []
     for customer in customers:
+        live_balance = scheduler.get_customer_outstanding_balance(customer)
+        if with_balance and live_balance <= 0:
+            continue
         result.append({
             'id': customer.id,
             'name': customer.name,
             'phone': customer.phone,
             'email': customer.email,
-            'current_balance': customer.current_balance,
+            'current_balance': live_balance,
             'total_purchases': customer.total_purchases
         })
     
@@ -73,18 +74,31 @@ def api_get_customers_for_messaging():
 def api_send_custom_reminder(customer_id):
     data = request.get_json() or {}
     message = data.get('message')
+    channel = data.get('channel', 'whatsapp')
     
-    if not message:
-        return jsonify({'error': 'Message is required'}), 400
+    if not message or not message.strip():
+        return jsonify({'success': False, 'error': 'Message is required'}), 400
     
     try:
         scheduler = MessageScheduler()
-        ok, result = scheduler.send_custom_reminder(customer_id, message)
+        ok, result = scheduler.send_custom_reminder(customer_id, message, channel)
         
+        fallback_links = []
+        if isinstance(result, list):
+            for channel_name, channel_ok, channel_result in result:
+                if channel_ok and isinstance(channel_result, dict) and channel_result.get('wa_link'):
+                    fallback_links.append(channel_result['wa_link'])
         if ok:
-            return jsonify({'success': True, 'message': 'Reminder sent successfully'})
+            return jsonify({
+                'success': True,
+                'message': 'WhatsApp message link ready' if fallback_links else 'Message sent successfully',
+                'wa_link': fallback_links[0] if fallback_links else None,
+                'wa_links': fallback_links,
+                'fallback': bool(fallback_links),
+                'details': result
+            })
         else:
-            return jsonify({'success': False, 'error': result}), 400
+            return jsonify({'success': False, 'error': result}), 200
     except Exception as e:
         logger.error(f"Error sending custom reminder: {e}")
         return jsonify({'error': str(e)}), 500
@@ -101,9 +115,14 @@ def api_send_payment_reminder(customer_id):
         ok, result = scheduler.send_payment_reminder(customer_id)
         
         if ok:
-            return jsonify({'success': True, 'message': 'Payment reminder sent'})
+            return jsonify({
+                'success': True,
+                'message': 'WhatsApp message link ready' if isinstance(result, dict) and result.get('fallback') else 'Payment reminder sent',
+                'wa_link': result.get('wa_link') if isinstance(result, dict) else None,
+                'fallback': bool(isinstance(result, dict) and result.get('fallback'))
+            })
         else:
-            return jsonify({'success': False, 'error': result}), 400
+            return jsonify({'success': False, 'error': result}), 200
     except Exception as e:
         logger.error(f"Error sending payment reminder: {e}")
         return jsonify({'error': str(e)}), 500
@@ -120,10 +139,16 @@ def api_send_all_payment_reminders():
         results = scheduler.send_bulk_payment_reminders()
         
         success_count = sum(1 for _, ok, _ in results if ok)
+        wa_links = [
+            {'customer_id': customer_id, 'wa_link': msg.get('wa_link')}
+            for customer_id, ok, msg in results
+            if ok and isinstance(msg, dict) and msg.get('wa_link')
+        ]
         return jsonify({
-            'success': True, 
-            'message': f'Sent {success_count} payment reminders',
-            'results': results
+            'success': True,
+            'message': f'Prepared {len(wa_links)} WhatsApp reminder link(s)' if wa_links else f'Sent {success_count} payment reminders',
+            'results': results,
+            'wa_links': wa_links
         })
     except Exception as e:
         logger.error(f"Error sending bulk payment reminders: {e}")
@@ -147,9 +172,10 @@ def api_send_self_message():
         ok, result = send_reminder_to_self(message, channel)
         
         if ok:
-            return jsonify({'success': True, 'message': 'Self reminder sent successfully'})
+            wa_link = result.get('wa_link') if isinstance(result, dict) else None
+            return jsonify({'success': True, 'message': 'WhatsApp message link ready' if wa_link else 'Self reminder sent successfully', 'wa_link': wa_link, 'fallback': bool(wa_link)})
         else:
-            return jsonify({'success': False, 'error': result}), 400
+            return jsonify({'success': False, 'error': result}), 200
     except Exception as e:
         logger.error(f"Error sending self message: {e}")
         return jsonify({'error': str(e)}), 500
@@ -177,10 +203,16 @@ def api_send_bulk_message():
         results = send_bulk_to_customers(customer_ids, message, channel)
         
         success_count = sum(1 for _, _, ok, _ in results if ok)
+        wa_links = [
+            {'customer_id': customer_id, 'customer_name': customer_name, 'wa_link': msg.get('wa_link')}
+            for customer_id, customer_name, ok, msg in results
+            if ok and isinstance(msg, dict) and msg.get('wa_link')
+        ]
         return jsonify({
             'success': True,
-            'message': f'Sent {success_count} messages',
-            'results': results
+            'message': f'Prepared {len(wa_links)} WhatsApp message link(s)' if wa_links else f'Sent {success_count} messages',
+            'results': results,
+            'wa_links': wa_links
         })
     except Exception as e:
         logger.error(f"Error sending bulk message: {e}")
@@ -206,10 +238,16 @@ def api_send_bulk_to_all():
         results = scheduler.send_bulk_to_all(message, channel)
         
         success_count = sum(1 for _, _, ok, _ in results if ok)
+        wa_links = [
+            {'customer_id': customer_id, 'customer_name': customer_name, 'wa_link': msg.get('wa_link')}
+            for customer_id, customer_name, ok, msg in results
+            if ok and isinstance(msg, dict) and msg.get('wa_link')
+        ]
         return jsonify({
             'success': True,
-            'message': f'Sent {success_count} messages to all customers',
-            'results': results
+            'message': f'Prepared {len(wa_links)} WhatsApp message link(s)' if wa_links else f'Sent {success_count} messages to all customers',
+            'results': results,
+            'wa_links': wa_links
         })
     except Exception as e:
         logger.error(f"Error sending bulk to all: {e}")
@@ -230,14 +268,14 @@ def api_send_receipt_for_sale(sale_id):
     try:
         ok, result = send_sale_receipt(sale_id, phone, email, channel)
         
+        fallback_links = []
+        if isinstance(result, list):
+            for channel_name, channel_ok, msg in result:
+                if channel_ok and isinstance(msg, dict) and msg.get('wa_link'):
+                    fallback_links.append(msg['wa_link'])
         if ok:
-            return jsonify({'success': True, 'message': 'Receipt sent successfully'})
-        else:
-            if isinstance(result, list):
-                for channel_name, success, msg in result:
-                    if not success and 'wa.me' in str(msg):
-                        return jsonify({'success': True, 'message': 'WhatsApp link generated', 'wa_link': msg})
-            return jsonify({'success': False, 'error': str(result)}), 400
+            return jsonify({'success': True, 'message': 'WhatsApp message link ready' if fallback_links else 'Receipt sent successfully', 'wa_link': fallback_links[0] if fallback_links else None, 'wa_links': fallback_links, 'fallback': bool(fallback_links)})
+        return jsonify({'success': False, 'error': str(result)}), 200
     except Exception as e:
         logger.error(f"Error sending receipt: {e}")
         return jsonify({'error': str(e)}), 500

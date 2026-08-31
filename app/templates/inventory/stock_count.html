@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+{% block title %}Stock Count | {{ app_name }}{% endblock %}
+{% block content %}
+<div class="container-fluid py-3 stock-count-page">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">Stock Count &amp; Valuation</h1>
+      <p class="text-muted mb-0">Count physical stock, record variances, and review inventory value.</p>
+    </div>
+    <button class="btn btn-primary" id="newCountBtn">Start New Count</button>
+  </div>
+  <div id="alert" class="alert d-none" role="alert"></div>
+  <div class="row g-3 mb-3">
+    <div class="col-6 col-lg-3"><div class="card metric-card"><small>Products</small><strong id="productCount">0</strong></div></div>
+    <div class="col-6 col-lg-3"><div class="card metric-card"><small>Total units</small><strong id="totalUnits">0</strong></div></div>
+    <div class="col-6 col-lg-3"><div class="card metric-card"><small>Cost value</small><strong id="costValue">₨ 0.00</strong></div></div>
+    <div class="col-6 col-lg-3"><div class="card metric-card highlight"><small>Potential margin</small><strong id="marginValue">₨ 0.00</strong></div></div>
+  </div>
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <strong>Recent counts</strong><button class="btn btn-sm btn-outline-secondary" id="refreshBtn">Refresh</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead><tr><th>ID</th><th>Created</th><th>Status</th><th>Items</th><th>Action</th></tr></thead>
+        <tbody id="countsBody"><tr><td colspan="5" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="viewCountModal" tabindex="-1" aria-labelledby="viewCountModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="viewCountModalLabel"><i class="fas fa-clipboard-list me-2"></i>Stock Count Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-3">
+          <div class="col-sm-4"><small class="text-muted d-block">Count</small><strong id="viewCountNumber">—</strong></div>
+          <div class="col-sm-4"><small class="text-muted d-block">Created</small><strong id="viewCountCreated">—</strong></div>
+          <div class="col-sm-4"><small class="text-muted d-block">Status</small><span id="viewCountStatus" class="badge status-badge">—</span></div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm table-striped align-middle">
+            <thead><tr><th>Product</th><th class="text-end">System</th><th class="text-end">Counted</th><th class="text-end">Variance</th><th>Reason</th></tr></thead>
+            <tbody id="viewCountItemsBody"><tr><td colspan="5" class="text-center text-muted">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="countEntryModal" tabindex="-1" aria-labelledby="countEntryModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <div>
+          <h5 class="modal-title" id="countEntryModalLabel"><i class="fas fa-clipboard-check me-2"></i>Update Stock Count</h5>
+          <small id="countEntrySubtitle">Enter the physical quantities counted.</small>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info py-2"><i class="fas fa-info-circle me-2"></i>Enter the physical quantity for each product. A reason is required whenever the counted quantity differs from the system quantity.</div>
+        <div id="countEntryAlert" class="alert d-none" role="alert"></div>
+        <div class="table-responsive">
+          <table class="table table-bordered align-middle mb-0" id="countEntryTable">
+            <thead class="table-light"><tr><th>Product</th><th class="text-end">System Qty</th><th style="min-width: 150px">Counted Qty</th><th class="text-end">Variance</th><th style="min-width: 240px">Reason</th></tr></thead>
+            <tbody id="countEntryItemsBody"><tr><td colspan="5" class="text-center text-muted py-4">Loading products...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <span class="small text-muted"><i class="fas fa-shield-alt me-1"></i>Changes are recorded for audit purposes.</span>
+        <div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="saveCountBtn"><i class="fas fa-save me-1"></i>Save Count</button><button type="button" class="btn btn-success" id="completeCountBtn"><i class="fas fa-check me-1"></i>Save &amp; Complete</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const money = v => `₨ ${Number(v || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+const countModal = document.getElementById('viewCountModal') && window.bootstrap?.Modal ? bootstrap.Modal.getOrCreateInstance(document.getElementById('viewCountModal')) : null;
+let countEntryModal = null;
+function showCountEntryModal() {
+  const element = document.getElementById('countEntryModal');
+  if (!element) throw new Error('Stock-count entry window is unavailable');
+  if (window.bootstrap?.Modal) {
+    countEntryModal = bootstrap.Modal.getOrCreateInstance(element);
+    countEntryModal.show();
+  } else if (window.jQuery && $.fn.modal) {
+    $(element).modal('show');
+  } else {
+    element.classList.add('show');
+    element.style.display = 'block';
+    element.removeAttribute('aria-hidden');
+    element.setAttribute('aria-modal', 'true');
+    document.body.classList.add('modal-open');
+  }
+}
+function hideCountEntryModal() {
+  const element = document.getElementById('countEntryModal');
+  if (!element) return;
+  if (countEntryModal) countEntryModal.hide();
+  else if (window.jQuery && $.fn.modal) $(element).modal('hide');
+  else { element.classList.remove('show'); element.style.display = 'none'; element.setAttribute('aria-hidden', 'true'); document.body.classList.remove('modal-open'); }
+}
+function alertMsg(text, type = 'success') {
+  const e = document.getElementById('alert');
+  e.className = `alert alert-${type}`;
+  e.textContent = text;
+  e.classList.remove('d-none');
+}
+function statusMarkup(status) {
+  const normalized = String(status || 'open').toLowerCase();
+  const label = normalized === 'completed' ? 'Completed' : 'Open';
+  return `<span class="badge status-badge status-${normalized}">${label}</span>`;
+}
+async function getCount(id) {
+  const response = await fetch('/api/inventory/stock-counts');
+  if (!response.ok) throw new Error('Unable to load stock counts');
+  const data = await response.json();
+  return (data.counts || []).find(x => Number(x.id) === Number(id));
+}
+async function refresh() {
+  const [valuationResponse, countsResponse] = await Promise.all([
+    fetch('/api/inventory/valuation'), fetch('/api/inventory/stock-counts')
+  ]);
+  if (!valuationResponse.ok || !countsResponse.ok) throw new Error('Unable to load stock-count data');
+  const valuation = await valuationResponse.json();
+  const counts = await countsResponse.json();
+  document.getElementById('productCount').textContent = valuation.product_count || 0;
+  document.getElementById('totalUnits').textContent = valuation.total_units || 0;
+  document.getElementById('costValue').textContent = money(valuation.cost_value);
+  document.getElementById('marginValue').textContent = money(valuation.potential_margin);
+  const list = counts.counts || [];
+  document.getElementById('countsBody').innerHTML = list.length ? list.map(x => `
+    <tr>
+      <td class="fw-semibold">#${x.id}</td>
+      <td>${new Date(x.created_at).toLocaleString()}</td>
+      <td>${statusMarkup(x.status)}</td>
+      <td>${x.items?.length || 0}</td>
+      <td class="text-nowrap">
+        <div class="d-inline-flex gap-1">
+          ${String(x.status).toLowerCase() === 'open'
+            ? `<button type="button" class="btn btn-sm btn-outline-primary" onclick="openCount(${x.id})"><i class="fas fa-folder-open me-1"></i>Open</button>`
+            : `<button type="button" class="btn btn-sm btn-outline-secondary" onclick="viewCount(${x.id})" data-bs-toggle="modal" data-bs-target="#viewCountModal"><i class="fas fa-eye me-1"></i>View</button>`}
+          <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteCount(${x.id})" title="Delete stock count"><i class="fas fa-trash me-1"></i>Delete</button>
+        </div>
+      </td>
+    </tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted py-4">No stock counts yet.</td></tr>';
+}
+async function viewCount(id) {
+  const modalElement = document.getElementById('viewCountModal');
+  if (modalElement && window.bootstrap?.Modal) {
+    bootstrap.Modal.getOrCreateInstance(modalElement).show();
+  }
+  try {
+    const count = await getCount(id);
+    if (!count) throw new Error('Stock count not found');
+    document.getElementById('viewCountNumber').textContent = `#${count.id}`;
+    document.getElementById('viewCountCreated').textContent = new Date(count.created_at).toLocaleString();
+    const status = document.getElementById('viewCountStatus');
+    status.className = `badge status-badge status-${String(count.status).toLowerCase()}`;
+    status.textContent = String(count.status).toLowerCase() === 'completed' ? 'Completed' : 'Open';
+    const body = document.getElementById('viewCountItemsBody');
+    body.innerHTML = (count.items || []).length ? count.items.map(item => `
+      <tr><td>${item.product_name || 'Unknown product'}</td><td class="text-end">${Number(item.system_quantity || 0)}</td><td class="text-end">${Number(item.counted_quantity || 0)}</td><td class="text-end ${Number(item.variance || 0) < 0 ? 'text-danger' : Number(item.variance || 0) > 0 ? 'text-success' : ''}">${Number(item.variance || 0)}</td><td>${item.reason || '—'}</td></tr>`).join('') : '<tr><td colspan="5" class="text-center text-muted">No items recorded.</td></tr>';
+  } catch (error) {
+    console.error('Unable to view stock count', error);
+    const body = document.getElementById('viewCountItemsBody');
+    if (body) body.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Unable to load stock-count details.</td></tr>';
+    alertMsg(error.message || 'Unable to view stock count', 'danger');
+  }
+}
+async function deleteCount(id) {
+  if (!window.confirm(`Delete stock count #${id}? This will remove the count and its recorded lines.`)) return;
+  try {
+    const response = await fetch(`/api/inventory/stock-counts/${id}`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Unable to delete stock count');
+    alertMsg(result.message || 'Stock count deleted successfully', 'success');
+    await refresh();
+  } catch (error) {
+    alertMsg(error.message || 'Unable to delete stock count', 'danger');
+  }
+}
+let editingCountId = null;
+let editingCountItems = [];
+
+function renderCountEntryItems() {
+  const body = document.getElementById('countEntryItemsBody');
+  if (!body) return;
+  body.innerHTML = editingCountItems.length ? editingCountItems.map((item, index) => {
+    const variance = Number(item.counted_quantity || 0) - Number(item.system_quantity || 0);
+    const varianceClass = variance < 0 ? 'text-danger' : variance > 0 ? 'text-success' : 'text-muted';
+    return `<tr>
+      <td class="fw-semibold">${item.product_name || 'Unknown product'}</td>
+      <td class="text-end">${Number(item.system_quantity || 0)}</td>
+      <td><input type="number" min="0" step="0.01" class="form-control counted-quantity" data-index="${index}" value="${Number(item.counted_quantity || 0)}" aria-label="Counted quantity for ${item.product_name || 'product'}"></td>
+      <td class="text-end fw-semibold ${varianceClass}" data-variance-index="${index}">${variance > 0 ? '+' : ''}${variance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+      <td><input type="text" class="form-control variance-reason" data-index="${index}" value="${item.reason || ''}" placeholder="Reason for variance"></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" class="text-center text-muted py-4">No products in this count.</td></tr>';
+  body.querySelectorAll('.counted-quantity').forEach(input => input.addEventListener('input', function() {
+    const index = Number(this.dataset.index);
+    editingCountItems[index].counted_quantity = Number(this.value || 0);
+    const variance = editingCountItems[index].counted_quantity - Number(editingCountItems[index].system_quantity || 0);
+    const cell = body.querySelector(`[data-variance-index="${index}"]`);
+    if (cell) { cell.textContent = `${variance > 0 ? '+' : ''}${variance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`; cell.className = `text-end fw-semibold ${variance < 0 ? 'text-danger' : variance > 0 ? 'text-success' : 'text-muted'}`; }
+  }));
+  body.querySelectorAll('.variance-reason').forEach(input => input.addEventListener('input', function() { editingCountItems[Number(this.dataset.index)].reason = this.value; }));
+}
+
+async function openCount(id) {
+  try {
+    const count = await getCount(id);
+    if (!count) throw new Error('Stock count not found');
+    editingCountId = count.id;
+    editingCountItems = (count.items || []).map(item => ({ ...item, counted_quantity: Number(item.counted_quantity || 0), system_quantity: Number(item.system_quantity || 0), reason: item.reason || '' }));
+    document.getElementById('countEntrySubtitle').textContent = `Count #${count.id} · ${new Date(count.created_at).toLocaleString()} · ${editingCountItems.length} products`;
+    document.getElementById('countEntryAlert').className = 'alert d-none';
+    renderCountEntryItems();
+    showCountEntryModal();
+  } catch (error) { console.error('Unable to open stock count', error); alertMsg(error.message || 'Unable to open stock count', 'danger'); }
+}
+
+async function saveCount(complete = false) {
+  if (!editingCountId) return;
+  const invalid = editingCountItems.find(item => Number(item.counted_quantity) < 0 || !Number.isFinite(Number(item.counted_quantity)));
+  if (invalid) { alertMsg(`Enter a valid counted quantity for ${invalid.product_name || 'the product'}.`, 'danger'); return; }
+  const missingReason = editingCountItems.find(item => Number(item.counted_quantity) !== Number(item.system_quantity) && !String(item.reason || '').trim());
+  if (missingReason) { alertMsg(`Enter a reason for the variance in ${missingReason.product_name || 'the product'}.`, 'danger'); return; }
+  if (complete && !window.confirm('Save this count and apply all variances to inventory?')) return;
+  const response = await fetch(`/api/inventory/stock-counts/${editingCountId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify({ items: editingCountItems.map(item => ({ id: item.id, counted_quantity: Number(item.counted_quantity), reason: String(item.reason || '').trim() })) }) });
+  const result = await response.json();
+  if (!response.ok) { alertMsg(result.error || 'Unable to save count', 'danger'); return; }
+  if (complete) {
+    const done = await fetch(`/api/inventory/stock-counts/${editingCountId}/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf } });
+    const completeResult = await done.json();
+    if (!done.ok) { alertMsg(completeResult.error || 'Unable to complete count', 'danger'); return; }
+    alertMsg('Stock count completed successfully.', 'success');
+  } else alertMsg('Stock count saved successfully.', 'success');
+  hideCountEntryModal();
+  await refresh();
+}
+
+document.getElementById('saveCountBtn').onclick = () => saveCount(false);
+document.getElementById('completeCountBtn').onclick = () => saveCount(true);
+window.openCount = openCount;
+window.viewCount = viewCount;
+window.deleteCount = deleteCount;
+
+document.getElementById('newCountBtn').onclick = async () => {
+  const r = await fetch('/api/inventory/stock-counts', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf }, body: JSON.stringify({}) });
+  const d = await r.json();
+  alertMsg(d.error || `Stock count #${d.count?.id} started`, r.ok ? 'success' : 'danger');
+  refresh();
+};
+document.getElementById('refreshBtn').onclick = refresh;
+refresh().catch(e => alertMsg(e.message, 'danger'));
+</script>
+<style>
+.metric-card { padding: 14px; border: 0; min-height: 82px; }
+.metric-card small { color: #64748b; }
+.metric-card strong { font-size: 1.15rem; }
+.metric-card.highlight { background: #eff6ff; color: #1d4ed8; }
+.stock-count-page .table { min-width: 620px; }
+.status-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 82px; padding: .42rem .65rem; border-radius: 999px; font-size: .78rem; font-weight: 700; line-height: 1; }
+.status-open { background: #fef3c7 !important; color: #92400e !important; border: 1px solid #f59e0b; }
+.status-completed { background: #dcfce7 !important; color: #166534 !important; border: 1px solid #22c55e; }
+@media (max-width: 575px) { .stock-count-page .btn { min-height: 42px; } }
+</style>
+{% endblock %}

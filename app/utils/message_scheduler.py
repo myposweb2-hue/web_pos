@@ -6,6 +6,7 @@ Supports WhatsApp (via Twilio) and Email notifications
 from datetime import datetime, timedelta
 from flask import current_app
 from app.models import db, Customer, Sale, Setting
+from app.utils.security import get_company_id
 from app.utils.whatsapp_twilio import send_whatsapp_via_twilio
 from app.utils.whatsapp_sender import generate_whatsapp_link
 from app.utils.email_sender import send_email
@@ -158,13 +159,32 @@ class MessageScheduler:
         return self._send_whatsapp(admin_phone, message)
     
     # ========== Payment Reminders ==========
+
+    def get_customer_outstanding_balance(self, customer):
+        """Return the live unpaid-sale balance for a customer in the active company."""
+        company_id = get_company_id()
+        query = Sale.query.filter(
+            Sale.customer == customer.name,
+            Sale.balance > 0
+        )
+        if company_id is not None and hasattr(Sale, 'company_id'):
+            query = query.filter(Sale.company_id == company_id)
+        return round(sum(float(sale.balance or 0) for sale in query.all()), 2)
     
     def send_payment_reminder(self, customer_id, days_overdue=0):
         """
         Send payment reminder to customer with credit/balance
         """
-        customer = Customer.query.get(customer_id)
-        if not customer or customer.current_balance <= 0:
+        company_id = get_company_id()
+        customer_query = Customer.query.filter(Customer.id == customer_id)
+        if company_id is not None and hasattr(Customer, 'company_id'):
+            customer_query = customer_query.filter(Customer.company_id == company_id)
+        customer = customer_query.first()
+        if not customer:
+            return False, "Customer not found"
+
+        outstanding_balance = self.get_customer_outstanding_balance(customer)
+        if outstanding_balance <= 0:
             return False, "No outstanding balance"
         
         if not customer.phone:
@@ -175,7 +195,7 @@ class MessageScheduler:
         message = f"⏰ *Payment Reminder*\n"
         message += f"━━━━━━━━━━━━━━━━━━━━\n"
         message += f"Dear {customer.name},\n\n"
-        message += f"This is a friendly reminder that you have an outstanding balance of *{customer.current_balance:.2f}* at {business_name}.\n\n"
+        message += f"This is a friendly reminder that you have an outstanding balance of *{outstanding_balance:.2f}* at {business_name}.\n\n"
         
         if days_overdue > 0:
             message += f"Your payment is {days_overdue} day(s) overdue.\n\n"
@@ -191,15 +211,13 @@ class MessageScheduler:
         Called by scheduler
         """
         # Get customers with credit balances
+        company_id = get_company_id()
+        customer_query = Customer.query
+        if company_id is not None and hasattr(Customer, 'company_id'):
+            customer_query = customer_query.filter(Customer.company_id == company_id)
         if hasattr(Customer, 'is_active'):
-            customers = Customer.query.filter(
-                Customer.current_balance > 0,
-                Customer.is_active == True
-            ).all()
-        else:
-            customers = Customer.query.filter(
-                Customer.current_balance > 0
-            ).all()
+            customer_query = customer_query.filter(Customer.is_active == True)
+        customers = customer_query.all()
         
         results = []
         for customer in customers:
@@ -268,15 +286,37 @@ class MessageScheduler:
     
     # ========== Custom Reminders ==========
     
-    def send_custom_reminder(self, customer_id, message_text):
-        """
-        Send custom reminder to a specific customer
-        """
-        customer = Customer.query.get(customer_id)
-        if not customer or not customer.phone:
-            return False, "Customer not found or no phone"
-        
-        return self._send_whatsapp(customer.phone, message_text)
+    def send_custom_reminder(self, customer_id, message_text, channel='whatsapp'):
+        """Send a custom message to a customer through the selected channel."""
+        company_id = get_company_id()
+        customer_query = Customer.query.filter(Customer.id == customer_id)
+        if company_id is not None and hasattr(Customer, 'company_id'):
+            customer_query = customer_query.filter(Customer.company_id == company_id)
+        customer = customer_query.first()
+        if not customer:
+            return False, "Customer not found"
+        if not message_text or not message_text.strip():
+            return False, "Message is required"
+
+        channel = (channel or 'whatsapp').lower()
+        results = []
+        if channel in ('whatsapp', 'both'):
+            if not customer.phone:
+                results.append(('whatsapp', False, 'No phone number'))
+            else:
+                results.append(('whatsapp', *self._send_whatsapp(customer.phone, message_text)))
+        if channel in ('email', 'both'):
+            if not customer.email:
+                results.append(('email', False, 'No email address'))
+            else:
+                subject = f"Message from {self._get_business_name()}"
+                results.append(('email', *self._send_email(customer.email, subject, message_text)))
+        if not results:
+            return False, "Unsupported message channel"
+        successful = [result for result in results if result[1]]
+        if successful:
+            return True, results
+        return False, '; '.join(f'{channel_name}: {reason}' for channel_name, _, reason in results)
     
     def send_reminder_to_self(self, message_text, channel='whatsapp'):
         """
@@ -347,7 +387,7 @@ class MessageScheduler:
         if not self.whatsapp_enabled:
             # Fallback to wa.me link
             link = generate_whatsapp_link(phone, message)
-            return False, f"WhatsApp not configured. Link: {link}"
+            return True, {'fallback': True, 'wa_link': link, 'notice': 'WhatsApp service is not configured; opening a WhatsApp message link.'}
         
         ok, result = send_whatsapp_via_twilio(phone, message)
         return ok, result

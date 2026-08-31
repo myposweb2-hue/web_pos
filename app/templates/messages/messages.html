@@ -535,6 +535,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const toast = new bootstrap.Toast(document.getElementById('messageToast'));
     let allCustomers = [];
     let selectedCustomers = new Set();
+    const messageBusinessName = {{ (current_company.name if current_company else 'POS System')|tojson }};
+    let selectedCustomerForMessage = null;
 
     // ==================== Utility Functions ====================
     
@@ -548,7 +550,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function formatCurrency(amount) {
-        return parseFloat(amount || 0).toFixed(2);
+        return parseFloat(amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
 
     // ==================== Load Initial Data ====================
@@ -647,11 +649,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function selectCustomer(id, name, phone, balance) {
+        selectedCustomerForMessage = { id: id, name: name, phone: phone || '', balance: Number(balance) || 0 };
         document.getElementById('selectedCustomerId').value = id;
         document.getElementById('selectedCustomerName').textContent = name;
         document.getElementById('selectedCustomerPhone').textContent = phone || 'No phone';
         document.getElementById('selectedCustomerBalance').textContent = `Balance: ${formatCurrency(balance)}`;
         document.getElementById('selectedCustomerInfo').style.display = 'block';
+    }
+
+    function resolveMessageTemplate(message) {
+        const customer = selectedCustomerForMessage || {name: 'Customer', balance: 0};
+        return message
+            .replaceAll('{customer_name}', customer.name || 'Customer')
+            .replaceAll('{balance}', formatCurrency(customer.balance))
+            .replaceAll('{business_name}', messageBusinessName || 'POS System')
+            .replaceAll('{phone}', customer.phone || '');
     }
 
     // ==================== Message Templates ====================
@@ -673,7 +685,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 grid.querySelectorAll('.template-card').forEach(card => {
                     card.addEventListener('click', function() {
-                        const message = decodeURIComponent(this.dataset.message);
+                        const message = resolveMessageTemplate(decodeURIComponent(this.dataset.message));
                         document.getElementById('messageText').value = message;
                         updatePreview();
                     });
@@ -701,8 +713,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     document.getElementById('sendMessageBtn').addEventListener('click', function() {
         const customerId = document.getElementById('selectedCustomerId').value;
-        const message = document.getElementById('messageText').value;
-        const channel = document.querySelector('input[name="channel"]:checked').value;
+        const rawMessage = document.getElementById('messageText').value;
+        const message = resolveMessageTemplate(rawMessage);
+        const channel = document.querySelector('input[name="channel"]:checked')?.value || 'whatsapp';
 
         if (!customerId) {
             showToast('Please select a customer', false);
@@ -719,18 +732,23 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/messages/customer/' + customerId + '/custom-reminder', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message })
+            body: JSON.stringify({ message: message, channel: channel })
         })
-        .then(res => res.json())
-        .then(data => {
+        .then(async res => {
+            const data = await res.json().catch(() => ({}));
+            return { ok: res.ok, data };
+        })
+        .then(({data}) => {
             if (data.success) {
-                showToast('Message sent successfully!');
+                if (data.wa_link) window.open(data.wa_link, '_blank', 'noopener');
+                showToast(data.wa_link ? 'WhatsApp message link opened. Review and send it in WhatsApp.' : (data.message || 'Message sent successfully!'));
                 document.getElementById('messageText').value = '';
                 document.getElementById('selectedCustomerId').value = '';
+                selectedCustomerForMessage = null;
                 document.getElementById('selectedCustomerInfo').style.display = 'none';
                 updatePreview();
             } else {
-                showToast(data.error || 'Failed to send message', false);
+                showToast(data.error || 'Message could not be sent. Check the customer contact details.', false);
             }
         })
         .catch(err => {
@@ -766,6 +784,14 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(err => console.error(err));
     });
+
+    function openWhatsAppLinks(links, label='WhatsApp message') {
+        const validLinks = (links || []).map(item => typeof item === 'string' ? item : item.wa_link).filter(Boolean);
+        validLinks.forEach((link, index) => {
+            setTimeout(() => window.open(link, '_blank', 'noopener'), index * 250);
+        });
+        return validLinks.length;
+    }
 
     // ==================== Bulk Messaging ====================
     
@@ -856,7 +882,8 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                showToast(data.message);
+                const opened = openWhatsAppLinks(data.wa_links);
+                showToast(opened ? `${opened} WhatsApp link(s) opened. Review and send each message.` : data.message);
                 selectedCustomers.clear();
                 document.getElementById('bulkMessageText').value = '';
                 document.getElementById('selectedCount').textContent = '0';
@@ -950,9 +977,10 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                showToast('Receipt sent successfully!');
+                if (data.wa_link) window.open(data.wa_link, '_blank', 'noopener');
+                showToast(data.wa_link ? 'WhatsApp receipt link opened. Review and send it in WhatsApp.' : (data.message || 'Receipt sent successfully!'));
             } else {
-                showToast(data.error || 'Failed to send receipt', false);
+                showToast(data.error || 'Receipt could not be sent. Check the selected contact details.', false);
             }
         })
         .catch(err => {
@@ -1009,12 +1037,20 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/messages/customer/' + customerId + '/payment-reminder', {
             method: 'POST'
         })
-        .then(res => res.json())
-        .then(data => {
+        .then(async res => {
+            const data = await res.json().catch(() => ({}));
+            return {ok: res.ok, data};
+        })
+        .then(({data}) => {
             if (data.success) {
-                showToast('Payment reminder sent!');
+                if (data.wa_link) {
+                    window.open(data.wa_link, '_blank', 'noopener');
+                    showToast('WhatsApp message link opened. Review and send it in WhatsApp.');
+                } else {
+                    showToast(data.message || 'Payment reminder sent!');
+                }
             } else {
-                showToast(data.error || 'Failed to send reminder', false);
+                showToast(data.error || 'Reminder could not be sent. Check the customer contact details.', false);
             }
         })
         .catch(err => {
@@ -1035,7 +1071,8 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                showToast(data.message);
+                const opened = openWhatsAppLinks(data.wa_links);
+                showToast(opened ? `${opened} WhatsApp reminder link(s) opened. Review and send each message.` : data.message);
             } else {
                 showToast(data.error || 'Failed to send reminders', false);
             }
@@ -1072,7 +1109,8 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(res => res.json())
         .then(data => {
             if (data.success) {
-                showToast('Self reminder sent!');
+                if (data.wa_link) window.open(data.wa_link, '_blank', 'noopener');
+                showToast(data.wa_link ? 'WhatsApp self-reminder link opened.' : (data.message || 'Self reminder sent!'));
                 document.getElementById('selfMessageText').value = '';
             } else {
                 showToast(data.error || 'Failed to send reminder', false);

@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, send_file
 from flask_login import login_required, current_user
-from app.models import db, Setting, User
+from app.models import db, Setting, User, Sale, SaleItem, SaleRequest, CustomerPayment
 from app.utils.permissions import require_permission
 from app.utils.security import get_company_id
 from app.utils.company import get_user_companies
@@ -45,7 +45,7 @@ def export_company_data_to_sql(company_id):
             Product, Customer, Supplier, Expense, Purchase, PurchaseItem,
             PurchaseReturn, PurchaseReturnItem, InventoryTransaction, 
             Promotion, CustomerFeedback, HeldBill, Setting, Warehouse,
-            SerialNumber, PurchaseOrder, PurchaseOrderItem, Cheque, ChequeDeposit,
+            SerialNumber, StockCountItem, PurchaseOrder, PurchaseOrderItem, Cheque, ChequeDeposit,
             AuditLog, CustomerPayment
         )
     except ImportError as e:
@@ -1409,8 +1409,8 @@ def reset_system():
                 Product, Customer, Supplier, Expense, Purchase, PurchaseItem,
                 PurchaseReturn, PurchaseReturnItem, InventoryTransaction, 
                 Promotion, CustomerFeedback, HeldBill, Setting, Warehouse,
-                SerialNumber, PurchaseOrder, PurchaseOrderItem, Cheque, ChequeDeposit,
-                AuditLog, CustomerPayment, Company, User
+                SerialNumber, StockCountItem, PurchaseOrder, PurchaseOrderItem, Cheque, ChequeDeposit,
+                AuditLog, CustomerPayment, CashierShift, Company, User
             )
             from sqlalchemy import or_ as sql_or
             current_app.logger.debug("[RESET] Models imported successfully")
@@ -1485,6 +1485,21 @@ def reset_system():
         db.session.flush()
         current_app.logger.debug(f"[RESET] Deleted {deposits_count} ChequeDeposits")
         
+        # Delete every direct Sale dependent before Sale rows. These records can
+        # be linked by sale_id even when their company_id is NULL.
+        if sales_ids:
+            sale_requests_count = db.session.query(SaleRequest).filter(
+                SaleRequest.sale_id.in_(sales_ids)
+            ).delete(synchronize_session=False)
+            customer_payments_count = db.session.query(CustomerPayment).filter(
+                CustomerPayment.sale_id.in_(sales_ids)
+            ).delete(synchronize_session=False)
+            db.session.flush()
+            current_app.logger.debug(
+                f"[RESET] Deleted {sale_requests_count} SaleRequests and "
+                f"{customer_payments_count} CustomerPayments"
+            )
+
         # Now delete the other tables in order
         tables_to_delete = [
             
@@ -1511,6 +1526,7 @@ def reset_system():
             (Expense, "Expense"),
             (SerialNumber, "SerialNumber"),
             (CustomerPayment, "CustomerPayment"),
+            (CashierShift, "CashierShift"),
             (AuditLog, "AuditLog"),
             
             # Master data last (but not Product - we handle it specially)
@@ -1578,6 +1594,27 @@ def reset_system():
                 db.session.flush()
                 current_app.logger.debug(f"[RESET] Cleaned {orphan_ret_items} orphaned return items")
             
+            # Remove every direct product dependent before deleting Products.
+            # Some legacy rows have NULL company_id, so filter by product IDs too.
+            if product_ids:
+                product_dependent_models = (
+                    (StockCountItem, 'StockCountItem'),
+                    (InventoryTransaction, 'InventoryTransactionByProduct'),
+                    (ReturnItem, 'ReturnItemByProduct'),
+                    (ExchangeItem, 'ExchangeItemByProduct'),
+                    (SerialNumber, 'SerialNumberByProduct'),
+                    (SaleItem, 'SaleItemByProduct'),
+                    (PurchaseItem, 'PurchaseItemByProduct'),
+                )
+                for dependent_model, dependent_name in product_dependent_models:
+                    dependent_count = db.session.query(dependent_model).filter(
+                        dependent_model.product_id.in_(product_ids)
+                    ).delete(synchronize_session=False)
+                    db.session.flush()
+                    current_app.logger.debug(
+                        f"[RESET] Deleted {dependent_count} {dependent_name} records"
+                    )
+
             # Now delete products
             products_count = db.session.query(Product).filter(
                 Product.company_id == company_id

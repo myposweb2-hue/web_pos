@@ -13,7 +13,7 @@
                         <h5 class="mb-0">
                             <i class="fas fa-boxes me-2"></i>Products
                         </h5>
-                        <button class="btn btn-sm btn-outline-primary" id="heldBillsBtn">
+                        <button class="btn btn-sm btn-outline-primary" id="heldBillsBtn" title="Held bills (Alt+H)">
                             <i class="fas fa-clock me-1"></i>Held Bills
                         </button>
                     </div>
@@ -31,7 +31,19 @@
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-search"></i></span>
                             <input type="text" id="productSearch" class="form-control"
-                                   placeholder="Search by name, barcode, or SKU... (F1)">
+                                   placeholder="Search by name, barcode, or SKU... (F1, F2, or /)"
+                                   autocomplete="off" spellcheck="false"
+                                   aria-controls="productGrid" aria-autocomplete="list">
+                        </div>
+                        <div class="keyboard-shortcuts-bar" role="note" aria-label="Sales keyboard shortcuts">
+                            <span><kbd>F1/F2</kbd> Search</span>
+                            <span><kbd>Enter</kbd> Add</span>
+                            <span><kbd>F3</kbd> Customer</span>
+                            <span><kbd>F7</kbd> Payment</span>
+                            <span><kbd>F10</kbd> Cash Given</span>
+                            <span><kbd>F8</kbd> Pay</span>
+                            <span><kbd>F9</kbd> Hold</span>
+                            <span><kbd>Esc</kbd> Cancel</span>
                         </div>
                     </div>
 
@@ -51,12 +63,22 @@
                         <h5 class="mb-0">
                             <i class="fas fa-shopping-cart me-2"></i>Current Sale
                         </h5>
-                        <button class="btn btn-sm btn-outline-secondary" id="selectCustomerBtn">
+                        <button class="btn btn-sm btn-outline-secondary" id="selectCustomerBtn" title="Select customer (F3)">
                             <i class="fas fa-user me-1"></i><span id="customerName">Walk-in</span>
                         </button>
                     </div>
                 </div>
                 <div class="card-body p-3">
+                    <!-- Cart Summary -->
+                    <div class="cart-summary-bar d-flex align-items-center justify-content-between gap-2 mb-3" id="cartSummaryBar" aria-live="polite">
+                        <div class="cart-summary-count">
+                            <i class="fas fa-list-check me-2"></i><strong id="cartItemCount">0 items</strong>
+                            <span class="text-muted ms-1" id="cartUnitCount"></span>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="reviewBillBtn" onclick="openBillingReview()" disabled>
+                            <i class="fas fa-receipt me-1"></i>Review bill
+                        </button>
+                    </div>
                     <!-- Cart Items -->
                     <div class="cart-items" id="cartItems">
                         <div class="empty-cart text-center text-muted py-5">
@@ -97,87 +119,33 @@
 
                     <!-- Payment Section -->
                     <div class="payment-section mt-3" id="paymentSection" style="display: none;">
-                        <div class="payment-method">
-                            <label>Payment Method</label>
-                            <select class="form-select" id="paymentMethod">
-                                <option value="Cash">Cash</option>
-                                <option value="Card">Card</option>
-                                <option value="Cheque">Cheque</option>
-                                <option value="UPI">UPI</option>
-                                <option value="Bank Transfer">Bank Transfer</option>
-                                <option value="Credit">Credit (Credit Sale)</option>
-                            </select>
-                        </div>
-                        <!-- Cheque Details Section -->
-                        <div class="cheque-details" id="chequeDetails" style="display: none;">
-                            <div class="form-group">
-                                <label>Cheque Number</label>
-                                <input type="text" class="form-control" id="chequeNumber" placeholder="Cheque number">
+                        <div class="payment-support-details">
+                            <!-- Cheque Details Section -->
+                            <div class="cheque-details" id="chequeDetails" style="display: none;">
+                                <div class="form-group"><label>Cheque Number</label><input type="text" class="form-control" id="chequeNumber" placeholder="Cheque number"></div>
+                                <div class="form-group"><label>Bank Name</label><input type="text" class="form-control" id="bankName" placeholder="Bank name"></div>
+                                <div class="form-group"><label>Cheque Date</label><input type="date" class="form-control" id="chequeDate"></div>
                             </div>
-                            <div class="form-group">
-                                <label>Bank Name</label>
-                                <input type="text" class="form-control" id="bankName" placeholder="Bank name">
-                            </div>
-                            <div class="form-group">
-                                <label>Cheque Date</label>
-                                <input type="date" class="form-control" id="chequeDate">
-                            </div>
-                        </div>
-                        <!-- Customer Credit Info -->
-                        <div class="customer-credit-info" id="customerCreditInfo" style="display: none;">
-                            <div class="credit-details">
-                                <div class="credit-balance">
-                                    <span class="label">Current Balance:</span>
-                                    <span class="value" id="customerCurrentBalance">Rs.  0.00</span>
+                            <!-- Customer Credit Info -->
+                            <div class="customer-credit-info" id="customerCreditInfo" style="display: none;">
+                                <div class="credit-details">
+                                    <div class="credit-balance"><span class="label">Current Balance:</span><span class="value" id="customerCurrentBalance">Rs.  0.00</span></div>
+                                    <div class="credit-limit"><span class="label">Credit Limit:</span><span class="value" id="customerCreditLimit">Rs.  0.00</span></div>
+                                    <div class="credit-available"><span class="label">Available Credit:</span><span class="value" id="customerAvailableCredit">Rs.  0.00</span></div>
                                 </div>
-                                <div class="credit-limit">
-                                    <span class="label">Credit Limit:</span>
-                                    <span class="value" id="customerCreditLimit">Rs.  0.00</span>
-                                </div>
-                                <div class="credit-available">
-                                    <span class="label">Available Credit:</span>
-                                    <span class="value" id="customerAvailableCredit">Rs.  0.00</span>
-                                </div>
-                            </div>
-                            <div class="credit-warning" id="creditWarning" style="display: none;">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <span id="creditWarningText"></span>
+                                <div class="credit-warning" id="creditWarning" style="display: none;"><i class="fas fa-exclamation-triangle"></i><span id="creditWarningText"></span></div>
                             </div>
                         </div>
-                        <div class="cash-given" id="cashGivenGroup">
-                            <label>Cash Given (F2)</label>
-                            <input type="number" class="form-control" id="cashGiven" step="0.01" placeholder="0.00">
-                        </div>
-                        <div class="change-amount" id="changeGroup" style="display: none;">
-                            <label>Change</label>
-                            <div class="change-value"><span id="changeCurrency">Rs. </span><span id="changeAmount">0.00</span></div>
-                        </div>
-                    </div>
-
-                    <!-- Action Buttons -->
-                    <div class="action-buttons mt-3">
-                        <button class="btn btn-success btn-pay" id="checkoutBtn" disabled>
-                            <i class="fas fa-credit-card me-2"></i>Pay Now
-                        </button>
-                        <div class="row g-2 mt-2">
-                            <div class="col-6">
-                                <button class="btn btn-warning w-100" id="holdBtn">
-                                    <i class="fas fa-clock me-1"></i>Hold Bill
-                                </button>
+                        <div class="payment-sticky-row">
+                            <div class="sticky-total-summary" aria-label="Sale totals">
+                                <div><span>Subtotal</span><strong id="stickySubtotal">Rs. 0.00</strong></div>
+                                <div><span>Discount</span><strong id="stickyDiscount">Rs. 0.00</strong></div>
+                                <div class="sticky-grand-total"><span>Total</span><strong id="stickyTotal">Rs. 0.00</strong></div>
                             </div>
-                            <div class="col-6">
-                                <button class="btn btn-danger w-100" id="cancelBtn">
-                                    <i class="fas fa-times me-1"></i>Cancel
-                                </button>
-                            </div>
-                        </div>
-                        <div class="receipt-actions mt-2 d-none" id="receiptActions">
-                            <button class="btn btn-outline-primary btn-sm" id="downloadReceiptBtn">
-                                <i class="fas fa-download me-1"></i>Download
-                            </button>
-                            <button class="btn btn-outline-secondary btn-sm" id="printReceiptBtn">
-                                <i class="fas fa-print me-1"></i>Print
-                            </button>
+                            <div class="payment-method"><label>Payment Method</label><select class="form-select" id="paymentMethod"><option value="Cash">Cash</option><option value="Card">Card</option><option value="Cheque">Cheque</option><option value="UPI">UPI</option><option value="Bank Transfer">Bank Transfer</option><option value="Credit">Credit (Credit Sale)</option></select></div>
+                            <div class="cash-given" id="cashGivenGroup"><label for="cashGiven">Cash Given <kbd>F10</kbd></label><input type="number" class="form-control" id="cashGiven" step="0.01" placeholder="0.00" aria-keyshortcuts="F10"></div>
+                            <div class="change-amount" id="changeGroup" style="display: none;"><label>Change</label><div class="change-value"><span id="changeCurrency">Rs. </span><span id="changeAmount">0.00</span></div></div>
+                            <div class="action-buttons sticky-payment-actions"><div class="primary-actions"><button class="btn btn-success btn-pay" id="checkoutBtn" disabled title="Complete sale (F8 or Ctrl+Enter)"><i class="fas fa-credit-card me-2"></i>Pay Now</button><button class="btn btn-warning" id="holdBtn" title="Hold bill (F9)"><i class="fas fa-clock me-1"></i>Hold Bill</button><button class="btn btn-danger" id="cancelBtn" title="Cancel sale (Esc)"><i class="fas fa-times me-1"></i>Cancel</button></div><div class="receipt-actions mt-2 d-none" id="receiptActions"><button class="btn btn-outline-primary btn-sm" id="downloadReceiptBtn"><i class="fas fa-download me-1"></i>Download</button><button class="btn btn-outline-secondary btn-sm" id="printReceiptBtn"><i class="fas fa-print me-1"></i>Print</button></div></div>
                         </div>
                     </div>
                 </div>
@@ -308,6 +276,9 @@
                     <button type="button" class="btn btn-lg btn-success" id="sendWhatsappBtn" onclick="handleSendWhatsapp()">
                         <i class="fab fa-whatsapp me-2"></i>Send on WhatsApp
                     </button>
+                    <button type="button" class="btn btn-lg btn-outline-primary" id="sendEmailBtn" onclick="sendReceiptViaEmail()">
+                        <i class="fas fa-envelope me-2"></i>Send by Email
+                    </button>
                 </div>
                 <hr class="my-3">
                 <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Skip for Now</button>
@@ -346,6 +317,27 @@
     </div>
 </div>
 
+<!-- Email Receipt Modal -->
+<div class="modal fade" id="emailReceiptModal" tabindex="-1" aria-labelledby="emailReceiptTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="emailReceiptTitle"><i class="fas fa-envelope me-2"></i>Email receipt</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label for="receiptEmail" class="form-label">Customer email address</label>
+                <input type="email" class="form-control" id="receiptEmail" placeholder="customer@example.com" autocomplete="email">
+                <div class="form-text">The customer will receive a PDF attachment and secure links to view or download the receipt.</div>
+                <div class="alert alert-danger mt-3 d-none" id="receiptEmailError"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="sendReceiptEmailAPI()"><i class="fas fa-paper-plane me-1"></i>Send email</button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Edit Product Modal -->
 <div class="modal fade" id="editProductModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -420,6 +412,34 @@
     </div>
 </div>
 
+<!-- Billing Review Modal -->
+<div class="modal fade" id="billingReviewModal" tabindex="-1" aria-labelledby="billingReviewTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content billing-review-modal">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title mb-1" id="billingReviewTitle"><i class="fas fa-receipt me-2"></i>Review billing list</h5>
+                    <div class="small text-muted" id="billingReviewMeta">Check all items before payment</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="billing-review-table-wrap">
+                    <table class="table table-hover align-middle mb-0 billing-review-table">
+                        <thead>
+                            <tr><th>#</th><th>Product</th><th class="text-end">Qty</th><th class="text-end">Unit price</th><th class="text-end">Discount</th><th class="text-end">Line total</th><th class="text-end">Actions</th></tr>
+                        </thead>
+                        <tbody id="billingReviewItems"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <span class="fw-semibold" id="billingReviewTotal">Total: Rs. 0.00</span>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal"><i class="fas fa-arrow-right me-1"></i>Continue to payment</button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- New Customer Modal -->
 <div class="modal fade" id="newCustomerModal" tabindex="-1">
     <div class="modal-dialog">
@@ -469,6 +489,128 @@ let enableTax = true;
 let currencySymbol = 'Rs. ';  // Default, will be loaded from settings
 let enableLoyaltyPoints = true;  // Default, will be loaded from settings
 let loyaltyPointsConversionRate = 1.0;  // Default, will be loaded from settings
+let productResults = [];
+let activeProductIndex = -1;
+let selectedCartIndex = -1;
+let customerResults = [];
+let selectedCustomerIndex = -1;
+let offlineQueue = [];
+let activeCheckoutRequestId = null;
+let offlineSyncInProgress = false;
+let currentPayableTotal = 0;
+const OFFLINE_QUEUE_KEY = 'infix_pos_offline_checkout_queue_v1';
+const CART_STATE_KEY = 'infix_pos_active_cart_v1';
+
+function createCheckoutRequestId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+    }
+    return `sale-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function loadOfflineState() {
+    try {
+        offlineQueue = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+        const savedCart = JSON.parse(localStorage.getItem(CART_STATE_KEY) || 'null');
+        if (Array.isArray(savedCart)) cart = savedCart;
+    } catch (error) {
+        console.warn('Unable to restore offline POS state:', error);
+        offlineQueue = [];
+    }
+    updateOfflineStatus();
+}
+
+function persistCartState() {
+    try {
+        localStorage.setItem(CART_STATE_KEY, JSON.stringify(cart));
+    } catch (error) {
+        console.warn('Unable to persist POS cart:', error);
+    }
+}
+
+function persistOfflineQueue() {
+    try {
+        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(offlineQueue));
+    } catch (error) {
+        console.error('Unable to persist offline checkout queue:', error);
+        showNotification('Storage is full; do not close this page until pending sales sync.', 'danger');
+    }
+    updateOfflineStatus();
+}
+
+function updateOfflineStatus() {
+    const status = document.getElementById('offlineStatus');
+    if (!status) return;
+    const queued = offlineQueue.length;
+    status.className = `offline-status ${navigator.onLine ? (queued ? 'pending' : 'online') : 'offline'}`;
+    const icon = navigator.onLine ? (queued ? 'fa-sync-alt' : 'fa-cloud') : 'fa-wifi';
+    const text = navigator.onLine
+        ? (queued ? `${queued} sale${queued === 1 ? '' : 's'} waiting to sync` : 'Online')
+        : (queued ? `${queued} sale${queued === 1 ? '' : 's'} saved offline` : 'Offline — cart is saved');
+    status.innerHTML = `<i class="fas ${icon} me-1"></i><span>${text}</span>`;
+}
+
+function queueOfflineSale(saleData, checkoutBtn, originalText, loadingOverlay) {
+    // Only cash can be safely collected while the POS is offline. Card, QR,
+    // cheque, and credit payments require online/payment-terminal confirmation.
+    if (saleData.payment_method !== 'Cash') {
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        checkoutBtn.disabled = false;
+        checkoutBtn.innerHTML = originalText;
+        updateOfflineStatus();
+        showNotification('Offline checkout supports cash sales only. Reconnect before using card, QR, cheque, or credit.', 'warning');
+        return;
+    }
+    if (!saleData.client_request_id) saleData.client_request_id = createCheckoutRequestId();
+    if (!offlineQueue.some(entry => entry.client_request_id === saleData.client_request_id)) {
+        offlineQueue.push({ client_request_id: saleData.client_request_id, saleData, queuedAt: new Date().toISOString() });
+        persistOfflineQueue();
+    }
+    if (loadingOverlay) loadingOverlay.style.display = 'none';
+    checkoutBtn.disabled = false;
+    checkoutBtn.innerHTML = originalText;
+    cart = [];
+    currentCustomer = null;
+    persistCartState();
+    updateCartDisplay();
+    focusProductSearch();
+    showNotification('Network unavailable. Sale saved safely and will sync automatically when online.', 'warning');
+}
+
+async function flushOfflineQueue() {
+    if (!navigator.onLine || offlineSyncInProgress || !offlineQueue.length) {
+        updateOfflineStatus();
+        return;
+    }
+    offlineSyncInProgress = true;
+    try {
+        for (let index = 0; index < offlineQueue.length;) {
+            const entry = offlineQueue[index];
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const response = await fetch('/sales/api/sales/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                    'Idempotency-Key': entry.client_request_id
+                },
+                body: JSON.stringify(entry.saleData)
+            });
+            if (!response.ok) throw new Error(`Sync failed with status ${response.status}`);
+            const data = await response.json();
+            if (!data.success) throw new Error(data.error || 'Sale synchronization failed');
+            offlineQueue.splice(index, 1);
+            persistOfflineQueue();
+            showNotification(`Queued sale synced successfully as Sale #${data.sale_id}`, 'success');
+        }
+    } catch (error) {
+        console.warn('Offline sale sync paused:', error);
+        updateOfflineStatus();
+    } finally {
+        offlineSyncInProgress = false;
+        updateOfflineStatus();
+    }
+}
 
 // Notification helper (if not already defined in app.js)
 if (typeof showNotification === 'undefined') {
@@ -499,6 +641,16 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCategories();
     setupEventListeners();
     setupKeyboardShortcuts();
+    loadOfflineState();
+    window.addEventListener('online', flushOfflineQueue);
+    window.addEventListener('offline', updateOfflineStatus);
+    flushOfflineQueue();
+    if (cart.length) {
+        updateCartDisplay();
+        showPaymentSection();
+    } else {
+        showPaymentSection();
+    }
     
     // Check for search query in URL and apply
     const urlParams = new URLSearchParams(window.location.search);
@@ -510,14 +662,20 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         loadProducts();
     }
+
+    // Start every new sale in the product search field.
+    focusProductSearch();
 });
 
 function setupEventListeners() {
-    // Product search
-    document.getElementById('productSearch').addEventListener('input', function() {
-        var searchValue = this.value;
-        loadProducts(searchValue);
+    // Product search: typing filters results; Enter adds the highlighted or
+    // exact barcode/product result without requiring a mouse click.
+    const productSearch = document.getElementById('productSearch');
+    productSearch.addEventListener('input', function() {
+        activeProductIndex = -1;
+        loadProducts(this.value);
     });
+    productSearch.addEventListener('keydown', handleProductSearchKeydown);
 
     // Category filter
     document.getElementById('categoryFilter').addEventListener('change', function() {
@@ -530,10 +688,15 @@ function setupEventListeners() {
     });
 
     // Select customer button
-    document.getElementById('selectCustomerBtn').addEventListener('click', function() {
-        loadCustomers();
-        new bootstrap.Modal(document.getElementById('customerModal')).show();
-    });
+    document.getElementById('selectCustomerBtn').addEventListener('click', openCustomerModal);
+
+    // Customer search: search as the cashier types and select with Enter.
+    const customerSearch = document.getElementById('customerSearch');
+    customerSearch.addEventListener('input', debounce(function() {
+        selectedCustomerIndex = -1;
+        loadCustomers(customerSearch.value);
+    }, 120));
+    customerSearch.addEventListener('keydown', handleCustomerSearchKeydown);
 
     // Add new customer button (in customer modal)
     document.getElementById('addNewCustomerBtn').addEventListener('click', function() {
@@ -551,10 +714,7 @@ function setupEventListeners() {
     });
 
     // Held bills button
-    document.getElementById('heldBillsBtn').addEventListener('click', function() {
-        loadHeldBills();
-        new bootstrap.Modal(document.getElementById('heldBillsModal')).show();
-    });
+    document.getElementById('heldBillsBtn').addEventListener('click', openHeldBillsModal);
 
     // Checkout button
     document.getElementById('checkoutBtn').addEventListener('click', checkout);
@@ -571,7 +731,18 @@ function setupEventListeners() {
     });
 
     // Cash given input
-    document.getElementById('cashGiven').addEventListener('input', calculateChange);
+    const cashGivenInput = document.getElementById('cashGiven');
+    cashGivenInput.addEventListener('input', calculateChange);
+    // Pressing Enter after entering cash follows the same validated Pay Now
+    // workflow as clicking the checkout button.
+    cashGivenInput.addEventListener('keydown', function(event) {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        event.stopPropagation();
+        const checkoutButton = document.getElementById('checkoutBtn');
+        if (!checkoutButton || checkoutButton.disabled) return;
+        checkout();
+    });
 
     // Receipt buttons
     document.getElementById('downloadReceiptBtn').addEventListener('click', downloadReceipt);
@@ -654,48 +825,401 @@ function debounce(func, wait) {
     };
 }
 
+function isEditableTarget(target = document.activeElement) {
+    if (!target) return false;
+    return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' || target.isContentEditable;
+}
+
+function getOpenModal() {
+    return document.querySelector('.modal.show');
+}
+
+function focusProductSearch() {
+    const searchInput = document.getElementById('productSearch');
+    if (!searchInput) return;
+
+    const openModal = getOpenModal();
+    if (openModal) {
+        openModal.addEventListener('hidden.bs.modal', () => {
+            setTimeout(() => focusProductSearch(), 80);
+        }, { once: true });
+        return;
+    }
+
+    setTimeout(() => {
+        searchInput.focus({ preventScroll: true });
+        searchInput.select();
+    }, 80);
+}
+
+function focusCashGivenInput() {
+    const cashInput = document.getElementById('cashGiven');
+    const paymentMethod = document.getElementById('paymentMethod');
+
+    if (!cart.length) {
+        showNotification('Add an item before entering cash received', 'info');
+        return;
+    }
+
+    showPaymentSection();
+
+    // F10 is the cashier's direct cash workflow: select Cash when another
+    // method is active, reveal the field, and place the cursor in the amount.
+    if (paymentMethod && paymentMethod.value !== 'Cash') {
+        paymentMethod.value = 'Cash';
+        toggleCashFields('Cash');
+    }
+
+    if (cashInput) {
+        cashInput.focus({ preventScroll: true });
+        cashInput.select();
+    }
+}
+
+function focusCustomerSearch() {
+    const customerSearch = document.getElementById('customerSearch');
+    if (customerSearch) {
+        customerSearch.focus();
+        customerSearch.select();
+    }
+}
+
+function normalizeLookupValue(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function setActiveProduct(index, shouldFocus = false) {
+    if (!productResults.length) {
+        activeProductIndex = -1;
+        return;
+    }
+
+    activeProductIndex = Math.max(0, Math.min(index, productResults.length - 1));
+    document.querySelectorAll('#productGrid .product-item').forEach((item, itemIndex) => {
+        const active = itemIndex === activeProductIndex;
+        item.classList.toggle('keyboard-selected', active);
+        item.setAttribute('aria-selected', active ? 'true' : 'false');
+        if (active && shouldFocus) {
+            item.focus({ preventScroll: true });
+            item.scrollIntoView({ block: 'nearest' });
+        }
+    });
+}
+
+function addProductToCart(product, quantity = 1, unitPrice = null, useCustomerPrice = false) {
+    if (!product || !product.id) return;
+    const price = unitPrice === null || unitPrice === undefined
+        ? Number(product.price) || 0
+        : Number(unitPrice) || 0;
+    addToCart(product.id, product.name, price, product.unit_type || 'unit', quantity, useCustomerPrice, Number(product.price) || 0);
+}
+
+function addWeightedBarcodeProduct(barcode) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    fetch('/sales/api/products/barcode/parse', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ barcode })
+    })
+        .then(response => {
+            if (!response.ok) throw new Error('Product not found');
+            return response.json();
+        })
+        .then(data => {
+            if (data.type === 'weighted' && data.weight_kg > 0) {
+                const unitPrice = Number(data.total) / Number(data.weight_kg);
+                addProductToCart(data.product, data.weight_kg, unitPrice, false);
+            } else if (data.product) {
+                addProductToCart(data.product);
+            } else {
+                throw new Error('Product not found');
+            }
+        })
+        .catch(error => {
+            console.error('Barcode lookup failed:', error);
+            showNotification(`No product found for barcode/SKU "${barcode}"`, 'warning');
+        });
+}
+
+function searchAndAddProduct(query) {
+    const search = String(query || '').trim();
+    if (!search) {
+        if (activeProductIndex >= 0 && productResults[activeProductIndex]) {
+            addProductToCart(productResults[activeProductIndex]);
+        } else {
+            showNotification('Type a product name or barcode, or use the arrow keys to choose a product', 'info');
+        }
+        return;
+    }
+
+    fetch(`/sales/api/products/search?search=${encodeURIComponent(search)}`)
+        .then(response => {
+            if (!response.ok) throw new Error('Product search failed');
+            return response.json();
+        })
+        .then(results => {
+            const normalizedSearch = normalizeLookupValue(search);
+            const exact = results.find(product => [product.barcode, product.product_code]
+                .some(identifier => normalizeLookupValue(identifier) === normalizedSearch));
+            const selected = exact || (results.length === 1 ? results[0] : null);
+
+            if (selected) {
+                addProductToCart(selected);
+                return;
+            }
+            if (results.length > 1) {
+                productResults = results;
+                activeProductIndex = -1;
+                displayProducts(results);
+                showNotification('Use Arrow Up/Down to choose a product, then press Enter', 'info');
+                return;
+            }
+
+            // A weighted barcode may not match the normal product search endpoint.
+            addWeightedBarcodeProduct(search);
+        })
+        .catch(() => addWeightedBarcodeProduct(search));
+}
+
+function handleProductSearchKeydown(e) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!productResults.length) return;
+        e.preventDefault();
+        const direction = e.key === 'ArrowDown' ? 1 : -1;
+        const nextIndex = activeProductIndex < 0
+            ? (direction > 0 ? 0 : productResults.length - 1)
+            : activeProductIndex + direction;
+        setActiveProduct(nextIndex);
+        return;
+    }
+
+    if (e.key === 'Home' || e.key === 'End') {
+        if (!productResults.length) return;
+        e.preventDefault();
+        setActiveProduct(e.key === 'Home' ? 0 : productResults.length - 1);
+        return;
+    }
+
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const selected = activeProductIndex >= 0 ? productResults[activeProductIndex] : null;
+        if (selected) {
+            addProductToCart(selected);
+        } else {
+            searchAndAddProduct(e.target.value);
+        }
+    }
+}
+
+function setSelectedCartItem(index, shouldFocus = true) {
+    if (!cart.length) {
+        selectedCartIndex = -1;
+        return;
+    }
+
+    selectedCartIndex = Math.max(0, Math.min(index, cart.length - 1));
+    document.querySelectorAll('#cartItems .cart-item').forEach((row, rowIndex) => {
+        const selected = rowIndex === selectedCartIndex;
+        row.classList.toggle('keyboard-selected', selected);
+        row.setAttribute('aria-selected', selected ? 'true' : 'false');
+        if (selected && shouldFocus) {
+            row.focus({ preventScroll: true });
+            row.scrollIntoView({ block: 'nearest' });
+        }
+    });
+}
+
+function moveSelectedCartItem(direction) {
+    if (!cart.length) return;
+    const startIndex = selectedCartIndex < 0 ? (direction > 0 ? 0 : cart.length - 1) : selectedCartIndex;
+    setSelectedCartItem(startIndex + direction);
+}
+
+function openCustomerModal() {
+    const modalElement = document.getElementById('customerModal');
+    if (!modalElement) return;
+    modalElement.addEventListener('shown.bs.modal', focusCustomerSearch, { once: true });
+    modalElement.addEventListener('hidden.bs.modal', focusProductSearch, { once: true });
+    loadCustomers('');
+    new bootstrap.Modal(modalElement).show();
+}
+
+function openHeldBillsModal() {
+    const modalElement = document.getElementById('heldBillsModal');
+    if (!modalElement) return;
+    modalElement.addEventListener('hidden.bs.modal', focusProductSearch, { once: true });
+    loadHeldBills();
+    new bootstrap.Modal(modalElement).show();
+}
+
+function handleCustomerSearchKeydown(e) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!customerResults.length) return;
+        e.preventDefault();
+        const direction = e.key === 'ArrowDown' ? 1 : -1;
+        const nextIndex = selectedCustomerIndex < 0
+            ? (direction > 0 ? 0 : customerResults.length - 1)
+            : selectedCustomerIndex + direction;
+        selectedCustomerIndex = Math.max(0, Math.min(nextIndex, customerResults.length - 1));
+        updateCustomerHighlight();
+        return;
+    }
+
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const customer = customerResults[selectedCustomerIndex] ||
+            (customerResults.length === 1 ? customerResults[0] : null);
+        if (customer) {
+            selectCustomer(customer.id, customer.name, customer.phone, customer.email);
+        } else if (customerResults.length > 1) {
+            showNotification('Use Arrow Up/Down to choose a customer, then press Enter', 'info');
+        }
+    }
+}
+
+function updateCustomerHighlight() {
+    document.querySelectorAll('#customerList tr').forEach((row, rowIndex) => {
+        const selected = rowIndex === selectedCustomerIndex;
+        row.classList.toggle('keyboard-selected', selected);
+        row.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+}
+
 function setupKeyboardShortcuts() {
+    // Capture sale shortcuts before the shared navigation handler can treat
+    // modified keys such as Alt+H or Ctrl+N as page navigation.
     document.addEventListener('keydown', function(e) {
-        // Only handle shortcuts when not in an input field
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        const openModal = getOpenModal();
+        if (openModal) {
+            // Dynamic modals such as notes and admin override use their own
+            // Enter handlers. Escape should still close non-static dialogs.
+            if (e.key === 'Escape') {
+                const modalInstance = bootstrap.Modal.getInstance(openModal);
+                if (modalInstance) {
+                    e.preventDefault();
+                    openModal.addEventListener('hidden.bs.modal', focusProductSearch, { once: true });
+                    modalInstance.hide();
+                }
+            }
             return;
         }
 
-        // F1 - Focus product search
-        if (e.key === 'F1') {
+        const target = e.target;
+        const isEditable = isEditableTarget(target);
+        const cartRow = target.closest ? target.closest('.cart-item') : null;
+        const productItem = target.closest ? target.closest('.product-item') : null;
+
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'enter') {
             e.preventDefault();
-            document.getElementById('productSearch').focus();
+            checkout();
+            return;
         }
-        // F2 - Focus cash given
-        else if (e.key === 'F2') {
-            e.preventDefault();
-            document.getElementById('cashGiven').focus();
-        }
-        // F3 - Complete sale
-        else if (e.key === 'F3') {
-            e.preventDefault();
-            if (!document.getElementById('checkoutBtn').disabled) {
-                checkout();
-            }
-        }
-        // F4 - Hold sale
-        else if (e.key === 'F4') {
-            e.preventDefault();
-            holdSale();
-        }
-        // F5 - Cancel sale
-        else if (e.key === 'F5') {
+
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
             e.preventDefault();
             cancelSale();
+            return;
         }
-        // Escape - Clear cart
-        else if (e.key === 'Escape') {
+
+        if (e.key === 'Escape') {
             e.preventDefault();
-            if (cart.length > 0 && confirm('Cancel the current sale?')) {
-                resetSale();
+            cancelSale();
+            return;
+        }
+
+        // Function-key shortcuts work even when the cashier is in a field.
+        if (e.key === 'F1' || e.key === 'F2' || (e.key === '/' && !isEditable && !e.ctrlKey && !e.metaKey)) {
+            e.preventDefault();
+            focusProductSearch();
+            return;
+        }
+        if (e.key === 'F3') {
+            e.preventDefault();
+            openCustomerModal();
+            return;
+        }
+        if (e.key === 'F4' || e.key === 'F9') {
+            e.preventDefault();
+            holdSale();
+            return;
+        }
+        if (e.key === 'F5') {
+            e.preventDefault();
+            cancelSale();
+            return;
+        }
+        if (e.key === 'F6') {
+            e.preventDefault();
+            document.getElementById('discountInput')?.focus();
+            return;
+        }
+        if (e.key === 'F7') {
+            e.preventDefault();
+            if (cart.length) {
+                showPaymentSection();
+                document.getElementById('paymentMethod')?.focus();
+            } else {
+                showNotification('Add an item before choosing payment', 'info');
+            }
+            return;
+        }
+        if (e.key === 'F8') {
+            e.preventDefault();
+            checkout();
+            return;
+        }
+        if (e.key === 'F10') {
+            e.preventDefault();
+            focusCashGivenInput();
+            return;
+        }
+        if (e.altKey && e.key.toLowerCase() === 'h') {
+            e.preventDefault();
+            document.getElementById('heldBillsBtn')?.click();
+            return;
+        }
+
+        // Arrow navigation on a product card or the page body selects cart rows.
+        if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !isEditable) {
+            e.preventDefault();
+            if (productItem) {
+                const direction = e.key === 'ArrowDown' ? 1 : -1;
+                setActiveProduct((activeProductIndex < 0 ? 0 : activeProductIndex) + direction, true);
+            } else {
+                moveSelectedCartItem(e.key === 'ArrowDown' ? 1 : -1);
+            }
+            return;
+        }
+
+        if ((e.key === '+' || (e.key === '=' && e.shiftKey)) && !isEditable && cart.length) {
+            e.preventDefault();
+            const index = selectedCartIndex >= 0 ? selectedCartIndex : 0;
+            changeQuantity(index, 1);
+            setSelectedCartItem(Math.min(index, cart.length - 1), false);
+            return;
+        }
+        if (e.key === '-' && !isEditable && cart.length) {
+            e.preventDefault();
+            const index = selectedCartIndex >= 0 ? selectedCartIndex : 0;
+            changeQuantity(index, -1);
+            if (cart.length) setSelectedCartItem(Math.min(index, cart.length - 1), false);
+            return;
+        }
+        if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditable) {
+            const index = selectedCartIndex >= 0
+                ? selectedCartIndex
+                : (cartRow ? Number(cartRow.dataset.cartIndex) : -1);
+            if (index >= 0) {
+                e.preventDefault();
+                removeFromCart(index);
+                if (cart.length) setSelectedCartItem(Math.min(index, cart.length - 1), false);
             }
         }
-    });
+    }, true);
 }
 
 function loadTaxRate() {
@@ -852,6 +1376,16 @@ function loadCategories() {
         });
 }
 
+function parseDisplayedNumber(value) {
+    const normalized = String(value ?? '').replace(/[^0-9.-]/g, '');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatMoney(value) {
+    return Number(value || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
 function loadProducts(search = '', category = '') {
     let url = '/sales/api/products/search';
     const params = new URLSearchParams();
@@ -880,7 +1414,9 @@ function loadProducts(search = '', category = '') {
         .then(products => {
             console.log('Products loaded:', products);
             console.log('Products count:', products.length);
-            displayProducts(products);
+            productResults = Array.isArray(products) ? products : [];
+            activeProductIndex = -1;
+            displayProducts(productResults);
         })
         .catch(error => {
             console.error('Error loading products:', error);
@@ -891,13 +1427,15 @@ function loadProducts(search = '', category = '') {
 function displayProducts(products) {
     const grid = document.getElementById('productGrid');
     grid.innerHTML = '';
+    productResults = Array.isArray(products) ? products : [];
 
-    if (products.length === 0) {
+    if (productResults.length === 0) {
+        activeProductIndex = -1;
         grid.innerHTML = '<div class="col-12 text-center text-muted py-4">No products found</div>';
         return;
     }
 
-    products.forEach(product => {
+    productResults.forEach((product, productIndex) => {
         const imageHtml = product.image_path 
             ? `<img src="${product.image_path}" alt="${product.name}" class="product-img">`
             : `<div class="product-img-placeholder"><i class="fas fa-box"></i></div>`;
@@ -906,36 +1444,126 @@ function displayProducts(products) {
 
         const item = document.createElement('div');
         item.className = `product-item ${stockClass}`;
-        item.setAttribute('role', 'button');
+        item.setAttribute('role', 'option');
         item.setAttribute('tabindex', '0');
-        // If customer-specific price exists, use it for display and add-to-cart
-        const displayPrice = (window.customerLastPrices && window.customerLastPrices[product.id] !== undefined)
-            ? window.customerLastPrices[product.id]
-            : product.price;
-        item.onclick = function() { addToCart(product.id, product.name.replace(/'/g, "\\'"), displayPrice, product.unit_type); };
-        item.onkeydown = function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } };
-
+        item.setAttribute('aria-selected', 'false');
+        const currentPrice = Number(product.price) || 0;
+        item.setAttribute('aria-label', `${product.name}, ${currencySymbol} ${formatMoney(currentPrice)}, stock ${product.stock}`);
+        item.dataset.productIndex = productIndex;
+        const hasPreviousCustomerPrice = Boolean(
+            window.customerLastPrices && window.customerLastPrices[product.id] !== undefined
+        );
+        item.onclick = function() {
+            // Existing customers start at their previous price; the checkout line
+            // still exposes the live Current price as an explicit alternative.
+            addProductToCart(product, 1, currentPrice, hasPreviousCustomerPrice);
+        };
+        item.onkeydown = function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                addProductToCart(product, 1, currentPrice, hasPreviousCustomerPrice);
+            }
+        };
         item.innerHTML = `
             <div class="product-image">
                 ${imageHtml}
             </div>
             <div class="product-info">
                 <div class="product-name">${product.name}</div>
-                <div class="product-price">${currencySymbol} ${displayPrice.toFixed(2)}</div>
+                <div class="product-price">${currencySymbol} ${formatMoney(currentPrice)}</div>
                 <div class="product-stock">${product.stock} ${product.unit_type}</div>
             </div>
         `;
-
         grid.appendChild(item);
     });
 }
 
-function addToCart(productId, name, price, unitType) {
-    // Find the product to check current stock
+function addToCart(productId, name, price, unitType, quantity = 1, useCustomerPrice = false, currentCatalogPrice = null) {
+    const requestedQuantity = Number(quantity);
+    if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) {
+        showNotification('Invalid product quantity', 'warning');
+        return;
+    }
+
+    const finishAdd = (stockProduct = null) => {
+        const existingItem = cart.find(item => item.product_id === productId);
+        const currentQuantity = existingItem ? Number(existingItem.quantity) : 0;
+        const availableStock = stockProduct ? Number(stockProduct.stock) : null;
+
+        if (availableStock !== null && Number.isFinite(availableStock) &&
+            currentQuantity + requestedQuantity > availableStock) {
+            showNotification(`Insufficient stock for ${name}. Available: ${availableStock}`, 'warning');
+            return;
+        }
+
+        const catalogPrice = currentCatalogPrice !== null && currentCatalogPrice !== undefined
+            ? Number(currentCatalogPrice) || 0
+            : Number(price) || 0;
+        const previousCustomerPrice = useCustomerPrice && window.customerLastPrices && window.customerLastPrices[productId] !== undefined
+            ? Number(window.customerLastPrices[productId])
+            : null;
+        const canRepresentPreviousAsDiscount = previousCustomerPrice !== null && catalogPrice > 0 && previousCustomerPrice <= catalogPrice;
+        const automaticPreviousDiscount = canRepresentPreviousAsDiscount
+            ? Number(Math.max(0, Math.min(100, ((catalogPrice - previousCustomerPrice) / catalogPrice) * 100)).toFixed(2))
+            : 0;
+        // Keep the live catalog price as the base and expose the old customer
+        // price through the visible percentage discount field.
+        if (canRepresentPreviousAsDiscount) price = catalogPrice;
+        else if (previousCustomerPrice !== null) price = previousCustomerPrice;
+        if (existingItem) {
+            existingItem.quantity = currentQuantity + requestedQuantity;
+            existingItem.price = Number(price) || 0;
+            existingItem.current_price = catalogPrice;
+            existingItem.price_source = previousCustomerPrice !== null ? 'previous' : 'current';
+            if (previousCustomerPrice !== null && canRepresentPreviousAsDiscount) {
+                existingItem.discount_type = 'percent';
+                existingItem.discount_value = automaticPreviousDiscount;
+                existingItem.auto_customer_price_discount = true;
+            } else if (previousCustomerPrice === null) {
+                existingItem.discount_type = 'amount';
+                existingItem.discount_value = 0;
+                existingItem.auto_customer_price_discount = false;
+            }
+            if (enableTax && showTaxInSales) {
+                existingItem.tax = (canRepresentPreviousAsDiscount ? previousCustomerPrice : existingItem.price) * (taxRate / 100);
+            }
+        } else {
+            const effectivePrice = canRepresentPreviousAsDiscount ? previousCustomerPrice : price;
+            let itemTax = 0;
+            if (enableTax && showTaxInSales) itemTax = effectivePrice * (taxRate / 100);
+            cart.push({
+                product_id: productId,
+                name: name,
+                price: Number(price) || 0,
+                current_price: catalogPrice,
+                price_source: previousCustomerPrice !== null ? 'previous' : 'current',
+                quantity: requestedQuantity,
+                unit_type: unitType,
+                discount_value: canRepresentPreviousAsDiscount ? automaticPreviousDiscount : 0,
+                discount_type: canRepresentPreviousAsDiscount ? 'percent' : 'amount',
+                auto_customer_price_discount: canRepresentPreviousAsDiscount,
+                tax: itemTax
+            });
+        }
+        selectedCartIndex = cart.findIndex(item => item.product_id === productId);
+        updateCartDisplay();
+        showPaymentSection();
+        setupPointsListener();
+
+        // Prepare immediately for the next item or barcode scan.
+        const searchInput = document.getElementById('productSearch');
+        const category = document.getElementById('categoryFilter')?.value || '';
+        if (searchInput) searchInput.value = '';
+        loadProducts('', category);
+        focusProductSearch();
+    };
+
+    // Verify stock from the server, but keep the existing fallback behavior if
+    // a transient search request fails.
     fetch(`/sales/api/products/search?search=${encodeURIComponent(name)}`)
         .then(response => {
-            if (response.ok) return response.json();
-            throw new Error('Cannot verify product stock');
+            if (!response.ok) throw new Error('Cannot verify product stock');
+            return response.json();
         })
         .then(products => {
             const product = products.find(p => p.id === productId);
@@ -943,99 +1571,21 @@ function addToCart(productId, name, price, unitType) {
                 showNotification('Product not found', 'danger');
                 return;
             }
-            
-            // If customer has last-used prices, override the displayed price for this product
-            if (window.customerLastPrices && window.customerLastPrices[productId] !== undefined) {
-                price = window.customerLastPrices[productId];
-            }
-
-            const existingItem = cart.find(item => item.product_id === productId);
-            let cartQty = existingItem ? existingItem.quantity : 0;
-
-            if (product.stock <= cartQty) {
-                showNotification(`Insufficient stock for ${name}. Available: ${product.stock}`, 'warning');
-                return;
-            }
-
-            if (existingItem) {
-                existingItem.quantity += 1;
-            } else {
-            // Calculate tax for this item (only if tax is enabled)
-            let itemTax = 0;
-            if (enableTax && showTaxInSales) {
-                itemTax = price * (taxRate / 100);
-            }
-            cart.push({
-                    product_id: productId,
-                    name: name,
-                    price: price,
-                    quantity: 1,
-                    unit_type: unitType,
-                    discount_value: 0,
-                    discount_type: 'amount', // or 'percent'
-                    tax: itemTax
-                });
-            }
-
-            updateCartDisplay();
-            showPaymentSection();
-    setupPointsListener();
-            // Clear search and reload all products for fast cashier workflow
-            document.getElementById('productSearch').value = '';
-            loadProducts();
-            
-            // Focus on search bar for next item - use setTimeout for mobile keyboard
-            setTimeout(function() {
-                var searchInput = document.getElementById('productSearch');
-                searchInput.focus();
-                // Select all text to help trigger keyboard on mobile
-                searchInput.setSelectionRange(0, searchInput.value.length);
-            }, 100);
+            finishAdd(product);
         })
         .catch(error => {
             console.error('Error checking stock:', error);
-            // Fallback - add to cart anyway but it will fail at checkout
-            const existingItem = cart.find(item => item.product_id === productId);
-            if (existingItem) {
-                existingItem.quantity += 1;
-            } else {
-            // Calculate tax for this item (only if tax is enabled)
-            let itemTax = 0;
-            if (enableTax && showTaxInSales) {
-                itemTax = price * (taxRate / 100);
-            }
-            cart.push({
-                    product_id: productId,
-                    name: name,
-                    price: price,
-                    quantity: 1,
-                    unit_type: unitType,
-                    discount_value: 0,
-                    discount_type: 'amount', // or 'percent'
-                    tax: itemTax
-                });
-            }
-            updateCartDisplay();
-            showPaymentSection();
-            
-            // Clear search and reload all products for fast cashier workflow
-            document.getElementById('productSearch').value = '';
-            loadProducts();
-            
-            // Focus on search bar for next item - use setTimeout for mobile keyboard
-            setTimeout(function() {
-                var searchInput = document.getElementById('productSearch');
-                searchInput.focus();
-                // Select all text to help trigger keyboard on mobile
-                searchInput.setSelectionRange(0, searchInput.value.length);
-            }, 100);
+            finishAdd();
         });
 }
 
 function updateCartDisplay() {
+    persistCartState();
+    updateCartSummary();
     const cartItems = document.getElementById('cartItems');
     
     if (cart.length === 0) {
+        selectedCartIndex = -1;
         cartItems.innerHTML = `
             <div class="empty-cart text-center text-muted py-5">
                 <i class="fas fa-shopping-basket fa-3x mb-3"></i>
@@ -1053,6 +1603,15 @@ function updateCartDisplay() {
     cart.forEach((item, index) => {
         // Calculate per-item totals (do not include tax here to avoid double-counting)
         const itemPriceTotal = item.price * item.quantity;
+        const previousCustomerPrice = Number(window.customerLastPrices?.[item.product_id]);
+        const liveCurrentPrice = Number(item.current_price ?? item.price) || 0;
+        const hasPreviousCustomerPrice = currentCustomer && Number.isFinite(previousCustomerPrice);
+        const priceDifferencePercentage = hasPreviousCustomerPrice && liveCurrentPrice > 0
+            ? ((liveCurrentPrice - previousCustomerPrice) / liveCurrentPrice) * 100
+            : 0;
+        const priceDifferenceLabel = priceDifferencePercentage > 0.005
+            ? `${Math.abs(priceDifferencePercentage).toFixed(2)}% lower`
+            : (priceDifferencePercentage < -0.005 ? `${Math.abs(priceDifferencePercentage).toFixed(2)}% higher` : 'same price');
         const discountValue = parseFloat(item.discount_value) || 0;
         const discountType = item.discount_type || 'amount';
         // Compute discount amount depending on type
@@ -1061,11 +1620,15 @@ function updateCartDisplay() {
         subtotal += itemTotal;
 
         html += `
-            <div class="cart-item">
+            <div class="cart-item ${index === selectedCartIndex ? 'keyboard-selected' : ''}"
+                 role="option" aria-selected="${index === selectedCartIndex ? 'true' : 'false'}"
+                 tabindex="0" data-cart-index="${index}"
+                 onclick="setSelectedCartItem(${index}, false)"
+                 onfocus="setSelectedCartItem(${index}, false)">
                 <div class="cart-item-top">
                     <div class="cart-item-name">${item.name}</div>
                     <div class="cart-item-top-right">
-                        <div class="cart-item-total-top">${currencySymbol} ${itemTotal.toFixed(2)}</div>
+                        <div class="cart-item-total-top">${currencySymbol} ${itemTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
                         <button class="btn-remove" onclick="removeFromCart(${index})">
                             <i class="fas fa-times"></i>
                         </button>
@@ -1076,16 +1639,23 @@ function updateCartDisplay() {
                         <div class="cart-item-price">
                             <label class="small d-block mb-1">Price</label>
                             <div class="d-flex align-items-center gap-2">
-                                <input type="number" class="item-price form-control form-control-sm" value="${item.price.toFixed(2)}" onchange="setItemPrice(${index}, this.value)" step="0.01" min="0" style="width: 100px;">
-                                <button type="button" class="btn btn-outline-secondary btn-sm cust-price-btn" onclick="useCustomerPrice(${index})">Cust Price</button>
+                                <input type="number" class="item-price form-control form-control-sm" value="${Number(item.price || 0).toFixed(2)}" onchange="setItemPrice(${index}, this.value)" step="0.01" min="0" style="width: 100px;">
+                                ${currentCustomer && window.customerLastPrices && window.customerLastPrices[item.product_id] !== undefined ? `
+                                <div class="checkout-price-choice mt-2" role="group" aria-label="Choose customer price for ${item.name}">
+                                    <span class="small text-muted d-block mb-1">Customer price options</span>
+                                    <button type="button" class="btn btn-outline-primary btn-sm me-1" onclick="setCustomerCartPrice(${index}, 'previous')">Previous ${currencySymbol} ${formatMoney(previousCustomerPrice)} <span class="price-difference">(${priceDifferenceLabel})</span></button>
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="setCustomerCartPrice(${index}, 'current')">Current ${currencySymbol} ${formatMoney(liveCurrentPrice)}</button>
+                                </div>` : ''}
                             </div>
                         </div>
                     </div>
                     <div class="cart-item-actions-row">
                         <div class="cart-item-controls">
                             <button class="btn-qty" onclick="changeQuantity(${index}, -1)">-</button>
-                            <input type="number" class="qty-input" value="${item.quantity}" 
-                                   onchange="setQuantity(${index}, this.value)" min="0.01" step="0.01">
+                            <input type="number" class="qty-input" value="${item.quantity}"
+                                   onchange="setQuantity(${index}, this.value)"
+                                   onkeydown="if (event.key === 'Enter') { event.preventDefault(); setQuantity(${index}, this.value); this.blur(); }"
+                                   min="0.01" step="0.01" title="Quantity; press Enter to apply">
                             <button class="btn-qty" onclick="changeQuantity(${index}, 1)">+</button>
                         </div>
                         <div class="cart-item-discount d-flex align-items-center">
@@ -1109,6 +1679,9 @@ function updateCartDisplay() {
 
     cartItems.innerHTML = html;
     document.getElementById('checkoutBtn').disabled = false;
+    if (selectedCartIndex >= 0) {
+        setSelectedCartItem(Math.min(selectedCartIndex, cart.length - 1), false);
+    }
     
     // Calculate totals - check showTaxInSales setting
     const discount = parseFloat(document.getElementById('discountInput').value) || 0;
@@ -1130,24 +1703,92 @@ function updateCartDisplay() {
     // Update points discount display
     const pointsDiscountEl = document.getElementById('pointsDiscountValue');
     if (pointsDiscountEl) {
-        pointsDiscountEl.textContent = currencySymbol + ' ' + pointsDiscount.toFixed(2);
+        pointsDiscountEl.textContent = currencySymbol + ' ' + pointsDiscount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
     
     updateTotals(subtotal, totalDiscount, tax, total);
 }
 
+function updateCartSummary() {
+    const lineCount = cart.length;
+    const unitCount = cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    const countEl = document.getElementById('cartItemCount');
+    const unitsEl = document.getElementById('cartUnitCount');
+    const reviewBtn = document.getElementById('reviewBillBtn');
+    if (countEl) countEl.textContent = `${lineCount} ${lineCount === 1 ? 'item' : 'items'}`;
+    if (unitsEl) unitsEl.textContent = lineCount ? `(${unitCount.toLocaleString('en-US', {maximumFractionDigits: 2})} total units)` : '';
+    if (reviewBtn) reviewBtn.disabled = lineCount === 0;
+}
+
+function adjustBillingReviewQuantity(index, delta) {
+    if (!cart[index]) return;
+    changeQuantity(index, delta);
+    if (cart.length) openBillingReview();
+}
+function removeBillingReviewItem(index) {
+    if (!cart[index]) return;
+    removeFromCart(index);
+    const modal = document.getElementById('billingReviewModal');
+    if (cart.length) {
+        openBillingReview();
+    } else if (modal && window.bootstrap) {
+        bootstrap.Modal.getOrCreateInstance(modal).hide();
+    }
+}
+function openBillingReview() {
+    if (!cart.length) return;
+    const tbody = document.getElementById('billingReviewItems');
+    const meta = document.getElementById('billingReviewMeta');
+    const totalEl = document.getElementById('billingReviewTotal');
+    if (!tbody) return;
+    let totalUnits = 0;
+    tbody.innerHTML = cart.map((item, index) => {
+        const quantity = Number(item.quantity) || 0;
+        const price = Number(item.price) || 0;
+        const gross = price * quantity;
+        const discountValue = Number(item.discount_value) || 0;
+        const discountType = item.discount_type || 'amount';
+        const discount = discountType === 'percent' ? gross * discountValue / 100 : discountValue;
+        const lineTotal = Math.max(0, gross - discount);
+        totalUnits += quantity;
+        return `<tr>
+            <td class="text-muted">${index + 1}</td>
+            <td><div class="fw-semibold billing-review-product">${item.name || 'Unnamed product'}</div>${item.barcode ? `<small class="text-muted">${item.barcode}</small>` : ''}</td>
+            <td class="text-end">
+                <div class="billing-review-qty-controls">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="adjustBillingReviewQuantity(${index}, -1)" aria-label="Decrease quantity">−</button>
+                    <span class="billing-review-qty">${quantity.toLocaleString('en-US', {maximumFractionDigits: 2})}</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="adjustBillingReviewQuantity(${index}, 1)" aria-label="Increase quantity">+</button>
+                </div>
+            </td>
+            <td class="text-end">${currencySymbol} ${price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="text-end">${discount ? `${currencySymbol} ${discount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${discountType === 'percent' ? ` (${discountValue}%)` : ''}` : '-'}</td>
+            <td class="text-end fw-semibold">${currencySymbol} ${lineTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="text-end"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeBillingReviewItem(${index})" aria-label="Remove ${item.name || 'product'}"><i class="fas fa-trash-alt"></i><span class="d-none d-md-inline ms-1">Remove</span></button></td>
+        </tr>`;
+    }).join('');
+    if (meta) meta.textContent = `${cart.length} ${cart.length === 1 ? 'line' : 'lines'} • ${totalUnits.toLocaleString('en-US', {maximumFractionDigits: 2})} total units • ${currentCustomer ? currentCustomer.name || 'Selected customer' : 'Walk-in customer'}`;
+    if (totalEl) totalEl.textContent = `Total: ${document.getElementById('total')?.textContent || `${currencySymbol} 0.00`}`;
+    const modal = document.getElementById('billingReviewModal');
+    if (modal && window.bootstrap) bootstrap.Modal.getOrCreateInstance(modal).show();
+}
+
 function updateTotals(subtotal, discount, tax, total = 0) {
-    console.log('updateTotals() called with:', {subtotal, discount, tax, total, currencySymbol});
+    currentPayableTotal = Math.max(0, Number(total) || 0);
+    console.log('updateTotals() called with:', {subtotal, discount, tax, total: currentPayableTotal, currencySymbol});
     
     const subtotalEl = document.getElementById('subtotal');
     const taxEl = document.getElementById('tax');
     const totalEl = document.getElementById('total');
     
-    const subtotalText = currencySymbol + ' ' + subtotal.toFixed(2);
-    const taxText = currencySymbol + ' ' + tax.toFixed(2);
-    const totalText = currencySymbol + ' ' + (total || 0).toFixed(2);
+    const subtotalText = currencySymbol + ' ' + subtotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const taxText = currencySymbol + ' ' + tax.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const totalText = currencySymbol + ' ' + (total || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    const stickySubtotalEl = document.getElementById('stickySubtotal');
+    const stickyDiscountEl = document.getElementById('stickyDiscount');
+    const stickyTotalEl = document.getElementById('stickyTotal');
     
-    console.log('Setting values:', {subtotalText, taxText, totalText});
+    console.log('Setting values:', {subtotalText, discount, taxText, totalText});
     
     if (subtotalEl) {
         subtotalEl.textContent = subtotalText;
@@ -1161,17 +1802,28 @@ function updateTotals(subtotal, discount, tax, total = 0) {
         totalEl.textContent = totalText;
         console.log('total element updated');
     }
+    if (stickySubtotalEl) stickySubtotalEl.textContent = subtotalText;
+    if (stickyDiscountEl) stickyDiscountEl.textContent = currencySymbol + ' ' + Number(discount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    if (stickyTotalEl) stickyTotalEl.textContent = totalText;
+    // Keep cash change synchronized when the cart, discount, tax, or customer changes.
+    if (document.getElementById('paymentMethod')?.value === 'Cash') calculateChange();
 }
 
 function changeQuantity(index, delta) {
+    if (!cart[index]) return;
+    selectedCartIndex = index;
     cart[index].quantity += delta;
     if (cart[index].quantity <= 0) {
         cart.splice(index, 1);
+        selectedCartIndex = Math.min(index, cart.length - 1);
     }
     updateCartDisplay();
+    showPaymentSection();
 }
 
 function setQuantity(index, quantity) {
+    if (!cart[index]) return;
+    selectedCartIndex = index;
     const qty = parseFloat(quantity);
     if (qty <= 0 || isNaN(qty)) {
         removeFromCart(index);
@@ -1182,9 +1834,12 @@ function setQuantity(index, quantity) {
 }
 
 function removeFromCart(index) {
+    if (!cart[index]) return;
     cart.splice(index, 1);
+    selectedCartIndex = Math.min(index, cart.length - 1);
     updateCartDisplay();
     showPaymentSection();
+    if (!cart.length) focusProductSearch();
 }
 
 function setItemDiscount(index, value) {
@@ -1205,6 +1860,38 @@ function setItemPrice(index, value) {
     cart[index].price = price;
     if (enableTax && showTaxInSales) {
         cart[index].tax = price * (taxRate / 100);
+    }
+    updateCartDisplay();
+}
+
+function setCustomerCartPrice(index, source) {
+    const item = cart[index];
+    if (!item) return;
+    const currentPrice = Number(item.current_price ?? item.price) || 0;
+    const previousPrice = window.customerLastPrices && window.customerLastPrices[item.product_id] !== undefined
+        ? Number(window.customerLastPrices[item.product_id])
+        : null;
+
+    if (source === 'previous' && previousPrice !== null && currentPrice > 0) {
+        // Keep the live catalog price as the accounting base and represent the
+        // customer's old price as an automatic percentage discount. This keeps
+        // the displayed discount input useful without discounting the old price twice.
+        const percentage = Math.max(0, Math.min(100, ((currentPrice - previousPrice) / currentPrice) * 100));
+        item.price = currentPrice;
+        item.price_source = 'previous';
+        item.discount_type = 'percent';
+        item.discount_value = Number(percentage.toFixed(2));
+        item.auto_customer_price_discount = true;
+        if (enableTax && showTaxInSales) item.tax = previousPrice * (taxRate / 100);
+    } else {
+        item.price = currentPrice;
+        item.price_source = 'current';
+        if (item.auto_customer_price_discount) {
+            item.discount_type = 'amount';
+            item.discount_value = 0;
+            item.auto_customer_price_discount = false;
+        }
+        if (enableTax && showTaxInSales) item.tax = currentPrice * (taxRate / 100);
     }
     updateCartDisplay();
 }
@@ -1251,8 +1938,10 @@ function showPaymentSection() {
     const paymentSection = document.getElementById('paymentSection');
     if (cart.length > 0) {
         paymentSection.style.display = 'block';
+        document.body.classList.add('payment-bar-open');
     } else {
         paymentSection.style.display = 'none';
+        document.body.classList.remove('payment-bar-open');
     }
 }
 
@@ -1292,57 +1981,109 @@ function toggleCashFields(paymentMethod) {
 
 function calculateChange() {
     const paymentMethod = document.getElementById('paymentMethod').value;
-    if (paymentMethod !== 'Cash') return;
+    const changeGroup = document.getElementById('changeGroup');
+    const changeAmount = document.getElementById('changeAmount');
+    if (paymentMethod !== 'Cash' || !changeGroup || !changeAmount) return;
 
-    const cashGiven = parseFloat(document.getElementById('cashGiven').value) || 0;
-    const total = parseFloat(document.getElementById('total').textContent.replace(currencySymbol, '')) || 0;
+    const cashGiven = Math.max(0, Number.parseFloat(document.getElementById('cashGiven').value) || 0);
+    const total = Math.max(0, Number(currentPayableTotal) || 0);
+    const change = Math.max(0, cashGiven - total);
 
-    if (cashGiven >= total) {
-        const change = cashGiven - total;
-        document.getElementById('changeAmount').textContent = change.toFixed(2);
-        document.getElementById('changeGroup').style.display = 'block';
-    } else {
-        document.getElementById('changeGroup').style.display = 'none';
-    }
+    // Never display the full cash amount as change. Change is only the excess.
+    changeAmount.textContent = change.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    changeGroup.style.display = cashGiven >= total && total > 0 ? 'block' : 'none';
 }
 
-function loadCustomers() {
-    fetch('/customers/api/customers')
-        .then(response => response.json())
-        .then(data => {
-            const customers = data.customers || data;
-            displayCustomers(customers);
+function loadCustomers(search = '') {
+    const url = search
+        ? `/sales/api/customers/search?search=${encodeURIComponent(search)}`
+        : '/sales/api/customers/search?search=';
+
+    fetch(url)
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to load customers');
+            return response.json();
         })
-        .catch(error => console.error('Error loading customers:', error));
+        .then(data => {
+            customerResults = Array.isArray(data) ? data : (data.customers || []);
+            selectedCustomerIndex = -1;
+            displayCustomers(customerResults);
+        })
+        .catch(error => {
+            console.error('Error loading customers:', error);
+            customerResults = [];
+            selectedCustomerIndex = -1;
+            displayCustomers([]);
+            showNotification('Failed to load customers', 'danger');
+        });
 }
 
 function displayCustomers(customers) {
     const customerList = document.getElementById('customerList');
     customerList.innerHTML = '';
 
-    customers.forEach(customer => {
+    if (!customers.length) {
+        const emptyRow = document.createElement('tr');
+        const emptyCell = document.createElement('td');
+        emptyCell.colSpan = 5;
+        emptyCell.className = 'text-center text-muted py-3';
+        emptyCell.textContent = 'No customers found';
+        emptyRow.appendChild(emptyCell);
+        customerList.appendChild(emptyRow);
+        return;
+    }
+
+    customers.forEach((customer, customerIndex) => {
         const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${customer.name}</td>
-            <td>${customer.phone || ''}</td>
-            <td>${customer.email || ''}</td>
-            <td>${customer.loyalty_points || 0}</td>
-            <td>
-                <button class="btn btn-primary btn-sm" onclick="selectCustomer(${customer.id}, '${customer.name.replace(/'/g, "\\'")}')">
-                    Select
-                </button>
-            </td>
-        `;
+        row.setAttribute('role', 'option');
+        row.setAttribute('tabindex', '0');
+        row.setAttribute('aria-selected', 'false');
+        row.dataset.customerIndex = customerIndex;
+
+        const values = [
+            customer.name || '',
+            customer.phone || '',
+            customer.email || '',
+            customer.loyalty_points || 0
+        ];
+        values.forEach(value => {
+            const cell = document.createElement('td');
+            cell.textContent = value;
+            row.appendChild(cell);
+        });
+
+        const actionCell = document.createElement('td');
+        const selectButton = document.createElement('button');
+        selectButton.type = 'button';
+        selectButton.className = 'btn btn-primary btn-sm';
+        selectButton.textContent = 'Select';
+        selectButton.addEventListener('click', event => {
+            event.stopPropagation();
+            selectCustomer(customer.id, customer.name, customer.phone, customer.email);
+        });
+        actionCell.appendChild(selectButton);
+        row.appendChild(actionCell);
+
+        row.addEventListener('click', () => selectCustomer(customer.id, customer.name));
+        row.addEventListener('focus', () => {
+            selectedCustomerIndex = customerIndex;
+            updateCustomerHighlight();
+        });
         customerList.appendChild(row);
     });
 }
 
-function selectCustomer(id, name) {
-    currentCustomer = { id, name };
+
+function selectCustomer(id, name, phone = '', email = '') {
+    currentCustomer = { id, name, phone: phone || '', email: email || '' };
     document.getElementById('customerName').textContent = name;
-    const customerModalInstance = bootstrap.Modal.getInstance(document.getElementById('customerModal'));
+    const customerModalElement = document.getElementById('customerModal');
+    const customerModalInstance = bootstrap.Modal.getInstance(customerModalElement);
     if (customerModalInstance) {
+        customerModalElement.addEventListener('hidden.bs.modal', focusProductSearch, { once: true });
         customerModalInstance.hide();
+    } else {
+        focusProductSearch();
     }
     // Load customer credit info when customer is selected
     loadCustomerCreditInfo(id);
@@ -1356,17 +2097,11 @@ function selectCustomer(id, name) {
                 res.prices.forEach(p => {
                     window.customerLastPrices[p.product_id] = p.price;
                 });
-
-                // Update existing cart items to use customer-specific prices where applicable
-                let changed = false;
-                cart.forEach(item => {
-                    if (window.customerLastPrices[item.product_id] !== undefined) {
-                        item.price = window.customerLastPrices[item.product_id];
-                        changed = true;
-                    }
-                });
-                if (changed) updateCartDisplay();
             }
+            // Show old/current choices directly in the checkout cart without changing
+            // the price of an existing line until the cashier makes a choice.
+            updateCartDisplay();
+            displayProducts(productResults);
         })
         .catch(err => {
             console.error('Failed to load customer last prices:', err);
@@ -1395,9 +2130,9 @@ function loadCustomerCreditInfo(customerId) {
                 const availableCredit = creditLimit > 0 ? Math.max(0, creditLimit - currentBalance) : 0;
                 const loyaltyPoints = data.loyalty_points || 0;
                 
-                document.getElementById('customerCurrentBalance').textContent = currencySymbol + ' ' + currentBalance.toFixed(2);
-                document.getElementById('customerCreditLimit').textContent = creditLimit > 0 ? currencySymbol + ' ' + creditLimit.toFixed(2) : 'No Limit';
-                document.getElementById('customerAvailableCredit').textContent = creditLimit > 0 ? currencySymbol + ' ' + availableCredit.toFixed(2) : 'Unlimited';
+                document.getElementById('customerCurrentBalance').textContent = currencySymbol + ' ' + currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('customerCreditLimit').textContent = creditLimit > 0 ? currencySymbol + ' ' + creditLimit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : 'No Limit';
+                document.getElementById('customerAvailableCredit').textContent = creditLimit > 0 ? currencySymbol + ' ' + availableCredit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : 'Unlimited';
                 
                 // Update loyalty points max and placeholder
                 const pointsInput = document.getElementById('pointsToRedeemInput');
@@ -1419,6 +2154,54 @@ function loadCustomerCreditInfo(customerId) {
         });
 }
 
+async function requestManagerApprovalAndRetry(saleData, checkoutBtn, originalText, loadingOverlay) {
+    const username = await window.showAppPrompt({
+        title: 'Manager Approval Required',
+        message: 'This discount is above the cashier limit. Enter an authorized manager username to continue.',
+        label: 'Manager username',
+        autocomplete: 'username'
+    });
+    if (!username) {
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        checkoutBtn.disabled = false;
+        checkoutBtn.innerHTML = originalText;
+        return;
+    }
+    const password = await window.showAppPrompt({
+        title: 'Manager Password',
+        message: 'Enter the manager password to approve this discount.',
+        label: 'Manager password',
+        inputType: 'password',
+        autocomplete: 'current-password'
+    });
+    if (!password) {
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        checkoutBtn.disabled = false;
+        checkoutBtn.innerHTML = originalText;
+        return;
+    }
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const approvalResponse = await fetch('/auth/verify-manager-approval', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+            body: JSON.stringify({username, password})
+        });
+        const approval = await approvalResponse.json();
+        if (!approvalResponse.ok || !approval.success) throw new Error(approval.error || 'Manager approval failed');
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        checkoutBtn.disabled = false;
+        checkoutBtn.innerHTML = originalText;
+        showNotification('Manager approval granted. Retrying the sale securely.', 'success');
+        checkoutBtn.click();
+    } catch (error) {
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        checkoutBtn.disabled = false;
+        checkoutBtn.innerHTML = originalText;
+        showNotification(error.message, 'danger');
+    }
+}
+
 function checkout() {
     if (cart.length === 0) {
         showNotification('No items in cart', 'warning');
@@ -1428,16 +2211,17 @@ function checkout() {
     // Disable button to prevent duplicate submissions
     const checkoutBtn = document.getElementById('checkoutBtn');
     checkoutBtn.disabled = true;
+    activeCheckoutRequestId = createCheckoutRequestId();
     const originalText = checkoutBtn.innerHTML;
     const heldBillIdToDelete = currentHeldBillId;  // Store the held bill ID before checkout
 
     try {
         const paymentMethod = document.getElementById('paymentMethod').value;
         const cashGiven = paymentMethod === 'Cash' ? parseFloat(document.getElementById('cashGiven').value) || 0 : 0;
-        const total = parseFloat(document.getElementById('total').textContent.replace(currencySymbol, ''));
+        const total = parseDisplayedNumber(document.getElementById('total').textContent);
 
         if (paymentMethod === 'Cash' && cashGiven < total) {
-            showNotification(`Insufficient cash. Total: ${currencySymbol} ${total.toFixed(2)}, Given: ${currencySymbol} ${cashGiven.toFixed(2)}`, 'danger');
+            showNotification(`Insufficient cash. Total: ${currencySymbol} ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}, Given: ${currencySymbol} ${cashGiven.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, 'danger');
             checkoutBtn.disabled = false;
             return;
         }
@@ -1481,10 +2265,11 @@ function checkout() {
         const discount = parseFloat(document.getElementById('discountInput').value) || 0;
         const pointsToRedeem = parseInt(document.getElementById('pointsToRedeemInput').value) || 0;
         const pointsDiscount = pointsToRedeem * loyaltyPointsConversionRate; // Use conversion rate from settings
-        const subtotal = parseFloat(document.getElementById('subtotal').textContent.replace(currencySymbol, ''));
-        const tax = parseFloat(document.getElementById('tax').textContent.replace(currencySymbol, ''));
+        const subtotal = parseDisplayedNumber(document.getElementById('subtotal').textContent);
+        const tax = parseDisplayedNumber(document.getElementById('tax').textContent);
 
         const saleData = {
+            client_request_id: activeCheckoutRequestId,
             customer: currentCustomer ? currentCustomer.name : 'Walk-in Customer',
             payment_method: paymentMethod,
             total: total,
@@ -1501,7 +2286,7 @@ function checkout() {
                     product_id: item.product_id,
                     quantity: item.quantity,
                     price: item.price,
-                    discount: parseFloat(computedDiscount.toFixed(2)) || 0,
+                    discount: Number(computedDiscount.toFixed(2)) || 0,
                     tax: item.tax,
                     discount_type: type,
                     discount_value: val
@@ -1580,7 +2365,8 @@ function checkout() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
+                'X-CSRFToken': csrfToken,
+                'Idempotency-Key': saleData.client_request_id
             },
             body: JSON.stringify(saleData)
         })
@@ -1588,25 +2374,18 @@ function checkout() {
             console.log('Checkout Response Status:', response.status);
             
             if (!response.ok) {
-                // For error responses, try to extract error message from JSON body
-                return response.text().then(text => {
-                    console.log('Response body text:', text);
-                    try {
-                        const data = JSON.parse(text);
-                        const errorMsg = data.error || data.message || `HTTP error! Status ${response.status}`;
-                        console.log('Extracted error message:', errorMsg);
-                        throw new Error(errorMsg);
-                    } catch (parseErr) {
-                        // If JSON parsing fails, use the raw text or status code
-                        console.log('JSON parse failed, using text:', text);
-                        throw new Error(text || `HTTP error! Status ${response.status}`);
-                    }
+                return response.json().catch(() => ({})).then(data => {
+                    const error = new Error(data.error || data.message || `HTTP error! Status ${response.status}`);
+                    error.status = response.status;
+                    error.approval_required = Boolean(data.approval_required);
+                    throw error;
                 });
             }
             return response.json();
         })
         .then(data => {
                 if (data.success) {
+                activeCheckoutRequestId = null;
                 lastSaleId = data.sale_id;
                 pendingSaleId = data.sale_id;  // Store for receipt actions
                 showNotification(`âœ“ Sale completed successfully! Sale #${data.sale_id}`, 'success');
@@ -1633,6 +2412,15 @@ function checkout() {
             }
         })
         .catch(error => {
+            if (error.approval_required) {
+                requestManagerApprovalAndRetry(saleData, checkoutBtn, originalText, loadingOverlay);
+                return;
+            }
+            if (!navigator.onLine || error instanceof TypeError) {
+                queueOfflineSale(saleData, checkoutBtn, originalText, loadingOverlay);
+                activeCheckoutRequestId = null;
+                return;
+            }
             console.error('Checkout Error:', error);
             console.error('Error message:', error.message);
             console.error('Full error details:', error);
@@ -1784,10 +2572,10 @@ function showAdminPasswordModal(currentBalance, creditLimit, total, overAmount) 
                 <div class="modal-body">
                     <div class="alert alert-warning mb-3">
                         <strong>Credit Limit Exceeded!</strong><br>
-                        Current: ${currencySymbol} ${currentBalance.toFixed(2)}<br>
-                        Limit: ${currencySymbol} ${creditLimit.toFixed(2)}<br>
-                        New: ${currencySymbol} ${(currentBalance + total).toFixed(2)}<br>
-                        <small class="text-danger">Over by: ${currencySymbol} ${overAmount.toFixed(2)}</small>
+                        Current: ${currencySymbol} ${currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}<br>
+                        Limit: ${currencySymbol} ${creditLimit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}<br>
+                        New: ${currencySymbol} ${(currentBalance + total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}<br>
+                        <small class="text-danger">Over by: ${currencySymbol} ${overAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</small>
                     </div>
                     <p>Admin password verification required for security.</p>
                     <div class="form-group">
@@ -1905,10 +2693,11 @@ function verifyAdminPassword(modal) {
 // Process credit checkout
 function processCreditCheckout(customerId, total, heldBillIdToDelete, checkoutBtn, originalText, adminOverride = false) {
     const discount = parseFloat(document.getElementById('discountInput').value) || 0;
-    const subtotal = parseFloat(document.getElementById('subtotal').textContent.replace(currencySymbol, ''));
-    const tax = parseFloat(document.getElementById('tax').textContent.replace(currencySymbol, ''));
+    const subtotal = parseDisplayedNumber(document.getElementById('subtotal').textContent);
+    const tax = parseDisplayedNumber(document.getElementById('tax').textContent);
 
     const saleData = {
+        client_request_id: activeCheckoutRequestId || createCheckoutRequestId(),
         customer: currentCustomer ? currentCustomer.name : 'Walk-in Customer',
         customer_id: customerId,
         payment_method: 'Credit',
@@ -1944,7 +2733,8 @@ function processCreditCheckout(customerId, total, heldBillIdToDelete, checkoutBt
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
+            'X-CSRFToken': csrfToken,
+            'Idempotency-Key': saleData.client_request_id
         },
         body: JSON.stringify(saleData)
     })
@@ -1956,6 +2746,7 @@ function processCreditCheckout(customerId, total, heldBillIdToDelete, checkoutBt
     })
     .then(data => {
         if (data.success) {
+            activeCheckoutRequestId = null;
             lastSaleId = data.sale_id;
             const msg = adminOverride 
                 ? `âœ“ Credit sale completed with override! Sale #${data.sale_id}`
@@ -1983,6 +2774,11 @@ function processCreditCheckout(customerId, total, heldBillIdToDelete, checkoutBt
         }
     })
     .catch(error => {
+        if (!navigator.onLine || error instanceof TypeError) {
+            queueOfflineSale(saleData, checkoutBtn, originalText, loadingOverlay);
+            activeCheckoutRequestId = null;
+            return;
+        }
         console.error('Error:', error);
         showNotification(`Network error: ${error.message}`, 'danger');
         if (loadingOverlay) {
@@ -2062,9 +2858,9 @@ function holdSale() {
 function proceedWithHoldBill() {
     const notes = window.heldBillNotes || '';
     const discount = parseFloat(document.getElementById('discountInput').value) || 0;
-    const subtotal = parseFloat(document.getElementById('subtotal').textContent.replace(currencySymbol, ''));
-    const tax = parseFloat(document.getElementById('tax').textContent.replace(currencySymbol, ''));
-    const total = parseFloat(document.getElementById('total').textContent.replace(currencySymbol, ''));
+    const subtotal = parseDisplayedNumber(document.getElementById('subtotal').textContent);
+    const tax = parseDisplayedNumber(document.getElementById('tax').textContent);
+    const total = parseDisplayedNumber(document.getElementById('total').textContent);
 
     const holdData = {
         cart: cart,
@@ -2147,7 +2943,7 @@ function displayHeldBills(bills) {
             <td>#${bill.id}</td>
             <td>${window.formatTimestamp(bill.held_date, true)}</td>
             <td>${bill.items_count} items</td>
-            <td>${currencySymbol} ${bill.total.toFixed(2)}</td>
+            <td>${currencySymbol} ${bill.total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
             <td>${bill.notes || '-'}</td>
             <td>
                 <button class="btn btn-primary btn-sm me-1" onclick="loadHeldBill(${bill.id})">
@@ -2172,7 +2968,15 @@ function loadHeldBill(billId) {
             document.getElementById('discountInput').value = data.discount || 0;
             updateCartDisplay();
             showPaymentSection();
-            bootstrap.Modal.getInstance(document.getElementById('heldBillsModal')).hide();
+            selectedCartIndex = cart.length ? 0 : -1;
+            setSelectedCartItem(selectedCartIndex, false);
+            const heldBillsModal = bootstrap.Modal.getInstance(document.getElementById('heldBillsModal'));
+            if (heldBillsModal) {
+                document.getElementById('heldBillsModal').addEventListener('hidden.bs.modal', focusProductSearch, { once: true });
+                heldBillsModal.hide();
+            } else {
+                focusProductSearch();
+            }
         })
         .catch(error => console.error('Error loading held bill:', error));
 }
@@ -2415,27 +3219,55 @@ function handleSendWhatsapp() {
     sendReceiptViaWhatsapp();
 }
 
-function sendReceiptViaWhatsapp() {
-    // Show WhatsApp number input modal
-    console.log('sendReceiptViaWhatsapp called');
-    const whatsappModal = document.getElementById('whatsappNumberModal');
-    console.log('WhatsApp modal element:', whatsappModal);
-    
-    if (!whatsappModal) {
-        console.error('WhatsApp modal not found!');
-        alert('WhatsApp modal not found');
+function sendReceiptViaEmail() {
+    const emailModal = document.getElementById('emailReceiptModal');
+    const emailInput = document.getElementById('receiptEmail');
+    if (!emailModal || !emailInput) return;
+    emailInput.value = currentCustomer?.email || '';
+    document.getElementById('receiptEmailError')?.classList.add('d-none');
+    bootstrap.Modal.getOrCreateInstance(emailModal).show();
+    setTimeout(() => emailInput.focus(), 250);
+}
+
+function sendReceiptEmailAPI() {
+    const saleId = pendingSaleId;
+    const emailInput = document.getElementById('receiptEmail');
+    const email = emailInput?.value.trim() || '';
+    const errorEl = document.getElementById('receiptEmailError');
+    if (!saleId || !email) {
+        if (errorEl) { errorEl.textContent = 'Please enter the customer email address.'; errorEl.classList.remove('d-none'); }
         return;
     }
-    
-    try {
-        const modal = new bootstrap.Modal(whatsappModal);
-        console.log('Modal created:', modal);
-        modal.show();
-        console.log('Modal shown');
-    } catch (err) {
-        console.error('Error showing modal:', err);
-        alert('Error opening WhatsApp dialog');
+    if (!emailInput.checkValidity()) {
+        if (errorEl) { errorEl.textContent = 'Please enter a valid email address.'; errorEl.classList.remove('d-none'); }
+        return;
     }
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    fetch(`/sales/api/sales/${saleId}/send-email`, {
+        method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+        body: JSON.stringify({email})
+    }).then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to send email');
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('emailReceiptModal')).hide();
+        showNotification('Receipt email sent successfully.', 'success');
+        setTimeout(() => resetSale(), 2000);
+    }).catch(error => {
+        if (errorEl) { errorEl.textContent = error.message; errorEl.classList.remove('d-none'); }
+    });
+}
+
+function sendReceiptViaWhatsapp() {
+    const savedPhone = currentCustomer?.phone?.trim() || '';
+    if (savedPhone) {
+        // Use the saved customer number immediately; the API normalizes Sri Lankan 0-prefixed numbers.
+        sendReceiptViaWhatsappAPI(savedPhone);
+        return;
+    }
+    const whatsappModal = document.getElementById('whatsappNumberModal');
+    if (!whatsappModal) return;
+    bootstrap.Modal.getOrCreateInstance(whatsappModal).show();
+    setTimeout(() => document.getElementById('whatsappNumber')?.focus(), 250);
 }
 
 function sendReceiptViaWhatsappAPI(phoneNumber) {
@@ -2518,10 +3350,37 @@ function resetSale() {
     document.getElementById('receiptActions').classList.add('d-none');
     updateCartDisplay();
     showPaymentSection();
+    focusProductSearch();
 }
 </script>
 
 <style>
+/* Customer old/current price choices inside checkout */
+.checkout-price-choice {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 100%;
+}
+.checkout-price-choice .btn {
+    white-space: nowrap;
+    font-size: 0.72rem;
+}
+.checkout-price-choice .price-difference {
+    font-size: 0.66rem;
+    font-weight: 700;
+    opacity: 0.9;
+}
+@media (max-width: 576px) {
+    .checkout-price-choice {
+        width: min(100%, 280px);
+    }
+    .checkout-price-choice .btn {
+        flex: 1 1 auto;
+        min-width: 122px;
+    }
+}
+
 /* Sales Page Specific Styles */
 .sales-container {
     padding: 0;
@@ -2535,6 +3394,57 @@ function resetSale() {
 .sales-card .card-body, .billing-card .card-body {
     overflow-y: auto;
     height: calc(100% - 60px);
+}
+
+/* Connectivity and offline queue status */
+.offline-status {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    margin-top: 7px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.offline-status.offline,
+.offline-status.pending {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.offline-status.error {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+/* Keyboard shortcut guide */
+.keyboard-shortcuts-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    align-items: center;
+    margin-top: 8px;
+    color: #64748B;
+    font-size: 11px;
+}
+
+.keyboard-shortcuts-bar span {
+    white-space: nowrap;
+}
+
+.keyboard-shortcuts-bar kbd {
+    padding: 2px 5px;
+    border: 1px solid #CBD5E1;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: #F8FAFC;
+    color: #334155;
+    font-size: 10px;
+    font-family: inherit;
 }
 
 /* Product Search */
@@ -2588,6 +3498,14 @@ function resetSale() {
     border-color: #4F46E5;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+}
+
+.product-item:focus-visible,
+.product-item.keyboard-selected {
+    outline: 3px solid rgba(79, 70, 229, 0.28);
+    outline-offset: 2px;
+    border-color: #4F46E5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
 .product-item.out-of-stock {
@@ -2723,6 +3641,71 @@ function resetSale() {
 /* Slightly elevate the product name color */
 .product-name { color: var(--text-dark); }
 
+/* Cart Summary and Billing Review */
+.cart-summary-bar {
+    min-height: 42px;
+    padding: 8px 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+.cart-summary-count {
+    color: #334155;
+    font-size: 13px;
+}
+.cart-summary-count i {
+    color: #4f46e5;
+}
+.billing-review-modal {
+    border: 0;
+    border-radius: 14px;
+    overflow: hidden;
+}
+.billing-review-table-wrap {
+    max-height: min(62vh, 620px);
+    overflow: auto;
+}
+.billing-review-table {
+    min-width: 760px;
+}
+.billing-review-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    white-space: nowrap;
+}
+.billing-review-table td,
+.billing-review-table th {
+    padding: 12px 14px;
+}
+.billing-review-product {
+    max-width: 360px;
+    overflow-wrap: anywhere;
+}
+.billing-review-qty-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.billing-review-qty-controls .btn {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    line-height: 1;
+    font-size: 18px;
+}
+.billing-review-qty {
+    min-width: 34px;
+    text-align: center;
+    font-weight: 700;
+}
+
 /* Cart Items */
 .cart-items {
     min-height: 150px;
@@ -2738,6 +3721,20 @@ function resetSale() {
     border-radius: 10px;
     margin-bottom: 10px;
     gap: 12px;
+}
+
+.cart-item:focus-visible,
+.cart-item.keyboard-selected {
+    outline: 3px solid rgba(79, 70, 229, 0.28);
+    outline-offset: 2px;
+    background: #EEF2FF;
+}
+
+#customerList tr:focus-visible,
+#customerList tr.keyboard-selected {
+    outline: 2px solid rgba(79, 70, 229, 0.35);
+    outline-offset: -2px;
+    background: #EEF2FF;
 }
 
 .cart-item-top {
@@ -3013,12 +4010,63 @@ function resetSale() {
     font-weight: 700;
 }
 
-.action-buttons .btn-pay {
-    width: 100%;
-    padding: 14px;
-    font-size: 16px;
+.payment-section {
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(150px, 1fr) auto minmax(360px, 2fr);
+    align-items: end;
+    gap: 10px;
+    position: sticky;
+    bottom: 0;
+    z-index: 25;
+    padding: 12px;
+    margin-left: -12px;
+    margin-right: -12px;
+    background: rgba(255, 255, 255, 0.97);
+    border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -8px 22px rgba(15, 23, 42, 0.10);
+    backdrop-filter: blur(10px);
+}
+.payment-section > .cheque-details,
+.payment-section > .customer-credit-info {
+    grid-column: 1 / -1;
+}
+.payment-section > .sticky-payment-actions {
+    position: static;
+    grid-column: 3 / -1;
+    margin: 0;
+    padding: 0;
+    border-top: 0;
+    box-shadow: none;
+    background: transparent;
+    backdrop-filter: none;
+}
+.sticky-payment-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    margin-left: -12px;
+    margin-right: -12px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -8px 22px rgba(15, 23, 42, 0.10);
+    backdrop-filter: blur(10px);
+}
+.primary-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+}
+.action-buttons .primary-actions > .btn {
+    min-height: 48px;
+    padding: 12px 10px;
+    font-size: 15px;
     font-weight: 600;
     border-radius: 10px;
+    white-space: nowrap;
+}
+.action-buttons .btn-pay {
+    width: 100%;
 }
 
 .action-buttons .btn-warning {
@@ -3144,6 +4192,261 @@ function resetSale() {
     }
 }
 
+/* Mobile-first cashier layout */
+@media (max-width: 767.98px) {
+    .sales-container {
+        padding: 0;
+    }
+
+    .sales-card,
+    .billing-card {
+        min-height: 0;
+        height: auto;
+        border-radius: 12px;
+    }
+
+    .sales-card .card-body,
+    .billing-card .card-body {
+        height: auto;
+        overflow: visible;
+        padding: 12px;
+    }
+
+    .sales-card .card-header,
+    .billing-card .card-header {
+        padding: 12px;
+    }
+
+    .sales-card .card-header h5,
+    .billing-card .card-header h5 {
+        font-size: 15px;
+    }
+
+    .product-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .product-item {
+        min-width: 0;
+        padding: 8px;
+        border-width: 1px;
+        border-left-width: 4px;
+        border-radius: 10px;
+    }
+
+    .product-image,
+    .product-img-placeholder {
+        height: 56px;
+    }
+
+    .product-img-placeholder {
+        width: 56px;
+        font-size: 20px;
+    }
+
+    .product-name {
+        font-size: 11px;
+    }
+
+    .product-price {
+        max-width: 100%;
+        padding: 3px 6px;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .product-stock {
+        max-width: 100%;
+        font-size: 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .keyboard-shortcuts-bar {
+        gap: 5px 7px;
+        font-size: 10px;
+    }
+
+    .keyboard-shortcuts-bar kbd {
+        padding: 2px 4px;
+        font-size: 9px;
+    }
+
+    .cart-summary-bar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .cart-summary-bar .btn {
+        width: 100%;
+    }
+    .cart-items {
+        max-height: 42vh;
+        min-height: 90px;
+        overflow-y: auto;
+    }
+    .billing-review-table-wrap {
+        max-height: 60vh;
+    }
+    .billing-review-table {
+        min-width: 700px;
+    }
+
+    .cart-item {
+        padding: 10px;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .cart-item-top,
+    .cart-item-actions-row {
+        gap: 8px;
+    }
+
+    .cart-item-name {
+        min-width: 0;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+    }
+
+    .cart-item-total-top {
+        font-size: 14px;
+    }
+
+    .cart-item-price-row {
+        flex-wrap: wrap;
+    }
+
+    .cart-item-actions-row {
+        justify-content: space-between;
+    }
+
+    .cart-item-controls {
+        gap: 4px;
+    }
+
+    .btn-qty {
+        width: 36px;
+        height: 36px;
+    }
+
+    .qty-input {
+        width: 58px;
+        min-height: 36px;
+        padding: 5px;
+    }
+
+    .cart-item-price input.item-price {
+        min-width: 78px;
+        width: 78px;
+    }
+
+    .totals-section,
+    .payment-section {
+        padding: 12px;
+        border-radius: 10px;
+    }
+
+    .total-row {
+        padding: 6px 0;
+        font-size: 13px;
+    }
+
+    .total-row.grand-total {
+        font-size: 16px;
+    }
+
+    .total-row.grand-total span:last-child {
+        font-size: 19px;
+    }
+
+    .discount-input input,
+    .points-input input {
+        width: 78px;
+        min-height: 36px;
+    }
+
+    .points-input {
+        gap: 5px;
+    }
+
+    .points-discount {
+        font-size: 11px;
+    }
+
+    .payment-method select,
+    .cash-given input,
+    .cheque-details input {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .payment-section {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+        position: sticky;
+        margin-left: -14px;
+        margin-right: -14px;
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    }
+    .payment-section > .payment-method,
+    .payment-section > .cash-given {
+        min-width: 0;
+    }
+    .payment-section > .change-amount {
+        grid-column: 1 / -1;
+    }
+    .payment-section > .sticky-payment-actions {
+        grid-column: 1 / -1;
+    }
+
+    .action-buttons .primary-actions {
+        grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 1fr);
+        gap: 6px;
+    }
+
+    .action-buttons .primary-actions > .btn {
+        min-height: 46px;
+        padding: 10px 5px;
+        font-size: 12px;
+    }
+
+    .action-buttons .primary-actions > .btn i {
+        margin-right: 2px !important;
+    }
+
+    .action-buttons .row .btn {
+        min-height: 44px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .category-filter select,
+    .product-search .form-control {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .product-search .input-group-text {
+        padding: 0 10px;
+    }
+
+    .cash-given label,
+    .payment-method label {
+        font-size: 12px;
+    }
+
+    .receipt-actions {
+        flex-wrap: wrap;
+    }
+
+    .receipt-actions .btn {
+        flex: 1 1 120px;
+        min-height: 42px;
+    }
+}
+
 /* Loading Overlay Styles */
 .loading-overlay {
     position: fixed;
@@ -3227,6 +4530,126 @@ function resetSale() {
 .customer-credit-info .credit-warning.danger {
     background: #f8d7da;
     border-color: #f5c6cb;
+}
+
+/* Unified sticky payment bar: fields and actions share one horizontal row. */
+.payment-section {
+    display: block;
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+    padding: 12px;
+    margin-left: -12px;
+    margin-right: -12px;
+    background: rgba(255, 255, 255, 0.98);
+    border-top: 1px solid #dbe3ee;
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(12px);
+}
+.payment-support-details { width: 100%; }
+.payment-sticky-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(160px, 1fr) minmax(90px, auto) minmax(390px, 2.2fr);
+    align-items: end;
+    gap: 10px;
+}
+.payment-sticky-row .payment-method,
+.payment-sticky-row .cash-given,
+.payment-sticky-row .change-amount { min-width: 0; }
+.payment-sticky-row .change-amount { white-space: nowrap; }
+.payment-sticky-row .sticky-payment-actions {
+    position: static;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+    backdrop-filter: none;
+}
+@media (max-width: 900px) {
+    .payment-sticky-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .payment-sticky-row .change-amount { grid-column: 1 / -1; }
+    .payment-sticky-row .sticky-payment-actions { grid-column: 1 / -1; }
+}
+
+/* Final full-screen correction: fixed bottom bar with no parent-column overflow. */
+body.payment-bar-open { padding-bottom: 118px; }
+.payment-section {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    box-sizing: border-box;
+    margin: 0;
+}
+.payment-sticky-row { width: 100%; min-width: 0; }
+.payment-sticky-row > * { min-width: 0; }
+.payment-sticky-row .primary-actions { width: 100%; min-width: 0; }
+.payment-sticky-row .primary-actions > .btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) {
+    body.payment-bar-open { padding-bottom: 170px; }
+    .payment-section { left: 0; right: 0; margin: 0; }
+    .payment-sticky-row .primary-actions { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr); }
+    .payment-sticky-row .primary-actions > .btn { font-size: clamp(11px, 2.6vw, 14px); padding-left: 4px; padding-right: 4px; }
+}
+
+.sticky-total-summary {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 12px;
+    border-right: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 12px;
+}
+.sticky-total-summary > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; white-space: nowrap; }
+.sticky-total-summary strong { color: #475569; font-size: 13px; }
+.sticky-total-summary .sticky-grand-total { margin-top: 2px; padding-top: 4px; border-top: 1px solid #e2e8f0; color: #172554; font-size: 14px; font-weight: 700; }
+.sticky-total-summary .sticky-grand-total strong { color: #4f46e5; font-size: 18px; }
+@media (max-width: 900px) {
+    .sticky-total-summary { padding: 2px 8px; font-size: 11px; }
+    .sticky-total-summary strong { font-size: 12px; }
+    .sticky-total-summary .sticky-grand-total strong { font-size: 15px; }
+}
+
+/* Keep the fixed bar inside the usable main-content area beside the sidebar. */
+@media (min-width: 992px) {
+    .payment-section { left: var(--sidebar-width); right: 0; }
+    .sidebar.collapsed + .main-wrapper .payment-section { left: 80px; }
+}
+@media (max-width: 991.98px) {
+    .payment-section { left: 0; right: 0; }
+}
+/* Final desktop checkout alignment: reserve Change as its own column. */
+@media (min-width: 1200px) {
+    .payment-section { left: var(--sidebar-width); right: 0; }
+    .sidebar.collapsed + .main-wrapper .payment-section { left: 80px; }
+    .payment-sticky-row {
+        grid-template-columns: minmax(190px, 1.05fr) minmax(180px, 1fr) minmax(170px, 1fr) minmax(170px, 1fr) minmax(390px, 2fr);
+        align-items: end;
+    }
+    .payment-sticky-row .sticky-payment-actions {
+        grid-column: 5;
+        min-width: 390px;
+    }
+    .payment-sticky-row .primary-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+        width: 100%;
+    }
+    .payment-sticky-row .primary-actions > .btn {
+        min-width: 0;
+        white-space: nowrap;
+    }
+}
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .payment-section { left: var(--sidebar-width); right: 0; }
+    .sidebar.collapsed + .main-wrapper .payment-section { left: 80px; }
 }
 </style>
 {% endblock %}

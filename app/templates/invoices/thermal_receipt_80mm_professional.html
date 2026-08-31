@@ -27,7 +27,7 @@
 
         .receipt-container {
             width: 80mm;
-            padding: 2mm;
+            padding: 3mm;
             text-align: center;
         }
 
@@ -69,7 +69,15 @@
         .info-row {
             display: flex;
             justify-content: space-between;
+            align-items: flex-start;
+            gap: 2mm;
             margin-bottom: 0.5mm;
+        }
+
+        .info-row > span:last-child {
+            max-width: 62%;
+            text-align: right;
+            overflow-wrap: anywhere;
         }
 
         .info-label {
@@ -97,13 +105,19 @@
         /* ITEMS TABLE */
         .items-section {
             margin-bottom: 3mm;
-            font-size: 8pt;
+            font-size: 7.5pt;
             text-align: left;
         }
 
+        .items-header,
+        .item-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 9mm 18mm 20mm;
+            column-gap: 1mm;
+            align-items: start;
+        }
+
         .items-header {
-            display: flex;
-            justify-content: space-between;
             font-weight: bold;
             margin-bottom: 1mm;
             padding-bottom: 1mm;
@@ -111,24 +125,28 @@
             font-size: 7pt;
         }
 
+        .items-header > span:nth-child(n+2),
+        .item-row > span:nth-child(n+2) {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .items-header > span:nth-child(2),
+        .item-row > span:nth-child(2) {
+            text-align: center;
+        }
+
         .item-row {
-            margin-bottom: 2mm;
+            margin-bottom: 1.5mm;
+            page-break-inside: avoid;
         }
 
         .item-name {
             font-weight: bold;
-            margin-bottom: 0.5mm;
+            overflow-wrap: anywhere;
         }
 
-        .item-details {
-            display: flex;
-            justify-content: space-between;
-            font-size: 7pt;
-        }
-
-        .qty-price {
-            display: flex;
-            justify-content: space-between;
+        .item-row > span {
             font-size: 7pt;
         }
 
@@ -200,22 +218,15 @@
             margin-bottom: 1mm;
         }
 
+        /* Optional QR content is rendered only when a real QR image URL is supplied. */
         .qr-code {
             text-align: center;
             margin: 2mm 0;
-            padding: 2mm;
         }
 
-        .qr-placeholder {
-            width: 40mm;
-            height: 40mm;
-            border: 0.5pt solid #000000;
-            display: inline-block;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 7pt;
-            text-align: center;
+        .qr-code img {
+            width: 25mm;
+            height: 25mm;
         }
 
         .receipt-footer {
@@ -256,7 +267,7 @@
 
             @page {
                 size: 80mm auto;
-                margin: 2mm;
+                margin: 0;
             }
 
             .receipt-container {
@@ -319,9 +330,11 @@
         <!-- CUSTOMER INFO (OPTIONAL) -->
         <div class="invoice-info" style="margin-bottom: 2mm;">
             <div class="info-row">
-                <span class="info-label">Customer:</span>
+                <span class="info-label">Bill To:</span>
                 <span>{{ customer_name }}</span>
             </div>
+            {% if customer_phone %}<div class="info-row"><span class="info-label">Phone:</span><span>{{ customer_phone }}</span></div>{% endif %}
+            {% if customer_address %}<div class="info-row"><span class="info-label">Address:</span><span>{{ customer_address }}</span></div>{% endif %}
         </div>
 
         <div class="divider">- - - - - - - - - - -</div>
@@ -337,11 +350,10 @@
 
             {% for item in items %}
             <div class="item-row">
-                <div class="item-name">{{ item.name }}</div>
-                <div class="qty-price">
-                    <span>{{ item.quantity }} x {{ currency_symbol }}{{ "%.2f"|format(item.unit_price) }}</span>
-                    <span style="margin-left: 10mm;">{{ currency_symbol }}{{ "%.2f"|format(item.total) }}</span>
-                </div>
+                <span class="item-name">{{ item.name }}</span>
+                <span>{{ item.quantity }}</span>
+                <span>{{ currency_symbol }}{{ item.unit_price|format_number }}</span>
+                <span>{{ currency_symbol }}{{ item.total|format_number }}</span>
             </div>
             {% endfor %}
         </div>
@@ -352,57 +364,47 @@
         <div class="totals-section">
             <div class="total-row">
                 <span class="total-label">Subtotal:</span>
-                <span class="total-value">{{ currency_symbol }}{{ "%.2f"|format(subtotal) }}</span>
+                <span class="total-value">{{ currency_symbol }}{{ subtotal|format_number }}</span>
             </div>
             {% if discount_total and discount_total > 0 %}
             <div class="total-row">
-                <span class="total-label">Discount:</span>
-                <span class="total-value">-{{ currency_symbol }}{{ "%.2f"|format(discount_total) }}</span>
+                <span class="total-label">Discount ({{ discount_percentage|default(0) }}%):</span>
+                <span class="total-value">-{{ currency_symbol }}{{ discount_total|format_number }}</span>
             </div>
             <div class="total-row">
                 <span class="total-label">Subtotal After Discount:</span>
-                <span class="total-value">{{ currency_symbol }}{{ "%.2f"|format(subtotal - discount_total) }}</span>
+                <span class="total-value">{{ currency_symbol }}{{ subtotal_after_discount|default(subtotal)|format_number }}</span>
             </div>
             {% endif %}
             {% if tax_amount and tax_amount > 0 %}
             <div class="total-row">
                 <span class="total-label">Tax ({{ tax_rate }}%):</span>
-                <span class="total-value">{{ currency_symbol }}{{ "%.2f"|format(tax_amount) }}</span>
+                <span class="total-value">{{ currency_symbol }}{{ tax_amount|format_number }}</span>
             </div>
             {% endif %}
         </div>
 
         <!-- GRAND TOTAL -->
         <div class="grand-total">
-            TOTAL: {{ currency_symbol }}{{ "%.2f"|format(total) }}
+            TOTAL: {{ currency_symbol }}{{ total|format_number }}
         </div>
 
         <!-- PAYMENT METHOD -->
         <div class="payment-section">
+            <div class="payment-method"><strong>Status:</strong> {{ payment_status }}</div>
             <div class="payment-method"><strong>Payment Method:</strong> {{ payment_method }}</div>
-            <div class="payment-method"><strong>Amount Paid:</strong> {{ currency_symbol }}{{ "%.2f"|format(paid_amount) }}</div>
+            <div class="payment-method"><strong>Amount Paid:</strong> {{ currency_symbol }}{{ paid_amount|format_number }}</div>
             {% if payment_method == 'Cash' %}
-            <div class="payment-method"><strong>Cash Given:</strong> {{ currency_symbol }}{{ "%.2f"|format(cash_given) }}</div>
-            <div class="payment-method"><strong>Change:</strong> {{ currency_symbol }}{{ "%.2f"|format(change) }}</div>
+            <div class="payment-method"><strong>Cash Given:</strong> {{ currency_symbol }}{{ cash_given|format_number }}</div>
+            <div class="payment-method"><strong>Change:</strong> {{ currency_symbol }}{{ change|format_number }}</div>
             {% endif %}
-            {% if balance_due > 0 %}
-            <div class="payment-method"><strong>Balance:</strong> {{ currency_symbol }}{{ "%.2f"|format(balance_due) }}</div>
-            {% endif %}
+            <div class="payment-method"><strong>Balance:</strong> {{ currency_symbol }}{{ balance_due|format_number }}</div>
         </div>
 
-        <!-- BARCODE (Optional) -->
-        <div class="barcode-section">
-            <div class="barcode">{{ invoice_number }}</div>
-            <div style="font-size: 6pt;">Receipt #</div>
-        </div>
-
-        <!-- QR CODE (Optional) -->
-        {% if show_qr_code %}
+        <!-- QR CODE (Optional; only display a real generated image.) -->
+        {% if qr_code_url %}
         <div class="qr-code">
-            <div class="qr-placeholder">
-                [QR CODE]<br>
-                Scan for details
-            </div>
+            <img src="{{ qr_code_url }}" alt="Scan for receipt details">
         </div>
         {% endif %}
 

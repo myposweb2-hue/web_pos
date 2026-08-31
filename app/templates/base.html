@@ -31,6 +31,29 @@
             flex: 1;
             overflow-y: auto;
         }
+
+        /* Global connection status badge in the sidebar. */
+        .sidebar-connection-status {
+            margin: 0.75rem 1rem 0.5rem;
+            min-height: 2.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem;
+            padding: 0.45rem 0.7rem;
+            border: 1px solid rgba(255,255,255,.16);
+            border-radius: 999px;
+            font-size: .78rem;
+            font-weight: 700;
+            line-height: 1.2;
+            transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+        }
+        .sidebar-connection-status.online { color: #b8f7d0; background: rgba(25,135,84,.18); border-color: rgba(25,135,84,.45); }
+        .sidebar-connection-status.pending { color: #ffe69c; background: rgba(255,193,7,.16); border-color: rgba(255,193,7,.45); }
+        .sidebar-connection-status.offline { color: #ffb3b3; background: rgba(220,53,69,.18); border-color: rgba(220,53,69,.45); }
+        .sidebar.collapsed .sidebar-connection-status { margin-left: .65rem; margin-right: .65rem; padding-left: .35rem; padding-right: .35rem; }
+        .sidebar.collapsed .sidebar-connection-status span { display: none; }
+        @media (max-width: 991.98px) { .sidebar-connection-status { margin-top: .5rem; } }
     </style>
 </head>
 <body>
@@ -50,6 +73,9 @@
                 </button>
             </div>
         </div>
+        <div id="offlineStatus" class="sidebar-connection-status online" role="status" aria-live="polite" title="Connection status">
+            <i class="fas fa-cloud" aria-hidden="true"></i><span>Online</span>
+        </div>
         
         <nav class="sidebar-nav">
             {% if current_user.is_authenticated %}
@@ -66,6 +92,15 @@
                     <a href="{{ url_for('sales.sales') }}" class="nav-link {% if request.endpoint == 'sales.sales' %}active{% endif %}">
                         <i class="nav-icon fas fa-shopping-cart"></i>
                         <span class="nav-text">Sales</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if current_user.can_access_sales %}
+                <li class="nav-item">
+                    <a href="{{ url_for('shifts.shifts_page') }}" class="nav-link {% if request.endpoint == 'shifts.shifts_page' %}active{% endif %}">
+                        <i class="nav-icon fas fa-cash-register"></i>
+                        <span class="nav-text">Cashier Shift</span>
                     </a>
                 </li>
                 {% endif %}
@@ -100,6 +135,14 @@
                                 <span class="nav-text">Products</span>
                             </a>
                         </li>
+                        {% if current_user.can_view_inventory %}
+                        <li>
+                            <a href="{{ url_for('stock_counts.stock_count_page') }}" class="nav-dropdown-link {% if request.endpoint == 'stock_counts.stock_count_page' %}active{% endif %}">
+                                <i class="nav-icon fas fa-clipboard-check"></i>
+                                <span class="nav-text">Stock Count & Valuation</span>
+                            </a>
+                        </li>
+                        {% endif %}
                         {% endif %}
                         {% if current_user.can_access_warehouse %}
                         <li>
@@ -195,10 +238,22 @@
                         <span class="nav-text">Settings</span>
                     </a>
                 </li>
+                {% endif %}
+
+                {% if current_user.can_access_audit_logs %}
                 <li class="nav-item">
                     <a href="{{ url_for('audit.audit_logs') }}" class="nav-link {% if request.endpoint == 'audit.audit_logs' %}active{% endif %}">
                         <i class="nav-icon fas fa-history"></i>
                         <span class="nav-text">Audit Logs</span>
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if current_user.can_access_messages %}
+                <li class="nav-item">
+                    <a href="{{ url_for('messages.messages') }}" class="nav-link {% if request.endpoint == 'messages.messages' %}active{% endif %}">
+                        <i class="nav-icon fas fa-envelope"></i>
+                        <span class="nav-text">Messages</span>
                     </a>
                 </li>
                 {% endif %}
@@ -246,28 +301,25 @@
                     </div>
                 </div>
 
+                <!-- Compact high-use POS shortcuts; hidden automatically when header space is limited. -->
+                <div class="header-quick-actions quick-nav-buttons d-none d-xl-flex align-items-center gap-2" aria-label="Quick POS actions">
+                    <a href="{{ url_for('sales.sales_history') }}" class="btn btn-link text-secondary text-decoration-none quick-nav-btn quick-nav-button" data-url="{{ url_for('sales.sales_history') }}" data-shortcut="H" data-bs-toggle="tooltip" title="Sales History (H)" aria-label="Sales History">
+                        <i class="fas fa-receipt"></i>
+                    </a>
+                    <a href="{{ url_for('customers.customers') }}" class="btn btn-link text-secondary text-decoration-none quick-nav-btn quick-nav-button" data-url="{{ url_for('customers.customers') }}" data-shortcut="C" data-bs-toggle="tooltip" title="Customers (C)" aria-label="Customers">
+                        <i class="fas fa-users"></i>
+                    </a>
+                    <a href="{{ url_for('shifts.shifts_page') }}" class="btn btn-link text-secondary text-decoration-none quick-nav-btn quick-nav-button" data-url="{{ url_for('shifts.shifts_page') }}" data-shortcut="S" data-bs-toggle="tooltip" title="Cashier Shifts (S)" aria-label="Cashier Shifts">
+                        <i class="fas fa-user-clock"></i>
+                    </a>
+                </div>
+
                 <!-- Right: Actions & User -->
                 <div class="d-flex align-items-center gap-4">
                     <!-- Real-time Clock -->
                     <div class="d-none d-lg-block text-end me-2">
                         <div id="clockTime" class="fw-bold text-dark" style="font-size: 0.9rem; line-height: 1.1; letter-spacing: 0.2px;"></div>
                         <div id="clockDate" class="text-muted" style="font-size: 0.7rem; line-height: 1; letter-spacing: 0.1px;"></div>
-                    </div>
-
-                    <!-- Quick Nav Buttons -->
-                    <div class="d-none d-lg-flex align-items-center gap-2 quick-nav-buttons">
-                        <a href="{{ url_for('customers.customers') }}" class="btn btn-link text-secondary text-decoration-none quick-nav-btn" data-bs-toggle="tooltip" title="Customers">
-                            <i class="fas fa-users"></i>
-                        </a>
-                        <a href="{{ url_for('inventory.inventory') }}" class="btn btn-link text-secondary text-decoration-none quick-nav-btn" data-bs-toggle="tooltip" title="Inventory">
-                            <i class="fas fa-box"></i>
-                        </a>
-                        <a href="{{ url_for('reports.reports') }}" class="btn btn-link text-secondary text-decoration-none quick-nav-btn" data-bs-toggle="tooltip" title="Reports">
-                            <i class="fas fa-chart-bar"></i>
-                        </a>
-                        <button class="btn btn-link text-secondary text-decoration-none quick-nav-btn" id="calculatorBtn" data-bs-toggle="tooltip" title="Calculator">
-                            <i class="fas fa-calculator"></i>
-                        </button>
                     </div>
 
                     <!-- New Sale Button -->
@@ -282,12 +334,6 @@
                     <div class="d-flex align-items-center gap-1">
                         <button class="btn btn-link text-secondary text-decoration-none header-actions-btn" id="fullscreenBtn" title="Toggle Fullscreen">
                             <i class="fas fa-expand" id="fullscreenIcon"></i>
-                        </button>
-                        <button class="btn btn-link text-secondary text-decoration-none header-actions-btn" id="onScreenKeyboardBtn" title="On-screen Keyboard">
-                            <i class="fas fa-keyboard"></i>
-                        </button>
-                        <button class="btn btn-link text-secondary text-decoration-none header-actions-btn" id="shortcutHelpBtn" title="Keyboard Shortcuts (?)">
-                            <i class="fas fa-question-circle"></i>
                         </button>
                         <!-- Notification Dropdown -->
                         <div class="dropdown">
@@ -309,14 +355,14 @@
                                     </li>
                                 </div>
                                 <li><hr class="dropdown-divider my-0"></li>
-                                <li><a class="dropdown-item text-center small text-muted py-2" href="#">View all notifications</a></li>
+                                <li><a class="dropdown-item text-center small text-muted py-2" href="{{ url_for('reports.reports') }}">View notification-related reports</a></li>
                             </ul>
                         </div>
                     </div>
 
                     <!-- User Profile Dropdown -->
-                    <div class="dropdown d-none d-md-block ms-3">
-                        <a href="#" class="d-flex align-items-center text-decoration-none user-profile-trigger" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <div class="dropdown d-none d-md-block header-user ms-2">
+                        <a href="#" class="d-flex align-items-center text-decoration-none user-profile-trigger" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Open user profile menu" title="Profile and account settings">
                             {% if current_user.profile_picture %}
                                 <img src="{{ '/' + current_user.profile_picture }}" alt="{{ current_user.username }}" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover; border: 2px solid #e2e8f0;">
                             {% else %}
@@ -459,6 +505,7 @@
                         <li><strong>R</strong> — Returns</li>
                         <li><strong>B</strong> — Hold Bills</li>
                         <li><strong>E</strong> — Expenses</li>
+                        <li><strong>S</strong> — Cashier Shifts</li>
                         <li><strong>T</strong> — Reports</li>
                         <li><strong>?</strong> — Open this help</li>
                     </ul>
@@ -618,6 +665,52 @@
         };
     </script>
     
+    <script>
+        // Shared replacement for native browser prompt() dialogs.
+        window.showAppPrompt = function(options = {}) {
+            return new Promise(resolve => {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `<div class="modal fade" tabindex="-1" role="dialog" aria-modal="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content shadow-lg"><div class="modal-header"><h5 class="modal-title"></h5><button type="button" class="btn-close" aria-label="Close"></button></div><div class="modal-body"><p class="app-prompt-message mb-3"></p><label class="form-label app-prompt-label"></label><input class="form-control app-prompt-input" autocomplete="off"><div class="invalid-feedback">This field is required.</div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary app-prompt-cancel">Cancel</button><button type="button" class="btn btn-primary app-prompt-submit">Continue</button></div></div></div></div>`;
+                const modalElement = wrapper.firstElementChild;
+                const title = modalElement.querySelector('.modal-title');
+                const message = modalElement.querySelector('.app-prompt-message');
+                const label = modalElement.querySelector('.app-prompt-label');
+                const input = modalElement.querySelector('.app-prompt-input');
+                title.textContent = options.title || 'Input required';
+                message.textContent = options.message || '';
+                message.classList.toggle('d-none', !options.message);
+                label.textContent = options.label || 'Value';
+                input.type = options.inputType || 'text';
+                input.placeholder = options.placeholder || '';
+                input.value = options.value || '';
+                input.autocomplete = options.autocomplete || (input.type === 'password' ? 'current-password' : 'off');
+                document.body.appendChild(wrapper);
+                let completed = false;
+                const modal = window.bootstrap?.Modal ? bootstrap.Modal.getOrCreateInstance(modalElement) : null;
+                const finish = value => {
+                    if (completed) return;
+                    completed = true;
+                    if (modal) modal.hide();
+                    else modalElement.remove();
+                    resolve(value);
+                };
+                const submit = () => {
+                    const value = input.value.trim();
+                    if (options.required !== false && !value) { input.classList.add('is-invalid'); input.focus(); return; }
+                    finish(value);
+                };
+                modalElement.querySelector('.app-prompt-submit').addEventListener('click', submit);
+                modalElement.querySelector('.app-prompt-cancel').addEventListener('click', () => finish(null));
+                modalElement.querySelector('.btn-close').addEventListener('click', () => finish(null));
+                input.addEventListener('input', () => input.classList.remove('is-invalid'));
+                input.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
+                modalElement.addEventListener('hidden.bs.modal', () => { if (!completed) { completed = true; resolve(null); } wrapper.remove(); }, { once: true });
+                if (modal) { modalElement.addEventListener('shown.bs.modal', () => input.focus(), { once: true }); modal.show(); }
+                else { modalElement.classList.add('show'); modalElement.style.display = 'block'; input.focus(); }
+            });
+        };
+    </script>
+
     {% block scripts %}{% endblock %}
 
     <script>

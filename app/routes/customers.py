@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, flash, current_app
 from flask_login import login_required, current_user
-from app.models import db, Customer, Sale, SaleItem, Product, Setting, Return, CustomerPayment, Cheque
+from app.models import db, Customer, Sale, SaleItem, Product, Setting, Return, ReturnItem, CustomerPayment, CustomerFeedback, Cheque, Exchange, ExchangeItem, SaleRequest
 from app.utils.permissions import require_permission
 from app.utils.security import get_company_id, require_company_context
 from app.utils.audit import log_create, log_update, log_delete, log_audit
@@ -17,6 +17,19 @@ def get_customer_secure(customer_id):
     if company_id and hasattr(Customer, 'company_id'):
         customer_query = customer_query.filter(Customer.company_id == company_id)
     return customer_query.first()
+
+
+def get_sale_secure(sale_id):
+    """Get a sale in the active company, including legacy unassigned sales."""
+    company_id = get_company_id()
+    sale_query = Sale.query.filter(Sale.id == sale_id)
+    if company_id:
+        sale_query = sale_query.filter(
+            or_(Sale.company_id == company_id, Sale.company_id.is_(None))
+        )
+    else:
+        sale_query = sale_query.filter(Sale.company_id.is_(None))
+    return sale_query.first()
 
 @customers_bp.route('/customers')
 @login_required
@@ -190,6 +203,23 @@ def search_products_for_customers():
     return jsonify(result)
 
 
+def _current_order_balance(sale):
+    """Return the outstanding balance for one order from its payment history."""
+    total = max(0.0, float(sale.total or 0.0))
+    try:
+        linked_paid = db.session.query(func.coalesce(func.sum(CustomerPayment.amount), 0.0)).filter(
+            CustomerPayment.sale_id == sale.id
+        ).scalar() or 0.0
+        linked_paid = max(0.0, float(linked_paid))
+    except Exception:
+        linked_paid = 0.0
+
+    if linked_paid > 0.0:
+        return max(0.0, total - linked_paid)
+    if (sale.payment or '').lower() == 'cash':
+        return max(0.0, total - max(0.0, float(sale.cash_given or 0.0)))
+    return max(0.0, float(sale.balance or 0.0))
+
 @customers_bp.route('/api/orders')
 @login_required
 def list_orders():
@@ -200,17 +230,31 @@ def list_orders():
     customer_id = request.args.get('customer_id')
     customer_name = request.args.get('customer_name')
 
-    query = Sale.query.filter(Sale.company_id == company_id)
+    query = Sale.query
+    if company_id:
+        # Older sales may not have a company ID; retain them for the active
+        # company so historical orders are not silently omitted.
+        query = query.filter(
+            or_(Sale.company_id == company_id, Sale.company_id.is_(None))
+        )
+    else:
+        query = query.filter(Sale.company_id.is_(None))
 
-    # Filter by customer id -> translate to customer name if possible
+    # Filter by customer id -> translate to the historical customer name.
     if customer_id:
         try:
-            from app.models import Customer
-            cust = Customer.query.filter(Customer.id == int(customer_id), Customer.company_id == company_id).first()
+            cust = Customer.query.filter(
+                Customer.id == int(customer_id),
+                Customer.company_id == company_id
+            ).first()
             if cust:
-                query = query.filter(Sale.customer == cust.name)
-        except Exception:
-            pass
+                query = query.filter(
+                    func.lower(func.trim(Sale.customer)) == cust.name.strip().lower()
+                )
+            else:
+                query = query.filter(Sale.id == -1)
+        except (TypeError, ValueError):
+            query = query.filter(Sale.id == -1)
 
     if customer_name:
         query = query.filter(Sale.customer.ilike(f"%{customer_name}%"))
@@ -231,7 +275,7 @@ def list_orders():
             'customer': s.customer,
             'total': s.total,
             'payment': s.payment,
-            'balance': s.balance,
+            'balance': _current_order_balance(s),
             'items': []
         }
         for it in s.items:
@@ -379,8 +423,7 @@ def create_order():
 @login_required
 def get_order(order_id):
     """Get a single customer order."""
-    company_id = get_company_id()
-    sale = Sale.query.filter(Sale.id == order_id, Sale.company_id == company_id).first()
+    sale = get_sale_secure(order_id)
     if not sale:
         return jsonify({'error': 'Order not found'}), 404
 
@@ -400,7 +443,7 @@ def get_order(order_id):
         'date': sale.date.strftime('%Y-%m-%d %H:%M:%S') if sale.date else None,
         'total': sale.total,
         'payment': sale.payment,
-        'balance': sale.balance,
+        'balance': _current_order_balance(sale),
         'items': items
     })
 
@@ -410,8 +453,7 @@ def get_order(order_id):
 @require_permission('can_access_sales')
 def update_order(order_id):
     """Update basic order fields: payment, balance, total."""
-    company_id = get_company_id()
-    sale = Sale.query.filter(Sale.id == order_id, Sale.company_id == company_id).first()
+    sale = get_sale_secure(order_id)
     if not sale:
         return jsonify({'error': 'Order not found'}), 404
 
@@ -461,13 +503,13 @@ def update_order(order_id):
                 )
                 db.session.add(new_item)
                 recomputed_total += quantity * price
-            if items:
-                sale.total = recomputed_total
-                if data.get('balance') is not None:
-                    try:
-                        sale.balance = float(data.get('balance'))
-                    except Exception:
-                        pass
+            # Always recompute the total when items are supplied, including an empty list.
+            sale.total = recomputed_total
+            if data.get('balance') is not None:
+                try:
+                    sale.balance = float(data.get('balance'))
+                except Exception:
+                    pass
 
         db.session.commit()
 
@@ -483,25 +525,145 @@ def update_order(order_id):
         return jsonify({'error': str(e)}), 500
 
 
+@customers_bp.route('/api/orders/<int:order_id>/record-payment', methods=['POST'])
+@login_required
+@require_permission('can_manage_customer_payments')
+def record_order_payment(order_id):
+    """Record a payment against one order and reduce its outstanding balance."""
+    sale = get_sale_secure(order_id)
+    if not sale:
+        return jsonify({'error': 'Order not found'}), 404
+    data = request.get_json(silent=True) or {}
+    try:
+        amount = float(data.get('amount', 0))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Enter a valid payment amount'}), 400
+    outstanding = _current_order_balance(sale)
+    if amount <= 0:
+        return jsonify({'error': 'Payment amount must be greater than zero'}), 400
+    if outstanding <= 0:
+        return jsonify({'error': 'This order has no outstanding balance'}), 400
+    if amount > outstanding + 0.005:
+        return jsonify({'error': f'Payment cannot exceed the outstanding balance of {outstanding:.2f}'}), 400
+
+    payment_method = str(data.get('payment_method') or 'Cash').strip()[:20]
+    reference_number = str(data.get('reference_number') or '').strip()[:50]
+    notes = str(data.get('notes') or '').strip()
+    company_id = get_company_id() or sale.company_id
+    is_cheque = payment_method.lower() == 'cheque'
+    cheque_number = str(data.get('cheque_number') or reference_number).strip()[:50]
+    cheque_bank = str(data.get('cheque_bank') or '').strip()[:100]
+    cheque_date_str = str(data.get('cheque_date') or '').strip()
+    if is_cheque and (not cheque_number or not cheque_bank or not cheque_date_str):
+        return jsonify({'error': 'Cheque number, bank name, and cheque date are required'}), 400
+    cheque_date = None
+    if is_cheque:
+        try:
+            cheque_date = datetime.strptime(cheque_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'error': 'Cheque date must be valid'}), 400
+
+    try:
+        # Keep the sale balance authoritative even for walk-in customers.
+        sale.balance = round(max(0.0, outstanding - amount), 2)
+        sale.payment = payment_method or sale.payment
+
+        # Link the collection to a customer ledger when the order customer can be matched.
+        customer = None
+        if sale.customer and sale.customer.strip().lower() != 'walk-in customer':
+            customer_query = Customer.query.filter(func.lower(func.trim(Customer.name)) == sale.customer.strip().lower())
+            if company_id:
+                customer_query = customer_query.filter(Customer.company_id == company_id)
+            customer = customer_query.first()
+        if customer:
+            db.session.add(CustomerPayment(
+                customer_id=customer.id,
+                sale_id=sale.id,
+                amount=amount,
+                payment_method=payment_method or 'Cash',
+                reference_number=reference_number,
+                notes=notes,
+                user_id=current_user.id if hasattr(current_user, 'id') else None,
+                company_id=customer.company_id if hasattr(customer, 'company_id') else company_id
+            ))
+
+        if is_cheque:
+            existing_cheque = Cheque.query.filter(
+                Cheque.cheque_number == cheque_number,
+                Cheque.bank_name == cheque_bank
+            ).first()
+            if existing_cheque and existing_cheque.sale_id not in (None, sale.id):
+                db.session.rollback()
+                return jsonify({'error': 'A cheque with this number and bank is already linked to another order'}), 409
+            if existing_cheque:
+                existing_cheque.sale_id = sale.id
+                existing_cheque.amount = amount
+                existing_cheque.payer_name = sale.customer or 'Walk-in Customer'
+                existing_cheque.notes = notes or existing_cheque.notes
+                existing_cheque.company_id = company_id
+            else:
+                db.session.add(Cheque(
+                    cheque_number=cheque_number,
+                    bank_name=cheque_bank,
+                    branch=str(data.get('cheque_branch') or '').strip()[:100] or None,
+                    cheque_date=cheque_date,
+                    amount=amount,
+                    payer_name=sale.customer or 'Walk-in Customer',
+                    customer_id=customer.id if customer else None,
+                    notes=notes,
+                    status='pending',
+                    created_by=current_user.id if hasattr(current_user, 'id') else None,
+                    updated_by=current_user.id if hasattr(current_user, 'id') else None,
+                    sale_id=sale.id,
+                    company_id=company_id
+                ))
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': 'Payment recorded against the order successfully',
+            'sale_id': sale.id,
+            'new_balance': float(sale.balance),
+            'linked_customer_payment': bool(customer)
+        })
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception('Error recording order payment')
+        return jsonify({'error': 'Unable to record order payment: ' + str(exc)}), 500
+
+
 @customers_bp.route('/api/orders/<int:order_id>', methods=['DELETE'])
 @login_required
 @require_permission('can_access_sales')
 def delete_order(order_id):
     """Delete an order (sale) by ID."""
-    company_id = get_company_id()
-    sale = Sale.query.filter(Sale.id == order_id, Sale.company_id == company_id).first()
+    sale = get_sale_secure(order_id)
     if not sale:
         return jsonify({'error': 'Order not found'}), 404
 
     try:
-        # Delete associated sale items
-        from app.models import SaleItem
-        SaleItem.query.filter(SaleItem.sale_id == order_id).delete()
+        # Delete dependent records first. In this POS, Delete means cancel/remove
+        # the order, so return and exchange records are removed with it rather than
+        # leaving foreign-key references to the sale or its sale items.
+        sale_item_ids = [item.id for item in SaleItem.query.filter(SaleItem.sale_id == sale.id).all()]
+        return_ids = [record.id for record in Return.query.filter(Return.original_sale_id == sale.id).all()]
+        if return_ids:
+            ReturnItem.query.filter(ReturnItem.return_id.in_(return_ids)).delete(synchronize_session=False)
+            Return.query.filter(Return.id.in_(return_ids)).delete(synchronize_session=False)
+        if sale_item_ids:
+            ReturnItem.query.filter(ReturnItem.original_sale_item_id.in_(sale_item_ids)).delete(synchronize_session=False)
+        exchange_ids = [record.id for record in Exchange.query.filter(
+            (Exchange.original_sale_id == sale.id) | (Exchange.new_sale_id == sale.id)
+        ).all()]
+        if exchange_ids:
+            ExchangeItem.query.filter(ExchangeItem.exchange_id.in_(exchange_ids)).delete(synchronize_session=False)
+            Exchange.query.filter(Exchange.id.in_(exchange_ids)).delete(synchronize_session=False)
+        CustomerFeedback.query.filter(CustomerFeedback.sale_id == sale.id).delete(synchronize_session=False)
+        CustomerPayment.query.filter(CustomerPayment.sale_id == sale.id).delete(synchronize_session=False)
+        SaleRequest.query.filter(SaleRequest.sale_id == sale.id).delete(synchronize_session=False)
+        Cheque.query.filter(Cheque.sale_id == sale.id).delete(synchronize_session=False)
+        SaleItem.query.filter(SaleItem.sale_id == sale.id).delete(synchronize_session=False)
         
-        # Delete associated cheques if any
-        Cheque.query.filter(Cheque.sale_id == order_id).delete()
-        
-        # Log the deletion
+        # Log the cancellation/removal after dependent records are cleared.
         try:
             log_delete('Sale', sale.id, {'customer': sale.customer, 'total': sale.total}, 
                       description=f"Order {sale.id} deleted")
@@ -624,6 +786,7 @@ def update_customer(customer_id):
 
     try:
         # Store old values for audit log
+        old_customer_name = customer.name
         old_values = {
             'name': customer.name,
             'phone': customer.phone,
@@ -659,8 +822,26 @@ def update_customer(customer_id):
                             setattr(customer, field, float(value))
                     except (ValueError, TypeError):
                         setattr(customer, field, 0.0)
+                elif field == 'name':
+                    setattr(customer, field, data[field].strip())
                 else:
                     setattr(customer, field, data[field])
+
+        # Sales historically store the customer's name as text. Keep those
+        # records attached to the customer after a rename so order history
+        # does not disappear when the profile name changes.
+        if customer.name != old_customer_name:
+            sales_to_update = Sale.query.filter(
+                func.lower(func.trim(Sale.customer)) == old_customer_name.strip().lower()
+            )
+            if company_id:
+                sales_to_update = sales_to_update.filter(
+                    or_(Sale.company_id == company_id, Sale.company_id.is_(None))
+                )
+            sales_to_update.update(
+                {Sale.customer: customer.name},
+                synchronize_session=False
+            )
 
         db.session.commit()
         
@@ -797,10 +978,20 @@ def get_customer_purchase_history(customer_id):
     if not customer:
         return jsonify({'error': 'Customer not found'}), 404
 
-    # Get sales for this customer
+    # Historical sales store the customer name rather than a customer foreign key.
+    # Match normalized names and include legacy sales without a company ID so
+    # previously recorded orders remain visible for the customer.
     company_id = get_company_id()
-    sales = Sale.query.filter(Sale.customer == customer.name, Sale.company_id == company_id)\
-                     .order_by(desc(Sale.date))\
+    customer_name = (customer.name or '').strip()
+    sales_query = Sale.query.filter(
+        func.lower(func.trim(Sale.customer)) == customer_name.lower()
+    )
+    if company_id:
+        sales_query = sales_query.filter(
+            or_(Sale.company_id == company_id, Sale.company_id.is_(None))
+        )
+
+    sales = sales_query.order_by(desc(Sale.date)) \
                      .paginate(page=page, per_page=per_page)
 
     result = {
@@ -1469,12 +1660,33 @@ def record_customer_payment(customer_id):
                     )
                     db.session.add(cheque)
 
-        # Apply payment to unpaid sales (oldest first)
+        # Apply an order-linked payment to the selected order first. If no order
+        # was supplied, retain the customer-account oldest-first allocation.
+        current_company_id = get_company_id()
+        target_sale = None
+        if sale_id:
+            try:
+                target_sale_id = int(sale_id)
+            except (TypeError, ValueError):
+                raise ValueError('Invalid sale ID')
+            target_query = Sale.query.filter(
+                Sale.id == target_sale_id,
+                Sale.customer == customer.name,
+                Sale.company_id == current_company_id
+            )
+            target_sale = target_query.first()
+            if not target_sale:
+                raise ValueError('Selected order was not found for this customer')
+            if target_sale.balance <= 0:
+                raise ValueError('Selected order is already fully paid')
+
         unpaid_sales = Sale.query.filter(
             Sale.customer == customer.name,
             Sale.balance > 0,
-            Sale.company_id == get_company_id()
+            Sale.company_id == current_company_id
         ).order_by(Sale.date.asc()).all()
+        if target_sale:
+            unpaid_sales = [target_sale] + [s for s in unpaid_sales if s.id != target_sale.id]
 
         remaining_payment = amount
         for sale in unpaid_sales:

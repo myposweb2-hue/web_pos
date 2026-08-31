@@ -62,7 +62,10 @@ def create_app(config_class=None):
     from app.routes.companies import companies_bp
     from app.routes.cheques import cheques_bp
     from app.routes.audit import audit_bp
+    from app.routes.messages import messages_bp
     from app.routes.invoices import invoices_bp
+    from app.routes.shifts import shifts_bp
+    from app.routes.stock_counts import stock_counts_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -79,7 +82,10 @@ def create_app(config_class=None):
     app.register_blueprint(companies_bp, url_prefix='/companies')
     app.register_blueprint(cheques_bp, url_prefix='/cheques')
     app.register_blueprint(audit_bp, url_prefix='/audit')
+    app.register_blueprint(messages_bp)
     app.register_blueprint(invoices_bp)
+    app.register_blueprint(shifts_bp)
+    app.register_blueprint(stock_counts_bp)
 
     # ✅ REGISTER MULTI-COMPANY SECURITY MIDDLEWARE
     from app.utils.security import before_request_company_check
@@ -94,6 +100,16 @@ def create_app(config_class=None):
             return ''
         local_dt = dt + timedelta(hours=5)
         return local_dt.strftime('%d/%m/%Y %H:%M')
+
+    @app.template_filter('format_number')
+    def format_number(value, decimals=2):
+        """Format numeric values with thousands separators for display only."""
+        try:
+            number = float(value or 0)
+            precision = int(decimals)
+            return f"{number:,.{precision}f}"
+        except (TypeError, ValueError):
+            return '0.' + ('0' * int(decimals))
 
     # Company context processor - adds company info to all templates
     @app.context_processor
