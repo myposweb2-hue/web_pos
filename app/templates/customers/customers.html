@@ -650,7 +650,7 @@
                 <div class="row mb-3">
                     <div class="col-md-8">
                         <label class="form-label">Search Products</label>
-                        <input type="text" class="form-control" id="takeOrderProductSearch" placeholder="Search by product name or barcode...">
+                        <input type="search" class="form-control" id="takeOrderProductSearch" placeholder="Search by product name or barcode..." autocomplete="off" oninput="window.handleTakeOrderProductSearch && window.handleTakeOrderProductSearch()">
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                             <div class="d-flex w-100">
@@ -2852,13 +2852,19 @@ function submitTakeOrderHandler(e) {
     });
 }
 
+window.loadTakeOrderProducts = loadTakeOrderProducts;
+window.handleTakeOrderProductSearch = function() {
+    const results = $('#takeOrderProductResults');
+    results.html('<div class="text-muted small">Searching products…</div>');
+    clearTimeout(takeOrderSearchTimer);
+    takeOrderSearchTimer = setTimeout(loadTakeOrderProducts, 220);
+};
 window.submitTakeOrderInline = submitTakeOrderHandler;
 
 $(document).ready(function() {
     $('#loadTakeOrderProductsBtn').on('click', function() { loadTakeOrderProducts(); });
     $('#takeOrderProductSearch').on('input', function() {
-        clearTimeout(takeOrderSearchTimer);
-        takeOrderSearchTimer = setTimeout(loadTakeOrderProducts, 220);
+        window.handleTakeOrderProductSearch();
     });
     $('#takeOrderProductSearch').on('keyup', function(e) {
         if (e.key === 'Enter') {
