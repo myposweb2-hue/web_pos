@@ -1928,8 +1928,13 @@ function setupPointsListener() {
     }
     
     if (discountInput) {
-        discountInput.addEventListener('change', function() {
-            updateCartDisplay();
+        ['input', 'change'].forEach(eventName => {
+            discountInput.addEventListener(eventName, function() {
+                const subtotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 0)), 0);
+                const value = Math.max(0, Math.min(Number(this.value) || 0, subtotal));
+                if (Number(this.value) !== value) this.value = value.toFixed(2);
+                updateCartDisplay();
+            });
         });
     }
 }
@@ -3902,7 +3907,10 @@ function resetSale() {
 .discount-input {
     display: flex;
     align-items: center;
-    gap: 2px;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+    flex: 0 1 150px;
 }
 
 .discount-input .currency {
@@ -3910,8 +3918,10 @@ function resetSale() {
 }
 
 .discount-input input {
-    width: 70px;
-    padding: 6px 10px;
+    width: 86px;
+    min-width: 0;
+    max-width: 100%;
+    padding: 6px 8px;
     border: 1px solid #e2e8f0;
     border-radius: 6px;
     font-size: 13px;
@@ -3943,6 +3953,32 @@ function resetSale() {
 .points-discount {
     color: #22c55e;
     font-size: 13px;
+}
+
+@media (max-width: 575.98px) {
+    .total-row {
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .total-row > span:first-child {
+        flex: 1 1 90px;
+        min-width: 0;
+    }
+
+    .discount-input,
+    .points-input {
+        flex: 1 1 150px;
+        max-width: 100%;
+        justify-content: flex-end;
+    }
+
+    .discount-input input,
+    .points-input input {
+        width: 100%;
+        max-width: 120px;
+    }
 }
 
 .payment-section {

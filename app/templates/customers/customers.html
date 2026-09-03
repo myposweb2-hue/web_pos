@@ -470,6 +470,7 @@
                                         <th>Items</th>
                                         <th>Total</th>
                                         <th>Payment</th>
+                                        <th>Taken By</th>
                                         <th>Balance</th>
                                         <th>Actions</th>
                                     </tr>
@@ -674,12 +675,13 @@
                                         <th>Product</th>
                                         <th>Qty</th>
                                         <th>Price</th>
+                                        <th>Discount</th>
                                         <th>Total</th>
                                         <th>Remove</th>
                                     </tr>
                                 </thead>
                                 <tbody id="takeOrderItemsTableBody">
-                                    <tr><td colspan="5" class="text-center text-muted">No products added (DEBUG_TEMPLATE_v2)</td></tr>
+                                    <tr><td colspan="6" class="text-center text-muted">No products added</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -746,6 +748,7 @@
                     <div class="col-md-4"><small class="text-muted d-block">Order ID</small><strong id="viewOrderNumber">—</strong></div>
                     <div class="col-md-4"><small class="text-muted d-block">Customer</small><strong id="viewOrderCustomer">—</strong></div>
                     <div class="col-md-4"><small class="text-muted d-block">Date</small><strong id="viewOrderDate">—</strong></div>
+                    <div class="col-md-4"><small class="text-muted d-block">Taken By</small><strong id="viewOrderUser">—</strong></div>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm table-striped align-middle mb-0">
@@ -2292,7 +2295,7 @@ function renderOrders(orders) {
     console.log('renderOrders called with:', orders, 'Array?', Array.isArray(orders), 'Length:', orders ? orders.length : 'N/A');
     
     if (!orders || !Array.isArray(orders) || orders.length === 0) {
-        $tbody.append('<tr><td colspan="8" class="text-center text-muted py-4">No orders found.<br><small>Create an order from the Customers tab or by clicking "Take Order".</small></td></tr>');
+        $tbody.append('<tr><td colspan="9" class="text-center text-muted py-4">No orders found.<br><small>Create an order from the Customers tab or by clicking "Take Order".</small></td></tr>');
         return;
     }
     
@@ -2308,6 +2311,7 @@ function renderOrders(orders) {
                     <td><small>${itemsText || 'No items'}</small></td>
                     <td>₨ ${parseFloat(o.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td>${o.payment}</td>
+                    <td>${o.user || 'System'}</td>
                     <td>₨ ${parseFloat(o.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td>
                         <div class="btn-group">
@@ -2344,6 +2348,7 @@ function openViewOrderModal(orderId) {
             $('#viewOrderNumber').text('#' + order.id);
             $('#viewOrderCustomer').text(order.customer || 'Walk-in Customer');
             $('#viewOrderDate').text(order.date || '—');
+            $('#viewOrderUser').text(order.user || 'System');
             $('#viewOrderPayment').text(order.payment || '—');
             $('#viewOrderBalance').text('₨ ' + Number(order.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
             $('#viewOrderTotal').text('₨ ' + Number(order.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
@@ -2635,7 +2640,7 @@ function loadTakeOrderProducts() {
                 results.html('<div class="text-muted">No products found</div>');
                 return;
             }
-            products.slice(0, 20).forEach(product => {
+            products.forEach(product => {
                 const isTestProduct = Boolean(product.is_test || product.is_test_product || (Array.isArray(product.tags) && product.tags.some(tag => String(tag).toLowerCase() === 'test')) || /\btest\b/i.test(product.name || ''));
                 const testBadge = isTestProduct ? '<span class="badge bg-warning text-dark ms-2" title="Test product">TEST</span>' : '';
                 const item = document.createElement('div');
@@ -2664,7 +2669,8 @@ function addTakeOrderItem(productId, productName, productPrice) {
             product_id: productId,
             product_name: productName,
             quantity: 1,
-            price: productPrice
+            price: productPrice,
+            discount: 0
         });
     }
     updateTakeOrderItemsTable();
@@ -2675,7 +2681,7 @@ function updateTakeOrderItemsTable() {
     if (!body) return;
 
     if (!takeOrderItems || takeOrderItems.length === 0) {
-        body.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No products added</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No products added</td></tr>';
         const totalInput = document.getElementById('takeOrderTotal');
         if (totalInput) totalInput.value = '0.00';
         return;
@@ -2684,7 +2690,9 @@ function updateTakeOrderItemsTable() {
     let total = 0;
     let rowsHtml = '';
     takeOrderItems.forEach((item, index) => {
-        const lineTotal = item.quantity * item.price;
+        const grossTotal = Number(item.quantity || 0) * Number(item.price || 0);
+        const discount = Math.min(Math.max(Number(item.discount || 0), 0), grossTotal);
+        const lineTotal = grossTotal - discount;
         total += lineTotal;
         rowsHtml += `
             <tr>
@@ -2693,6 +2701,7 @@ function updateTakeOrderItemsTable() {
                     <input type="number" class="form-control form-control-sm" min="1" value="${item.quantity}" data-index="${index}" data-role="qty">
                 </td>
                 <td>₨ ${parseFloat(item.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td><input type="number" class="form-control form-control-sm line-discount" min="0" max="${grossTotal.toFixed(2)}" step="0.01" value="${discount.toFixed(2)}" data-index="${index}" data-role="line-discount" aria-label="Discount for ${item.product_name}"></td>
                 <td>₨ ${parseFloat(lineTotal).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 <td><button class="btn btn-sm btn-outline-danger" type="button" data-index="${index}" data-role="remove-item">Remove</button></td>
             </tr>
@@ -2712,6 +2721,15 @@ function updateTakeOrderItemsTable() {
             } else {
                 takeOrderItems[idx].quantity = qty;
             }
+            updateTakeOrderItemsTable();
+        };
+    });
+
+    body.querySelectorAll('[data-role="line-discount"]').forEach(el => {
+        el.oninput = function() {
+            const idx = Number(this.dataset.index);
+            const gross = Number(takeOrderItems[idx].quantity || 0) * Number(takeOrderItems[idx].price || 0);
+            takeOrderItems[idx].discount = Math.min(Math.max(Number(this.value) || 0, 0), gross);
             updateTakeOrderItemsTable();
         };
     });
@@ -2770,7 +2788,8 @@ function submitTakeOrderHandler(e) {
             product_id: Number(item.product_id),
             product_name: item.product_name,
             quantity: Number(item.quantity),
-            price: Number(item.price)
+            price: Number(item.price),
+            discount: Number(item.discount || 0)
         }))
     };
 

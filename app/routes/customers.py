@@ -176,7 +176,7 @@ def search_products_for_customers():
         products_query = products_query.filter(
             db.or_(
                 Product.name.ilike(f'%{query}%'),
-                Product.barcode.ilike(query)
+                Product.barcode.ilike(f'%{query}%')
             )
         ).order_by(Product.name)
     else:
@@ -185,7 +185,8 @@ def search_products_for_customers():
     if category:
         products_query = products_query.filter(Product.category == category)
 
-    products = products_query.limit(50).all()
+    # Return the full active-company catalog; filtering remains server-side.
+    products = products_query.limit(1000).all()
 
     result = []
     for product in products:
@@ -275,6 +276,7 @@ def list_orders():
             'customer': s.customer,
             'total': s.total,
             'payment': s.payment,
+            'user': (s.user.username if s.user else 'System'),
             'balance': _current_order_balance(s),
             'items': []
         }
@@ -282,7 +284,8 @@ def list_orders():
             order['items'].append({
                 'product_name': it.product.name if it.product else 'Unknown',
                 'quantity': it.quantity,
-                'price': it.price
+                'price': it.price,
+                'discount': it.discount or 0
             })
         result['orders'].append(order)
 
@@ -338,9 +341,15 @@ def create_order():
         return jsonify({'error': 'Customer not found'}), 404
 
     try:
-        total = float(data.get('total', 0.0) or 0.0)
-        if total <= 0:
-            total = sum(float(item.get('quantity', 0.0) or 0.0) * float(item.get('price', 0.0) or 0.0) for item in items)
+        # Recompute from line values so per-line discounts are authoritative.
+        total = 0.0
+        for item in items:
+            quantity = max(0.0, float(item.get('quantity', 0.0) or 0.0))
+            price = max(0.0, float(item.get('price', 0.0) or 0.0))
+            line_gross = quantity * price
+            line_discount = min(max(0.0, float(item.get('discount', 0.0) or 0.0)), line_gross)
+            total += line_gross - line_discount
+        total = round(total, 2)
         payment_method = data.get('payment_method', 'Cash')
         balance = float(data.get('balance', 0.0) or 0.0)
         notes = data.get('notes', '')
@@ -388,6 +397,8 @@ def create_order():
                 continue
             quantity = float(item.get('quantity', 0.0) or 0.0)
             price = float(item.get('price', 0.0) or 0.0)
+            line_gross = max(0.0, quantity * price)
+            line_discount = min(max(0.0, float(item.get('discount', 0.0) or 0.0)), line_gross)
             if quantity <= 0:
                 continue
 
@@ -396,7 +407,7 @@ def create_order():
                 product_id=product_id,
                 quantity=quantity,
                 price=price,
-                discount=float(item.get('discount', 0.0) or 0.0),
+                discount=line_discount,
                 tax=float(item.get('tax', 0.0) or 0.0),
                 company_id=get_company_id(),
             )
@@ -434,7 +445,8 @@ def get_order(order_id):
             'product_name': it.product.name if it.product else 'Unknown',
             'quantity': it.quantity,
             'price': it.price,
-            'total': float(it.quantity * it.price)
+            'discount': it.discount or 0,
+            'total': float(it.quantity * it.price - (it.discount or 0))
         })
 
     return jsonify({
@@ -442,8 +454,10 @@ def get_order(order_id):
         'customer': sale.customer,
         'date': sale.date.strftime('%Y-%m-%d %H:%M:%S') if sale.date else None,
         'total': sale.total,
-        'payment': sale.payment,
-        'balance': _current_order_balance(sale),
+                    'payment': sale.payment,
+            'user': (sale.user.username if sale.user else 'System'),
+            'balance': _current_order_balance(sale),
+
         'items': items
     })
 
