@@ -2752,10 +2752,13 @@ function updateTakeOrderItemsTable() {
     });
 
     body.querySelectorAll('[data-role="line-discount"]').forEach(el => {
-        el.oninput = function() {
+        // Do not redraw the table on every keystroke: redraws replace the
+        // focused input and prevent entering multi-digit discounts.
+        el.onchange = function() {
             const idx = Number(this.dataset.index);
             const gross = Number(takeOrderItems[idx].quantity || 0) * Number(takeOrderItems[idx].price || 0);
             takeOrderItems[idx].discount = Math.min(Math.max(Number(this.value) || 0, 0), gross);
+            this.value = takeOrderItems[idx].discount.toFixed(2);
             updateTakeOrderItemsTable();
         };
     });
