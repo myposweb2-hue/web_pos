@@ -2607,6 +2607,8 @@ window.openCustomerOrders = openCustomerOrders;
 window.startTakeOrder = startTakeOrder;
 
 let takeOrderItems = [];
+let takeOrderSearchRequestId = 0;
+let takeOrderSearchTimer = null;
 
 function openTakeOrderModal(customerId, customerName) {
     if (!customerId) {
@@ -2629,12 +2631,20 @@ function openTakeOrderModal(customerId, customerName) {
 }
 
 function loadTakeOrderProducts() {
-    const search = $('#takeOrderProductSearch').val() || '';
+    const search = String($('#takeOrderProductSearch').val() || '').trim();
+    const requestId = ++takeOrderSearchRequestId;
+    const results = $('#takeOrderProductResults');
+    results.html('<div class="text-muted small">Searching products…</div>');
     const url = `/customers/api/products/search?search=${encodeURIComponent(search)}`;
-    fetch(url, { credentials: 'same-origin' })
-        .then(res => res.json())
+    fetch(url, { credentials: 'same-origin', cache: 'no-store' })
+        .then(res => {
+            if (!res.ok) throw new Error(`Product search failed (${res.status})`);
+            return res.json();
+        })
         .then(products => {
-            const results = $('#takeOrderProductResults');
+            // Ignore responses from an earlier request; otherwise an initial
+            // full-catalog response can overwrite a newer search response.
+            if (requestId !== takeOrderSearchRequestId) return;
             results.empty();
             if (!products || products.length === 0) {
                 results.html('<div class="text-muted">No products found</div>');
@@ -2655,8 +2665,10 @@ function loadTakeOrderProducts() {
                 results.append(item);
             });
         })
-        .catch(() => {
-            $('#takeOrderProductResults').html('<div class="text-danger">Unable to load products</div>');
+        .catch(error => {
+            if (requestId !== takeOrderSearchRequestId) return;
+            console.error('Take Order product search failed', error);
+            results.html('<div class="text-danger">Unable to load products. Please try again.</div>');
         });
 }
 
@@ -2830,8 +2842,16 @@ window.submitTakeOrderInline = submitTakeOrderHandler;
 
 $(document).ready(function() {
     $('#loadTakeOrderProductsBtn').on('click', function() { loadTakeOrderProducts(); });
-    $('#takeOrderProductSearch').on('input', function() { loadTakeOrderProducts(); });
-    $('#takeOrderProductSearch').on('keyup', function(e) { if (e.key === 'Enter') loadTakeOrderProducts(); });
+    $('#takeOrderProductSearch').on('input', function() {
+        clearTimeout(takeOrderSearchTimer);
+        takeOrderSearchTimer = setTimeout(loadTakeOrderProducts, 220);
+    });
+    $('#takeOrderProductSearch').on('keyup', function(e) {
+        if (e.key === 'Enter') {
+            clearTimeout(takeOrderSearchTimer);
+            loadTakeOrderProducts();
+        }
+    });
     $('#takeOrderPaymentMethod').on('change', toggleTakeOrderChequeFields);
     $('#submitTakeOrderBtn').on('click', submitTakeOrderHandler);
     $(document).on('click', '#takeOrderProductResults [data-role="add-product"]', function() {
