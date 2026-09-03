@@ -441,11 +441,36 @@
 
     <!-- Orders Tab -->
     <div class="tab-pane fade" id="orders-content" role="tabpanel">
-        <div class="row mb-3">
-            <div class="col-md-6">
+        <div class="row g-2 mb-3" id="ordersFilters">
+            <div class="col-12 col-md-6 col-xl-3">
                 <input type="text" id="ordersCustomerSearch" class="form-control" placeholder="Filter by customer name...">
             </div>
-            <div class="col-md-6 text-end">
+            <div class="col-6 col-md-3 col-xl-2">
+                <input type="text" id="ordersTakenBySearch" class="form-control" placeholder="Taken by...">
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
+                <select id="ordersPaymentMethod" class="form-select">
+                    <option value="">All payment methods</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Card">Card</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
+                <input type="date" id="ordersDateFrom" class="form-control" aria-label="Orders from date">
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
+                <input type="date" id="ordersDateTo" class="form-control" aria-label="Orders to date">
+            </div>
+            <div class="col-12 col-xl-1 d-flex gap-2">
+                <button class="btn btn-outline-primary flex-fill" id="applyOrderFiltersBtn" type="button">Filter</button>
+                <button class="btn btn-outline-secondary flex-fill" id="clearOrderFiltersBtn" type="button">Clear</button>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-12 text-end">
                 <button class="btn btn-primary me-2" id="takeOrderFromOrdersBtn" type="button" onclick="startTakeOrderFromOrders(event)">
                     <i class="fas fa-plus me-1"></i>Take Order
                 </button>
@@ -2143,6 +2168,13 @@ $(document).ready(function() {
     });
 
     $('#refreshOrdersBtn').on('click', function() { loadOrders(); });
+    $('#applyOrderFiltersBtn').on('click', function() { loadOrders(1); });
+    $('#clearOrderFiltersBtn').on('click', function() {
+        $('#ordersCustomerSearch, #ordersTakenBySearch, #ordersDateFrom, #ordersDateTo').val('');
+        $('#ordersPaymentMethod').val('');
+        ordersCustomerFilterId = null;
+        loadOrders(1);
+    });
     $('#takeOrderFromOrdersBtn').on('click', function(e) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -2152,12 +2184,23 @@ $(document).ready(function() {
         return;
     });
 
-    $('#ordersCustomerSearch').on('keyup', function() { loadOrders(); });
+    $('#ordersCustomerSearch, #ordersTakenBySearch').on('keyup', function(event) {
+        if (event.key === 'Enter') loadOrders(1);
+    });
+    $('#ordersDateFrom, #ordersDateTo, #ordersPaymentMethod').on('change', function() { loadOrders(1); });
 });
 
 function loadOrders(page = 1) {
-    const customerName = $('#ordersCustomerSearch').val();
+    const customerName = $('#ordersCustomerSearch').val().trim();
+    const takenBy = $('#ordersTakenBySearch').val().trim();
+    const dateFrom = $('#ordersDateFrom').val();
+    const dateTo = $('#ordersDateTo').val();
+    const paymentMethod = $('#ordersPaymentMethod').val();
     const params = { page: page, per_page: 50 };
+    if (takenBy) params.taken_by = takenBy;
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    if (paymentMethod) params.payment_method = paymentMethod;
     
     // Only apply a customer filter when the user explicitly opened that customer's orders.
     if (ordersCustomerFilterId) {

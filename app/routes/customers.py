@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, flash, current_app
 from flask_login import login_required, current_user
-from app.models import db, Customer, Sale, SaleItem, Product, Setting, Return, ReturnItem, CustomerPayment, CustomerFeedback, Cheque, Exchange, ExchangeItem, SaleRequest
+from app.models import db, Customer, User, Sale, SaleItem, Product, Setting, Return, ReturnItem, CustomerPayment, CustomerFeedback, Cheque, Exchange, ExchangeItem, SaleRequest
 from app.utils.permissions import require_permission
 from app.utils.security import get_company_id, require_company_context
 from app.utils.audit import log_create, log_update, log_delete, log_audit
@@ -259,6 +259,26 @@ def list_orders():
 
     if customer_name:
         query = query.filter(Sale.customer.ilike(f"%{customer_name}%"))
+
+    taken_by = request.args.get('taken_by', '').strip()
+    if taken_by:
+        query = query.outerjoin(User, Sale.user_id == User.id).filter(
+            User.username.ilike(f'%{taken_by}%')
+        )
+
+    payment_method = request.args.get('payment_method', '').strip()
+    if payment_method:
+        query = query.filter(func.lower(Sale.payment) == payment_method.lower())
+
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    try:
+        if date_from:
+            query = query.filter(Sale.date >= datetime.strptime(date_from, '%Y-%m-%d'))
+        if date_to:
+            query = query.filter(Sale.date < datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1))
+    except ValueError:
+        return jsonify({'error': 'Invalid date filter. Use YYYY-MM-DD.'}), 400
 
     orders = query.order_by(desc(Sale.date)).paginate(page=page, per_page=per_page)
 
