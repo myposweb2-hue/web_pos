@@ -285,7 +285,8 @@ def list_orders():
                 'product_name': it.product.name if it.product else 'Unknown',
                 'quantity': it.quantity,
                 'price': it.price,
-                'discount': it.discount or 0
+                'discount': it.discount or 0,
+                'discount_percent': round((float(it.discount or 0) / float(it.quantity * it.price) * 100), 2) if it.quantity and it.price else 0
             })
         result['orders'].append(order)
 
@@ -347,7 +348,12 @@ def create_order():
             quantity = max(0.0, float(item.get('quantity', 0.0) or 0.0))
             price = max(0.0, float(item.get('price', 0.0) or 0.0))
             line_gross = quantity * price
-            line_discount = min(max(0.0, float(item.get('discount', 0.0) or 0.0)), line_gross)
+            if 'discount_percent' in item:
+                discount_percent = min(max(0.0, float(item.get('discount_percent', 0.0) or 0.0)), 100.0)
+                line_discount = line_gross * (discount_percent / 100.0)
+            else:
+                # Backward compatibility for older clients that sent amounts.
+                line_discount = min(max(0.0, float(item.get('discount', 0.0) or 0.0)), line_gross)
             total += line_gross - line_discount
         total = round(total, 2)
         payment_method = data.get('payment_method', 'Cash')
@@ -398,7 +404,11 @@ def create_order():
             quantity = float(item.get('quantity', 0.0) or 0.0)
             price = float(item.get('price', 0.0) or 0.0)
             line_gross = max(0.0, quantity * price)
-            line_discount = min(max(0.0, float(item.get('discount', 0.0) or 0.0)), line_gross)
+            if 'discount_percent' in item:
+                discount_percent = min(max(0.0, float(item.get('discount_percent', 0.0) or 0.0)), 100.0)
+                line_discount = line_gross * (discount_percent / 100.0)
+            else:
+                line_discount = min(max(0.0, float(item.get('discount', 0.0) or 0.0)), line_gross)
             if quantity <= 0:
                 continue
 
@@ -445,8 +455,9 @@ def get_order(order_id):
             'product_name': it.product.name if it.product else 'Unknown',
             'quantity': it.quantity,
             'price': it.price,
-            'discount': it.discount or 0,
-            'total': float(it.quantity * it.price - (it.discount or 0))
+                'discount': it.discount or 0,
+                'discount_percent': round((float(it.discount or 0) / float(it.quantity * it.price) * 100), 2) if it.quantity and it.price else 0,
+                'total': float(it.quantity * it.price - (it.discount or 0))
         })
 
     return jsonify({

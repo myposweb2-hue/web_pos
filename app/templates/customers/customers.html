@@ -675,7 +675,7 @@
                                         <th>Product</th>
                                         <th>Qty</th>
                                         <th>Price</th>
-                                        <th>Discount</th>
+                                        <th>Discount (%)</th>
                                         <th>Total</th>
                                         <th>Remove</th>
                                     </tr>
@@ -2696,7 +2696,7 @@ function addTakeOrderItem(productId, productName, productPrice) {
             product_name: productName,
             quantity: 1,
             price: productPrice,
-            discount: 0
+            discount_percent: 0
         });
     }
     updateTakeOrderItemsTable();
@@ -2717,7 +2717,8 @@ function updateTakeOrderItemsTable() {
     let rowsHtml = '';
     takeOrderItems.forEach((item, index) => {
         const grossTotal = Number(item.quantity || 0) * Number(item.price || 0);
-        const discount = Math.min(Math.max(Number(item.discount || 0), 0), grossTotal);
+        const discountPercent = Math.min(Math.max(Number(item.discount_percent || 0), 0), 100);
+        const discount = grossTotal * (discountPercent / 100);
         const lineTotal = grossTotal - discount;
         total += lineTotal;
         rowsHtml += `
@@ -2727,7 +2728,7 @@ function updateTakeOrderItemsTable() {
                     <input type="number" class="form-control form-control-sm" min="1" value="${item.quantity}" data-index="${index}" data-role="qty">
                 </td>
                 <td>₨ ${parseFloat(item.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                <td><input type="number" class="form-control form-control-sm line-discount" min="0" max="${grossTotal.toFixed(2)}" step="0.01" value="${discount.toFixed(2)}" data-index="${index}" data-role="line-discount" aria-label="Discount for ${item.product_name}"></td>
+                <td><div class="input-group input-group-sm"><input type="number" class="form-control line-discount" min="0" max="100" step="0.01" value="${discountPercent.toFixed(2)}" data-index="${index}" data-role="line-discount" aria-label="Discount percentage for ${item.product_name}"><span class="input-group-text">%</span></div></td>
                 <td>₨ ${parseFloat(lineTotal).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 <td><button class="btn btn-sm btn-outline-danger" type="button" data-index="${index}" data-role="remove-item">Remove</button></td>
             </tr>
@@ -2756,9 +2757,9 @@ function updateTakeOrderItemsTable() {
         // focused input and prevent entering multi-digit discounts.
         el.onchange = function() {
             const idx = Number(this.dataset.index);
-            const gross = Number(takeOrderItems[idx].quantity || 0) * Number(takeOrderItems[idx].price || 0);
-            takeOrderItems[idx].discount = Math.min(Math.max(Number(this.value) || 0, 0), gross);
-            this.value = takeOrderItems[idx].discount.toFixed(2);
+            const percent = Math.min(Math.max(Number(this.value) || 0, 0), 100);
+            takeOrderItems[idx].discount_percent = percent;
+            this.value = percent.toFixed(2);
             updateTakeOrderItemsTable();
         };
     });
@@ -2818,7 +2819,7 @@ function submitTakeOrderHandler(e) {
             product_name: item.product_name,
             quantity: Number(item.quantity),
             price: Number(item.price),
-            discount: Number(item.discount || 0)
+            discount_percent: Number(item.discount_percent || 0)
         }))
     };
 
