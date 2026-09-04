@@ -510,9 +510,15 @@ def update_order(order_id):
 
     try:
         old_values = {'payment': sale.payment, 'total': sale.total, 'balance': sale.balance}
-
+        payment_value = str(data.get('payment', sale.payment or 'Cash')).strip()
+        if payment_value.lower() == 'cheque':
+            cheque_number = str(data.get('cheque_number') or '').strip()
+            cheque_bank = str(data.get('cheque_bank') or '').strip()
+            cheque_date = str(data.get('cheque_date') or '').strip()
+            if not cheque_number or not cheque_bank or not cheque_date:
+                return jsonify({'error': 'Cheque number, bank name, and cheque date are required'}), 400
         if 'payment' in data:
-            sale.payment = data.get('payment')
+            sale.payment = payment_value
         if 'total' in data:
             try:
                 sale.total = float(data.get('total'))
@@ -523,7 +529,6 @@ def update_order(order_id):
                 sale.balance = float(data.get('balance'))
             except Exception:
                 pass
-
         items = data.get('items')
         if items is not None:
             SaleItem.query.filter(SaleItem.sale_id == sale.id).delete()
@@ -550,6 +555,17 @@ def update_order(order_id):
                 )
                 db.session.add(new_item)
                 recomputed_total += quantity * price
+            if payment_value.lower() == 'credit store':
+                sale.balance = recomputed_total
+            if payment_value.lower() == 'cheque':
+                cheque = Cheque.query.filter_by(sale_id=sale.id).first()
+                if not cheque:
+                    cheque = Cheque(sale_id=sale.id, customer_id=None, created_by=current_user.id, company_id=get_company_id())
+                    db.session.add(cheque)
+                cheque.cheque_number = str(data.get('cheque_number')).strip()
+                cheque.bank_name = str(data.get('cheque_bank')).strip()
+                cheque.cheque_date = datetime.strptime(str(data.get('cheque_date')).strip(), '%Y-%m-%d').date()
+                cheque.amount = recomputed_total
             # Always recompute the total when items are supplied, including an empty list.
             sale.total = recomputed_total
             if data.get('balance') is not None:

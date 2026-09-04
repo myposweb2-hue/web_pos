@@ -920,8 +920,20 @@
                             <form id="editOrderForm">
                                 <input type="hidden" id="editOrderId">
                                 <div class="mb-3">
-                                    <label class="form-label">Payment Method</label>
-                                    <input class="form-control" id="editOrderPayment">
+                                    <label class="form-label" for="editOrderPayment">Payment Method</label>
+                                    <select class="form-select" id="editOrderPayment">
+                                        <option value="Cash">Cash</option>
+                                        <option value="Card">Card</option>
+                                        <option value="Bank Transfer">Bank Transfer</option>
+                                        <option value="Cheque">Cheque</option>
+                                        <option value="Credit Store">Credit Store</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div id="editOrderChequeDetails" class="row g-2 mb-3 d-none">
+                                    <div class="col-md-4"><label class="form-label" for="editOrderChequeNumber">Cheque Number <span class="text-danger">*</span></label><input type="text" class="form-control" id="editOrderChequeNumber" maxlength="50"></div>
+                                    <div class="col-md-4"><label class="form-label" for="editOrderChequeBank">Bank Name <span class="text-danger">*</span></label><input type="text" class="form-control" id="editOrderChequeBank" maxlength="100"></div>
+                                    <div class="col-md-4"><label class="form-label" for="editOrderChequeDate">Cheque Date <span class="text-danger">*</span></label><input type="date" class="form-control" id="editOrderChequeDate"></div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Total</label>
@@ -2427,7 +2439,9 @@ function openEditOrderModal(orderId) {
             }
             $('#editOrderId').val(order.id);
             $('#editOrderPayment').val(order.payment || 'Cash');
-            $('#editOrderTotal').val(parseFloat(order.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#editOrderChequeNumber, #editOrderChequeBank, #editOrderChequeDate').val('');
+            toggleEditOrderChequeFields();
+            $('#editOrderTotal').val(Number(order.total || 0).toFixed(2));
             $('#editOrderBalance').val(parseFloat(order.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
 
             currentEditOrderItems = (order.items || []).map(item => ({
@@ -2441,6 +2455,13 @@ function openEditOrderModal(orderId) {
         })
         .catch(() => showAlert('Error opening order', 'danger'));
 }
+
+function toggleEditOrderChequeFields() {
+    const isCheque = String($('#editOrderPayment').val() || '').toLowerCase() === 'cheque';
+    $('#editOrderChequeDetails').toggleClass('d-none', !isCheque);
+    $('#editOrderChequeNumber, #editOrderChequeBank, #editOrderChequeDate').prop('required', isCheque);
+}
+$(document).off('change.editOrderCheque', '#editOrderPayment').on('change.editOrderCheque', '#editOrderPayment', toggleEditOrderChequeFields);
 
 function toggleOrderChequeFields() {
     const isCheque = String($('#orderPaymentMethod').val() || '').toLowerCase() === 'cheque';
@@ -2572,6 +2593,15 @@ async function saveEditedOrder(event) {
         showAlert('Order ID is missing. Please close and reopen the order.', 'danger');
         return;
     }
+    const payment = String($('#editOrderPayment').val() || 'Cash').trim();
+    const isCheque = payment.toLowerCase() === 'cheque';
+    const chequeNumber = $('#editOrderChequeNumber').val().trim();
+    const chequeBank = $('#editOrderChequeBank').val().trim();
+    const chequeDate = $('#editOrderChequeDate').val();
+    if (isCheque && (!chequeNumber || !chequeBank || !chequeDate)) {
+        showAlert('Cheque number, bank name, and cheque date are required.', 'danger');
+        return;
+    }
     const items = currentEditOrderItems.filter(item => Number(item.quantity) > 0).map(item => ({
         product_id: Number(item.product_id),
         product_name: item.product_name,
@@ -2583,7 +2613,10 @@ async function saveEditedOrder(event) {
         return;
     }
     const payload = {
-        payment: String($('#editOrderPayment').val() || 'Cash').trim(),
+        payment,
+        cheque_number: chequeNumber,
+        cheque_bank: chequeBank,
+        cheque_date: chequeDate,
         total: Number.parseFloat($('#editOrderTotal').val()),
         balance: Number.parseFloat($('#editOrderBalance').val()),
         items
