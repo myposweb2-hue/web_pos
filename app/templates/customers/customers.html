@@ -721,6 +721,7 @@
                             <option value="Card">Card</option>
                             <option value="Bank Transfer">Bank Transfer</option>
                             <option value="Cheque">Cheque</option>
+                            <option value="Credit Store">Credit Store</option>
                             <option value="Other">Other</option>
                         </select>
                     </div>
@@ -2624,6 +2625,11 @@ $(document).off('click.orderSave', '#saveOrderBtn').on('click.orderSave', '#save
     saveEditedOrder(event);
 });
 
+$(document).off('click.editOrderAdd', '#editOrderProductResults [data-product-id]').on('click.editOrderAdd', '#editOrderProductResults [data-product-id]', function() {
+    addEditOrderItem(this.dataset.productId, this.dataset.productName, this.dataset.productPrice);
+    this.disabled = true;
+    this.textContent = 'Added';
+});
 $('#editOrderSearchBtn').on('click', function() {
     loadEditOrderProductResults($('#editOrderProductSearch').val());
 });
@@ -2666,6 +2672,7 @@ function openTakeOrderModal(customerId, customerName) {
     $('#takeOrderDate').val(new Date().toISOString().slice(0, 10));
     $('#takeOrderProductSearch').val('');
     $('#takeOrderPaymentMethod').val('Cash');
+    $('#takeOrderChequeNumber, #takeOrderBankName, #takeOrderChequeDate').val('');
     $('#takeOrderNotes').val('');
     $('#takeOrderProductResults').html('');
     takeOrderItems = [];
@@ -2822,13 +2829,10 @@ function updateTakeOrderItemsTable() {
 function toggleTakeOrderChequeFields() {
     const method = $('#takeOrderPaymentMethod').val();
     const detailDiv = $('#takeOrderChequeDetails');
-    if (method && method.toLowerCase() === 'cheque') {
-        detailDiv.removeClass('d-none');
-    } else {
-        detailDiv.addClass('d-none');
-    }
+        const isCheque = method && method.toLowerCase() === 'cheque';
+    detailDiv.toggleClass('d-none', !isCheque);
+    $('#takeOrderChequeNumber, #takeOrderBankName, #takeOrderChequeDate').prop('required', Boolean(isCheque));
 }
-
 function submitTakeOrderHandler(e) {
     if (e && e.preventDefault) e.preventDefault();
     if (!currentCustomerId) {

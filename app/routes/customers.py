@@ -378,6 +378,8 @@ def create_order():
         total = round(total, 2)
         payment_method = data.get('payment_method', 'Cash')
         balance = float(data.get('balance', 0.0) or 0.0)
+        if str(payment_method).strip().lower() in ('credit store', 'credit'):
+            balance = total
         notes = data.get('notes', '')
 
         if payment_method.lower() == 'cheque':
