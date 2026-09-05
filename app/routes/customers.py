@@ -555,7 +555,7 @@ def update_order(order_id):
                 )
                 db.session.add(new_item)
                 recomputed_total += quantity * price
-            if payment_value.lower() == 'credit store':
+            if payment_value.lower() in ('credit store', 'cheque', 'other'):
                 sale.balance = recomputed_total
             if payment_value.lower() == 'cheque':
                 cheque = Cheque.query.filter_by(sale_id=sale.id).first()
@@ -568,7 +568,7 @@ def update_order(order_id):
                 cheque.amount = recomputed_total
             # Always recompute the total when items are supplied, including an empty list.
             sale.total = recomputed_total
-            if data.get('balance') is not None:
+            if data.get('balance') is not None and payment_value.lower() not in ('credit store', 'cheque', 'other'):
                 try:
                     sale.balance = float(data.get('balance'))
                 except Exception:

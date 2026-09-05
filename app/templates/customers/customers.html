@@ -2911,7 +2911,7 @@ function submitTakeOrderHandler(e) {
         const editPayload = {
             payment: paymentMethod,
             total: parseFloat($('#takeOrderTotal').val() || 0),
-            balance: paymentMethod.toLowerCase() === 'credit store' ? parseFloat($('#takeOrderTotal').val() || 0) : 0,
+            balance: ['credit store', 'cheque', 'other'].includes(paymentMethod.toLowerCase()) ? parseFloat($('#takeOrderTotal').val() || 0) : 0,
             cheque_number: chequeNumber || '',
             cheque_bank: bankName || '',
             cheque_date: chequeDate || '',
