@@ -27,12 +27,12 @@ class DevelopmentConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///pos_dev.db'
 
     # MailHog defaults for local development
-    SMTP_SERVER = os.environ.get('MAIL_SERVER', 'localhost')
-    SMTP_PORT = int(os.environ.get('MAIL_PORT', 1025))
+    SMTP_SERVER = os.environ.get('MAIL_SERVER') or 'localhost'
+    SMTP_PORT = int(os.environ.get('MAIL_PORT') or 1025)
     SMTP_USERNAME = os.environ.get('MAIL_USERNAME')
     SMTP_PASSWORD = os.environ.get('MAIL_PASSWORD')
     SMTP_USE_TLS = os.environ.get('MAIL_USE_TLS', 'False') in ('True', 'true', '1')
-    DEFAULT_FROM_EMAIL = os.environ.get('MAIL_DEFAULT_SENDER', 'no-reply@localhost')
+    DEFAULT_FROM_EMAIL = os.environ.get('MAIL_DEFAULT_SENDER') or 'no-reply@localhost'
 
 class TestingConfig(Config):
     """Testing configuration."""
