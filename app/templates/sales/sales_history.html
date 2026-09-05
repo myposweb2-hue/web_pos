@@ -70,6 +70,7 @@
                                     <th>Paid</th>
                                     <th>Balance</th>
                                     <th>Payment</th>
+                                    <th>Payment Activity</th>
                                     <th>User</th>
                                     <th>Actions</th>
                                 </tr>
@@ -111,6 +112,7 @@
                         <p><strong>Paid:</strong> <span id="salePaid"></span></p>
                         <p><strong>Balance:</strong> <span id="saleBalance"></span></p>
                         <p><strong>Cashier:</strong> <span id="saleUser"></span></p>
+                        <p><strong>Payment activity:</strong> <span id="salePaymentActivity"></span></p>
                     </div>
                 </div>
                 
@@ -230,12 +232,26 @@ function loadSales() {
         });
 }
 
+function formatPaymentActivity(activity) {
+    if (!activity) return '<span class="text-muted">No activity</span>';
+    const parts = [];
+    if (Number(activity.received_amount || 0) > 0) {
+        const method = activity.last_payment_method ? ` (${activity.last_payment_method})` : '';
+        const date = activity.last_payment_date ? `<br><small>${window.formatTimestamp(activity.last_payment_date, true)}</small>` : '';
+        parts.push(`<span class="text-success">Received ${currencySymbol} ${Number(activity.received_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${method}</span>${date}`);
+    }
+    if (activity.cheque_status) {
+        const deposit = activity.cheque_deposit_date ? ` on ${activity.cheque_deposit_date}` : '';
+        parts.push(`<span class="text-info">Cheque: ${activity.cheque_status}${deposit ? `<br><small>${deposit}</small>` : ''}</span>`);
+    }
+    return parts.length ? parts.join('<br>') : '<span class="text-muted">No payment recorded</span>';
+}
 function renderSales(sales) {
     const tbody = document.getElementById('salesTableBody');
     tbody.innerHTML = '';
 
     if (sales.length === 0) {
-        tbody.innerHTML = '<tr>                            <td colspan="10" class="text-center">No sales found</td></tr>';
+            tbody.innerHTML = '<tr>                            <td colspan="11" class="text-center">No sales found</td></tr>';
         return;
     }
 
@@ -250,6 +266,7 @@ function renderSales(sales) {
             <td class="text-success">${currencySymbol} ${Number(sale.paid_amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
             <td class="${Number(sale.balance || 0) > 0 ? 'text-danger fw-semibold' : 'text-success'}">${currencySymbol} ${Number(sale.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
             <td>${sale.payment}</td>
+            <td>${formatPaymentActivity(sale.activity)}</td>
             <td>${sale.user}</td>
             <td>
                 <button class="btn btn-sm btn-outline-info" onclick="viewSaleDetails(${sale.id})" title="View Details">
@@ -314,6 +331,7 @@ function viewSaleDetails(saleId) {
             document.getElementById('salePaid').textContent = currencySymbol + ' ' + Number((data.total || 0) - (data.balance || 0)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('saleBalance').textContent = currencySymbol + ' ' + Number(data.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('saleUser').textContent = data.user;
+            document.getElementById('salePaymentActivity').innerHTML = formatPaymentActivity(data.activity);
             document.getElementById('saleTotal').textContent = data.total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
             // Render items

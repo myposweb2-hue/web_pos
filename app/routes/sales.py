@@ -58,11 +58,11 @@ def _receipt_settlement(sale):
         # receive a later payment from the Orders tab. Count both sources.
         cash_paid = max(0.0, float(getattr(sale, 'cash_given', 0) or 0))
         paid = min(total, max(cash_paid, linked_paid))
-    elif sale.payment == 'Cheque':
-        paid = total
     else:
         # Prefer the latest stored balance, but recover payments linked to the
-        # order when the old workflow left the balance unchanged.
+        # order when the old workflow left the balance unchanged. This applies
+        # to Cheque and Other orders too; they remain outstanding until a
+        # payment is actually recorded.
         paid = min(total, max(total - stored_balance, linked_paid))
 
     balance = max(0.0, total - paid)
@@ -78,6 +78,24 @@ def _receipt_settlement(sale):
     change = max(0.0, display_cash_received - total) if effective_method == 'Cash' else 0.0
     status = 'Paid' if total > 0 and balance <= 0.005 else ('Partial' if paid > 0 else 'Pending')
     return paid, balance, change, status, linked_paid, effective_method, display_cash_received
+
+
+def _sale_payment_activity(sale):
+    """Return received-payment and cheque-deposit details for history views."""
+    payments = sorted(list(getattr(sale, 'customer_payments', []) or []), key=lambda p: (p.date or datetime.min, p.id or 0), reverse=True)
+    cheque = (list(getattr(sale, 'cheques', []) or [None]) or [None])[0]
+    activity = {
+        'received_amount': round(sum(float(p.amount or 0) for p in payments), 2),
+        'received_count': len(payments),
+        'last_payment_date': payments[0].date.strftime('%Y-%m-%d %H:%M:%S') if payments and payments[0].date else None,
+        'last_payment_method': payments[0].payment_method if payments else None,
+        'cheque_status': cheque.status if cheque else None,
+        'cheque_number': cheque.cheque_number if cheque else None,
+        'cheque_bank': cheque.bank_name if cheque else None,
+        'cheque_deposit_date': (cheque.deposit.deposit_date.strftime('%Y-%m-%d') if cheque and cheque.deposit and cheque.deposit.deposit_date else None),
+    }
+    return activity
+
 
 def _receipt_customer_details(sale, company_id=None):
     """Resolve durable customer contact details for receipt rendering.
@@ -2365,16 +2383,18 @@ def get_all_sales():
         }
 
         for sale in sales.items:
+            paid_amount, balance, *_ = _receipt_settlement(sale)
             result['sales'].append({
                 'id': sale.id,
                 'date': sale.date.strftime('%Y-%m-%d %H:%M:%S'),
                 'customer': sale.customer,
                 'total': _sale_total_for_display(sale),
                 'payment': sale.payment,
-                'paid_amount': _receipt_settlement(sale)[0],
-                'balance': _receipt_settlement(sale)[1],
+                'paid_amount': paid_amount,
+                'balance': balance,
                 'items_count': len(sale.items),
-                'user': sale.user.username if sale.user else 'Unknown'
+                'user': sale.user.username if sale.user else 'Unknown',
+                'activity': _sale_payment_activity(sale)
             })
 
         return jsonify(result)
@@ -2402,8 +2422,9 @@ def get_sale(sale_id):
         'total': _sale_total_for_display(sale),
         'payment': sale.payment,
         'cash_given': sale.cash_given,
-        'balance': sale.balance,
+        'balance': _receipt_settlement(sale)[1],
         'user': sale.user.username if sale.user else 'Unknown',
+        'activity': _sale_payment_activity(sale),
         'items': []
     }
 
