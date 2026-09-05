@@ -1128,8 +1128,22 @@ def delete_backup(filename):
 @login_required
 @require_permission('can_access_settings')
 def download_backup(filename):
-    """Download a backup file (company-scoped)."""
+    """Download a legacy company backup or a full POS archive."""
     filename = os.path.basename(filename)
+    backup_dir = os.path.abspath(os.path.join(current_app.root_path, '..', 'backups'))
+
+    # Full POS archives are system-wide and are protected by the Settings
+    # permission decorators above rather than company-scoped JSON validation.
+    if filename.startswith('pos_full_backup_') and filename.endswith('.tar.gz'):
+        backup_path = os.path.abspath(os.path.join(backup_dir, filename))
+        if os.path.commonpath([backup_dir, backup_path]) != backup_dir or not os.path.isfile(backup_path):
+            return jsonify({'error': 'Full backup not found'}), 404
+        try:
+            current_app.logger.info(f'Downloaded full POS backup: {filename}')
+            return send_file(backup_path, as_attachment=True, download_name=filename, mimetype='application/gzip')
+        except Exception as e:
+            current_app.logger.error(f'Error downloading full backup: {e}')
+            return jsonify({'error': str(e)}), 500
     
     # Get current company
     company_id = get_company_id()
