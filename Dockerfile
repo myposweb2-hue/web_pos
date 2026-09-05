@@ -20,7 +20,7 @@ COPY . .
 EXPOSE 5000
 
 # Run application with Gunicorn
-CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:5000", "--timeout", "300", "--max-requests", "10", "--max-requests-jitter", "2", "--access-logfile", "-", "--error-logfile", "-", "app:create_app()"]
+CMD ["gunicorn", "-w", "1", "-b", "0.0.0.0:5000", "--timeout", "900", "--max-requests", "10", "--max-requests-jitter", "2", "--access-logfile", "-", "--error-logfile", "-", "app:create_app()"]
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
