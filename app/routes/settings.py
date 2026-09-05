@@ -7,6 +7,9 @@ from datetime import datetime
 import os
 import shutil
 import subprocess
+import json
+import tarfile
+import tempfile
 from urllib.parse import urlparse
 from app import csrf
 
@@ -523,6 +526,198 @@ def create_backup():
     except Exception as e:
         current_app.logger.error(f"Backup failed: {e}")
         return jsonify({'error': str(e)}), 500
+
+@settings_bp.route('/api/settings/full-backup', methods=['POST'])
+@csrf.exempt
+@login_required
+@require_any_settings_permission()
+def create_full_backup():
+    """Create a downloadable full POS archive with database and uploaded files."""
+    db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    project_root = os.path.abspath(os.path.dirname(current_app.root_path))
+    backup_dir = os.path.join(project_root, 'backups')
+    os.makedirs(backup_dir, exist_ok=True)
+    timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    archive_name = f'pos_full_backup_{timestamp}.tar.gz'
+    archive_path = os.path.join(backup_dir, archive_name)
+    temp_dir = tempfile.mkdtemp(prefix='pos-full-backup-')
+    try:
+        database_path = os.path.join(temp_dir, 'database.sql')
+        if db_uri.startswith('sqlite:'):
+            db_filename = db_uri.split(':///')[-1]
+            source_db = os.path.join(project_root, db_filename)
+            if not os.path.isfile(source_db):
+                return jsonify({'error': 'SQLite database file was not found'}), 500
+            shutil.copy2(source_db, database_path)
+        elif db_uri.startswith(('postgresql:', 'postgres:')):
+            parsed_uri = urlparse(db_uri)
+            env = os.environ.copy()
+            if parsed_uri.password:
+                env['PGPASSWORD'] = parsed_uri.password
+            dump_cmd = [
+                find_pg_dump(),
+                f'--host={parsed_uri.hostname or "localhost"}',
+                f'--port={parsed_uri.port or 5432}',
+                f'--username={parsed_uri.username or "postgres"}',
+                '--format=plain',
+                f'--file={database_path}',
+                parsed_uri.path.lstrip('/')
+            ]
+            result = subprocess.run(dump_cmd, env=env, capture_output=True, text=True, timeout=600)
+            if result.returncode != 0:
+                current_app.logger.error('Full PostgreSQL backup failed: %s', result.stderr)
+                return jsonify({'error': 'Database backup failed', 'detail': result.stderr[-1000:]}), 500
+        else:
+            return jsonify({'error': 'Unsupported database type'}), 400
+
+        manifest = {
+            'format': 'pos-full-backup-v1',
+            'created_at': datetime.utcnow().isoformat() + 'Z',
+            'database_type': 'sqlite' if db_uri.startswith('sqlite:') else 'postgresql',
+            'includes': ['database', 'application_files', 'uploaded_images', 'uploaded_files', 'local_backups'],
+            'restore_note': 'Database and uploaded data can be restored from Settings. Application code is included for safekeeping.'
+        }
+        local_backup_source = os.path.join(project_root, 'backups')
+        local_backup_snapshot = os.path.join(temp_dir, 'local_backups')
+        if os.path.isdir(local_backup_source):
+            shutil.copytree(local_backup_source, local_backup_snapshot, dirs_exist_ok=True)
+
+        with open(os.path.join(temp_dir, 'MANIFEST.json'), 'w', encoding='utf-8') as handle:
+            json.dump(manifest, handle, indent=2)
+
+        def tar_filter(info):
+            name = info.name.replace('\\', '/')
+            if any(part in name.split('/') for part in ('.git', '__pycache__', 'backups')):
+                return None
+            if os.path.basename(name) in {'.env', '.env.production'}:
+                return None
+            return info
+
+        with tarfile.open(archive_path, 'w:gz') as archive:
+            archive.add(database_path, arcname='database.sql')
+            archive.add(os.path.join(temp_dir, 'MANIFEST.json'), arcname='MANIFEST.json')
+            if os.path.isdir(project_root):
+                archive.add(project_root, arcname='application', filter=tar_filter)
+            if os.path.isdir(local_backup_snapshot):
+                archive.add(local_backup_snapshot, arcname='local_backups')
+            extra_uploads = os.path.join(os.path.dirname(project_root), 'uploads')
+            if os.path.isdir(extra_uploads):
+                archive.add(extra_uploads, arcname='uploads', filter=tar_filter)
+
+        return jsonify({
+            'success': True,
+            'message': 'Full POS backup created successfully.',
+            'filename': archive_name,
+            'download_url': f'/api/settings/download-backup/{archive_name}'
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Full backup timed out'}), 500
+    except Exception as exc:
+        current_app.logger.exception('Full backup failed')
+        return jsonify({'error': str(exc)}), 500
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@settings_bp.route('/api/settings/restore-full-backup', methods=['POST'])
+@csrf.exempt
+@login_required
+@require_any_settings_permission()
+def restore_full_backup():
+    """Restore database and uploaded data from a full POS archive upload."""
+    uploaded = request.files.get('file')
+    if not uploaded or not uploaded.filename:
+        return jsonify({'error': 'Please select a full POS backup archive'}), 400
+    filename = os.path.basename(uploaded.filename)
+    if not filename.endswith(('.tar.gz', '.tgz')):
+        return jsonify({'error': 'Full backup must be a .tar.gz or .tgz file'}), 400
+
+    project_root = os.path.abspath(os.path.dirname(current_app.root_path))
+    temp_dir = tempfile.mkdtemp(prefix='pos-full-restore-')
+    upload_path = os.path.join(temp_dir, filename)
+    try:
+        uploaded.save(upload_path)
+        extract_dir = os.path.join(temp_dir, 'extracted')
+        os.makedirs(extract_dir, exist_ok=True)
+        with tarfile.open(upload_path, 'r:gz') as archive:
+            for member in archive.getmembers():
+                target = os.path.abspath(os.path.join(extract_dir, member.name))
+                if not target.startswith(os.path.abspath(extract_dir) + os.sep):
+                    return jsonify({'error': 'Unsafe backup archive path detected'}), 400
+            archive.extractall(extract_dir)
+
+        manifest_path = os.path.join(extract_dir, 'MANIFEST.json')
+        if not os.path.isfile(manifest_path):
+            return jsonify({'error': 'Invalid backup: MANIFEST.json is missing'}), 400
+        with open(manifest_path, encoding='utf-8') as handle:
+            manifest = json.load(handle)
+        if manifest.get('format') != 'pos-full-backup-v1':
+            return jsonify({'error': 'Unsupported backup format'}), 400
+
+        database_path = os.path.join(extract_dir, 'database.sql')
+        db_uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+        if not os.path.isfile(database_path):
+            return jsonify({'error': 'Invalid backup: database.sql is missing'}), 400
+
+        if db_uri.startswith(('postgresql:', 'postgres:')):
+            parsed_uri = urlparse(db_uri)
+            env = os.environ.copy()
+            if parsed_uri.password:
+                env['PGPASSWORD'] = parsed_uri.password
+            restore_cmd = [
+                find_psql(),
+                f'--host={parsed_uri.hostname or "localhost"}',
+                f'--port={parsed_uri.port or 5432}',
+                f'--username={parsed_uri.username or "postgres"}',
+                f'--dbname={parsed_uri.path.lstrip("/")}',
+                '--file', database_path
+            ]
+            result = subprocess.run(restore_cmd, env=env, capture_output=True, text=True, timeout=900)
+            if result.returncode != 0:
+                return jsonify({'error': 'Database restore failed', 'detail': result.stderr[-1500:]}), 500
+        elif db_uri.startswith('sqlite:'):
+            db_filename = db_uri.split(':///')[-1]
+            shutil.copy2(database_path, os.path.join(project_root, db_filename))
+        else:
+            return jsonify({'error': 'Unsupported database type'}), 400
+
+        application_root = os.path.join(extract_dir, 'application')
+        restored_paths = []
+        for relative_path in ('app/static/uploads', 'static/uploads'):
+            source = os.path.join(application_root, relative_path)
+            target = os.path.join(project_root, relative_path)
+            if os.path.isdir(source):
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.copytree(source, target, dirs_exist_ok=True)
+                restored_paths.append(relative_path)
+        local_backups = os.path.join(extract_dir, 'local_backups')
+        if os.path.isdir(local_backups):
+            target = os.path.join(project_root, 'backups')
+            shutil.copytree(local_backups, target, dirs_exist_ok=True)
+            restored_paths.append('backups')
+        external_uploads = os.path.join(extract_dir, 'uploads')
+        if os.path.isdir(external_uploads):
+            target = os.path.join(os.path.dirname(project_root), 'uploads')
+            shutil.copytree(external_uploads, target, dirs_exist_ok=True)
+            restored_paths.append('uploads')
+
+        db.engine.dispose()
+        return jsonify({
+            'success': True,
+            'message': 'Full POS backup restored successfully. Please refresh the application.',
+            'restored': ['database'] + restored_paths,
+            'manifest': manifest
+        })
+    except tarfile.TarError:
+        return jsonify({'error': 'The uploaded file is not a valid .tar.gz backup'}), 400
+    except subprocess.TimeoutExpired:
+        return jsonify({'error': 'Database restore timed out'}), 500
+    except Exception as exc:
+        current_app.logger.exception('Full restore failed')
+        return jsonify({'error': str(exc)}), 500
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
 
 @settings_bp.route('/api/settings/backups', methods=['GET'])
 @csrf.exempt

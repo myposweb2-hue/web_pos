@@ -503,29 +503,34 @@
                 <div class="tab-pane fade" id="v-pills-backup" role="tabpanel" aria-labelledby="v-pills-backup-tab">
                     <div class="card shadow-sm">
                         <div class="card-header">
-                            <h6 class="m-0 font-weight-bold text-primary">Database Backup</h6>
+                            <h6 class="m-0 font-weight-bold text-primary">Full POS Backup and Restore</h6>
                         </div>
                         <div class="card-body">
                             <div class="alert alert-info">
                                 <i class="fas fa-info-circle me-2"></i>
-                                Backups are saved to the server's <code>backups/</code> directory.
+                                A full backup contains the database, product/customer images, uploads, application data, and local POS backups. Download the archive and store it outside this server.
                             </div>
                             <div id="backupStatusMsg" style="display:none;"></div>
-                            <p>Create a full backup of your database to ensure data safety.</p>
+                            <p>Create a complete downloadable POS backup archive. The archive is saved on the server first, then can be downloaded to your computer.</p>
                             <button class="btn btn-success" id="createBackupBtn">
-                                <i class="fas fa-download me-2"></i>Create Database Backup
+                                <i class="fas fa-archive me-2"></i>Create Full POS Backup
                             </button>
+                            <a class="btn btn-outline-success ms-2 d-none" id="downloadFullBackupBtn" href="#" download>
+                                <i class="fas fa-download me-2"></i>Download Full Backup
+                            </a>
 
                             <hr class="my-4">
 
-                            <h6 class="font-weight-bold text-primary">Import Backup</h6>
-                            <p>Import a backup file from your computer to restore your database.</p>
+                            <h6 class="font-weight-bold text-primary">Restore Full POS Backup</h6>
+                            <p>Upload a previously downloaded <code>.tar.gz</code> full POS backup. Restoring overwrites current database records and restores uploaded images/files.</p>
                             <div class="input-group mb-3">
-                                <input type="file" class="form-control" id="importBackupFile" accept=".json" title="Select JSON backup file (.json format)">
-                                <button class="btn btn-info" id="importBackupBtn" type="button">
-                                    <i class="fas fa-upload me-2"></i>Import Backup
+                                <input type="file" class="form-control" id="fullBackupFile" accept=".tar.gz,.tgz" title="Select a full POS backup archive">
+                                <button class="btn btn-info" id="restoreFullBackupBtn" type="button">
+                                    <i class="fas fa-upload me-2"></i>Upload and Restore Full Backup
                                 </button>
                             </div>
+                            <div class="alert alert-warning small">Create a fresh backup before restoring. Do not close the browser while the restore is running.</div>
+                            <input type="file" class="d-none" id="importBackupFile" accept=".json">
 
                             <hr class="my-4">
                             
@@ -1727,60 +1732,59 @@ document.addEventListener('DOMContentLoaded', function () {
         checkBackupStatus();
         
         createBackupBtn.addEventListener('click', function() {
-            if(confirm('Create a new database backup?')) {
-                this.disabled = true;
-                this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating...';
-                fetch('/api/settings/backup', { method: 'POST' })
+            if (!confirm('Create a complete POS backup containing the database, images, uploads, and application data?')) return;
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating full backup...';
+            fetch('/api/settings/full-backup', { method: 'POST' })
                 .then(handleResponse)
                 .then(data => {
-                    alert(data.message);
-                    loadBackups(); // Refresh list
+                    const downloadButton = document.getElementById('downloadFullBackupBtn');
+                    if (data.download_url) {
+                        downloadButton.href = data.download_url;
+                        downloadButton.classList.remove('d-none');
+                        downloadButton.click();
+                    }
+                    alert(data.message || 'Full POS backup created and downloaded.');
+                    loadBackups();
                 })
                 .catch(handleError)
-                .finally(() => { this.disabled = false; this.innerHTML = '<i class="fas fa-download me-2"></i>Create Database Backup'; });
-            }
+                .finally(() => {
+                    this.disabled = false;
+                    this.innerHTML = '<i class="fas fa-archive me-2"></i>Create Full POS Backup';
+                });
         });
 
-        const importBackupBtn = document.getElementById('importBackupBtn');
-        const importBackupFile = document.getElementById('importBackupFile');
-        
-        if (importBackupBtn) {
-            importBackupBtn.addEventListener('click', function() {
-                if (!importBackupFile.files.length) {
-                    alert('Please select a backup file (.json)');
+        const restoreFullBackupBtn = document.getElementById('restoreFullBackupBtn');
+        const fullBackupFile = document.getElementById('fullBackupFile');
+        if (restoreFullBackupBtn) {
+            restoreFullBackupBtn.addEventListener('click', function() {
+                if (!fullBackupFile.files.length) {
+                    alert('Please select a .tar.gz or .tgz full POS backup archive.');
                     return;
                 }
-                
-                const file = importBackupFile.files[0];
-                const validExtensions = ['.json'];
-                const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-                
-                if (!validExtensions.includes(fileExtension)) {
-                    alert('Invalid file type. Please select a JSON backup file (.json).');
+                const file = fullBackupFile.files[0];
+                if (!file.name.toLowerCase().endsWith('.tar.gz') && !file.name.toLowerCase().endsWith('.tgz')) {
+                    alert('Invalid file type. Select a .tar.gz or .tgz full POS backup archive.');
                     return;
                 }
-                
-                if (confirm(`Import and restore from "${file.name}"? Current data will be overwritten (a backup will be created first).`)) {
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    
-                    this.disabled = true;
-                    const originalText = this.innerHTML;
-                    this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Importing...';
-                    
-                    fetch('/api/settings/import-backup', { method: 'POST', body: formData })
-                        .then(handleResponse)
-                        .then(data => {
-                            alert(data.message);
-                            importBackupFile.value = '';
-                            loadBackups();
-                        })
-                        .catch(handleError)
-                        .finally(() => { 
-                            this.disabled = false; 
-                            this.innerHTML = originalText;
-                        });
-                }
+                if (!confirm(`Restore "${file.name}"? Current database records and uploaded files will be overwritten.`)) return;
+                const formData = new FormData();
+                formData.append('file', file);
+                this.disabled = true;
+                const originalText = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Restoring full backup...';
+                fetch('/api/settings/restore-full-backup', { method: 'POST', body: formData })
+                    .then(handleResponse)
+                    .then(data => {
+                        alert(data.message || 'Full POS backup restored successfully.');
+                        fullBackupFile.value = '';
+                        window.location.reload();
+                    })
+                    .catch(handleError)
+                    .finally(() => {
+                        this.disabled = false;
+                        this.innerHTML = originalText;
+                    });
             });
         }
     }
