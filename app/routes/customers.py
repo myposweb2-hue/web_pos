@@ -558,12 +558,23 @@ def update_order(order_id):
             if payment_value.lower() in ('credit store', 'cheque', 'other'):
                 sale.balance = recomputed_total
             if payment_value.lower() == 'cheque':
+                cheque_number_value = str(data.get('cheque_number')).strip()
+                cheque_bank_value = str(data.get('cheque_bank')).strip()
                 cheque = Cheque.query.filter_by(sale_id=sale.id).first()
+                duplicate_query = Cheque.query.filter(
+                    Cheque.cheque_number == cheque_number_value,
+                    Cheque.bank_name == cheque_bank_value,
+                    Cheque.company_id == get_company_id()
+                )
+                if cheque:
+                    duplicate_query = duplicate_query.filter(Cheque.id != cheque.id)
+                if duplicate_query.first():
+                    return jsonify({'error': 'This cheque number already exists for this bank. Use a different cheque number or bank.'}), 409
                 if not cheque:
                     cheque = Cheque(sale_id=sale.id, customer_id=None, created_by=current_user.id, company_id=get_company_id())
                     db.session.add(cheque)
-                cheque.cheque_number = str(data.get('cheque_number')).strip()
-                cheque.bank_name = str(data.get('cheque_bank')).strip()
+                cheque.cheque_number = cheque_number_value
+                cheque.bank_name = cheque_bank_value
                 cheque.cheque_date = datetime.strptime(str(data.get('cheque_date')).strip(), '%Y-%m-%d').date()
                 cheque.amount = recomputed_total
             # Always recompute the total when items are supplied, including an empty list.
