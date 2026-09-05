@@ -13,3 +13,13 @@ instance/
 .idea
 .vscode
 node_modules
+app/backups/*.tar.gz
+backups/*.tar.gz
+uploads/*
+app/uploads/*
+static/uploads/*
+app/static/uploads/*
+.env.*
+*.pyo
+*.pyd
+nginx.backup.*
