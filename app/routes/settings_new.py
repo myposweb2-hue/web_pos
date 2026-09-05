@@ -716,11 +716,7 @@ def create_full_backup():
         else:
             return jsonify({'error': 'Unsupported database type'}), 400
 
-        manifest = {'format': 'pos-full-backup-v1', 'created_at': datetime.utcnow().isoformat() + 'Z', 'database_type': 'sqlite' if db_uri.startswith('sqlite:') else 'postgresql', 'includes': ['database', 'application_files', 'uploaded_images', 'uploaded_files', 'local_backups'], 'restore_note': 'Database and uploaded data can be restored from Settings. Application code is included for safekeeping.'}
-        local_backup_source = os.path.join(project_root, 'backups')
-        local_backup_snapshot = os.path.join(temp_dir, 'local_backups')
-        if os.path.isdir(local_backup_source):
-            shutil.copytree(local_backup_source, local_backup_snapshot, dirs_exist_ok=True)
+        manifest = {'format': 'pos-full-backup-v1', 'created_at': datetime.utcnow().isoformat() + 'Z', 'database_type': 'sqlite' if db_uri.startswith('sqlite:') else 'postgresql', 'includes': ['database', 'application_files', 'uploaded_images', 'uploaded_files'], 'restore_note': 'Database and uploaded data can be restored from Settings. Application code is included for safekeeping.'}
         with open(os.path.join(temp_dir, 'MANIFEST.json'), 'w', encoding='utf-8') as handle:
             json.dump(manifest, handle, indent=2)
 
@@ -736,8 +732,6 @@ def create_full_backup():
             archive.add(database_path, arcname='database.sql')
             archive.add(os.path.join(temp_dir, 'MANIFEST.json'), arcname='MANIFEST.json')
             archive.add(project_root, arcname='application', filter=tar_filter)
-            if os.path.isdir(local_backup_snapshot):
-                archive.add(local_backup_snapshot, arcname='local_backups')
             extra_uploads = os.path.join(os.path.dirname(project_root), 'uploads')
             if os.path.isdir(extra_uploads):
                 archive.add(extra_uploads, arcname='uploads', filter=tar_filter)
