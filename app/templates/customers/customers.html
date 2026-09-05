@@ -2876,7 +2876,7 @@ function toggleTakeOrderChequeFields() {
 }
 function submitTakeOrderHandler(e) {
     if (e && e.preventDefault) e.preventDefault();
-    if (!currentCustomerId) {
+    if (!editingOrderId && !currentCustomerId) {
         showAlert('Please select a customer first', 'danger');
         return;
     }
