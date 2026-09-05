@@ -717,7 +717,7 @@
                 <div class="row mt-3">
                     <div class="col-md-6">
                         <label class="form-label">Payment Method</label>
-                        <select class="form-select" id="takeOrderPaymentMethod">
+                        <select class="form-select" id="takeOrderPaymentMethod" onchange="toggleTakeOrderChequeFields()">
                             <option value="Cash">Cash</option>
                             <option value="Card">Card</option>
                             <option value="Bank Transfer">Bank Transfer</option>
@@ -2720,6 +2720,7 @@ function openTakeOrderModal(customerId, customerName) {
     updateTakeOrderItemsTable();
     toggleTakeOrderChequeFields();
     $('#takeOrderModal').modal('show');
+    setTimeout(toggleTakeOrderChequeFields, 0);
     loadTakeOrderProducts();
 }
 
@@ -2891,7 +2892,11 @@ function submitTakeOrderHandler(e) {
     const chequeDate = $('#takeOrderChequeDate').val();
 
     if (paymentMethod === 'Cheque' && (!chequeNumber || !bankName || !chequeDate)) {
-        showAlert('Cheque number, bank name, and date are required for cheque payments', 'danger');
+        toggleTakeOrderChequeFields();
+        showModalAlert('Enter Cheque Number, Bank Name, and Cheque Date before saving.', 'danger');
+        if (!chequeNumber) $('#takeOrderChequeNumber').trigger('focus');
+        else if (!bankName) $('#takeOrderBankName').trigger('focus');
+        else $('#takeOrderChequeDate').trigger('focus');
         return;
     }
 
