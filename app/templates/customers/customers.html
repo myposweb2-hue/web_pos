@@ -2428,30 +2428,35 @@ function openViewOrderModal(orderId) {
         });
 }
 
+let editingOrderId = null;
 function openEditOrderModal(orderId) {
-    // Load order details
-    fetch('/customers/api/orders/' + orderId)
+    fetch('/customers/api/orders/' + encodeURIComponent(orderId))
         .then(res => res.json())
         .then(order => {
             if (!order || !order.id) {
                 showAlert('Order not found', 'danger');
                 return;
             }
-            $('#editOrderId').val(order.id);
-            $('#editOrderPayment').val(order.payment || 'Cash');
-            $('#editOrderChequeNumber, #editOrderChequeBank, #editOrderChequeDate').val('');
-            toggleEditOrderChequeFields();
-            $('#editOrderTotal').val(Number(order.total || 0).toFixed(2));
-            $('#editOrderBalance').val(parseFloat(order.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-
-            currentEditOrderItems = (order.items || []).map(item => ({
+            editingOrderId = Number(order.id);
+            currentCustomerId = order.customer_id || currentCustomerId;
+            $('#takeOrderModalLabel').text('Edit Order');
+            $('#takeOrderCustomerName').val(order.customer || '');
+            $('#takeOrderDate').val(order.date || new Date().toISOString().slice(0, 10));
+            $('#takeOrderProductSearch').val('');
+            $('#takeOrderPaymentMethod').val(order.payment || 'Cash');
+            $('#takeOrderChequeNumber, #takeOrderBankName, #takeOrderChequeDate').val('');
+            $('#takeOrderNotes').val(order.notes || '');
+            takeOrderItems = (order.items || []).map(item => ({
                 product_id: Number(item.product_id),
                 product_name: item.product_name || 'Unknown',
                 quantity: Number(item.quantity || 0),
-                price: Number(item.price || 0)
+                price: Number(item.price || 0),
+                discount_percent: Number(item.discount_percent || 0)
             }));
-            renderEditOrderItems();
-            $('#editOrderModal').modal('show');
+            updateTakeOrderItemsTable();
+            toggleTakeOrderChequeFields();
+            $('#takeOrderModal').modal('show');
+            loadTakeOrderProducts();
         })
         .catch(() => showAlert('Error opening order', 'danger'));
 }
@@ -2696,6 +2701,8 @@ let takeOrderSearchRequestId = 0;
 let takeOrderSearchTimer = null;
 
 function openTakeOrderModal(customerId, customerName) {
+    editingOrderId = null;
+    $('#takeOrderModalLabel').text('Take Order');
     if (!customerId) {
         showAlert('Unable to open order form: missing customer ID.', 'danger');
         return;
@@ -2888,6 +2895,38 @@ function submitTakeOrderHandler(e) {
         return;
     }
 
+    const editItems = takeOrderItems.map(item => ({
+        product_id: Number(item.product_id),
+        product_name: item.product_name,
+        quantity: Number(item.quantity),
+        price: Number(item.price),
+        discount_percent: Number(item.discount_percent || 0)
+    }));
+    if (editingOrderId) {
+        const editPayload = {
+            payment: paymentMethod,
+            total: parseFloat($('#takeOrderTotal').val() || 0),
+            balance: paymentMethod.toLowerCase() === 'credit store' ? parseFloat($('#takeOrderTotal').val() || 0) : 0,
+            cheque_number: chequeNumber || '',
+            cheque_bank: bankName || '',
+            cheque_date: chequeDate || '',
+            items: editItems
+        };
+        fetch('/customers/api/orders/' + encodeURIComponent(editingOrderId), {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
+            body: JSON.stringify(editPayload)
+        }).then(r => r.json()).then(data => {
+            if (!data.success) throw new Error(data.error || 'Unable to update order');
+            $('#takeOrderModal').modal('hide');
+            editingOrderId = null;
+            $('#takeOrderModalLabel').text('Take Order');
+            showAlert(data.message || 'Order updated successfully', 'success');
+            if (typeof loadOrders === 'function') loadOrders(1);
+        }).catch(err => showModalAlert(err.message || 'Unable to update order', 'danger'));
+        return;
+    }
     const payload = {
         customer_id: currentCustomerId,
         customer_name: $('#takeOrderCustomerName').val(),
