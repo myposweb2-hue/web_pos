@@ -892,7 +892,7 @@
                             <div class="d-flex justify-content-between bg-light rounded p-3 mb-3"><span>Outstanding balance</span><strong class="text-danger" id="orderPaymentOutstanding">Rs. 0.00</strong></div>
                             <input type="hidden" id="orderPaymentOrderId">
                             <div class="mb-3"><label class="form-label" for="orderPaymentAmount">Payment amount</label><input type="number" class="form-control form-control-lg" id="orderPaymentAmount" min="0.01" step="0.01" required></div>
-                            <div class="mb-3"><label class="form-label" for="orderPaymentMethod">Payment method</label><select class="form-select" id="orderPaymentMethod"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Cheque</option><option>Other</option></select></div>
+                            <div class="mb-3"><label class="form-label" for="orderPaymentMethod">Payment method</label><select class="form-select" id="orderPaymentMethod"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Cheque</option><option>Credit Store</option><option>Other</option></select></div>
                             <div id="orderChequeDetails" class="border rounded bg-light p-3 mb-3 d-none">
                                 <div class="fw-semibold mb-2"><i class="fas fa-money-check me-1"></i>Cheque details</div>
                                 <div class="mb-2"><label class="form-label" for="orderChequeNumber">Cheque number <span class="text-danger">*</span></label><input type="text" class="form-control" id="orderChequeNumber" maxlength="50" placeholder="Enter cheque number"></div>
@@ -2491,9 +2491,10 @@ async function openOrderPaymentModal(orderId) {
         $('#orderPaymentCustomer').text(order.customer || 'Walk-in Customer');
         $('#orderPaymentOutstanding').text('₨ ' + balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         $('#orderPaymentAmount').val(balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})).attr('max', balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-        $('#orderPaymentReference, #orderPaymentNotes, #orderChequeNumber, #orderChequeBank').val('');
-        $('#orderChequeDate').val(new Date().toISOString().slice(0, 10));
-        $('#orderPaymentMethod').val('Cash');
+        $('#orderPaymentReference, #orderPaymentNotes').val('');
+        $('#orderChequeNumber, #orderChequeBank').val(order.cheque ? (order.cheque.number || '') : '');
+        $('#orderChequeDate').val(order.cheque && order.cheque.date ? order.cheque.date : new Date().toISOString().slice(0, 10));
+        $('#orderPaymentMethod').val(order.payment || 'Cash');
         toggleOrderChequeFields();
         $('#orderPaymentAlert').addClass('d-none').text('');
         $('#orderPaymentModal').modal('show');

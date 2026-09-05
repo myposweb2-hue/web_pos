@@ -482,15 +482,20 @@ def get_order(order_id):
                 'total': float(it.quantity * it.price - (it.discount or 0))
         })
 
+    cheque = sale.cheques[0] if getattr(sale, 'cheques', None) else None
     return jsonify({
         'id': sale.id,
         'customer': sale.customer,
         'date': sale.date.strftime('%Y-%m-%d %H:%M:%S') if sale.date else None,
         'total': sale.total,
-                    'payment': sale.payment,
-            'user': (sale.user.username if sale.user else 'System'),
-            'balance': _current_order_balance(sale),
-
+        'payment': sale.payment,
+        'user': (sale.user.username if sale.user else 'System'),
+        'balance': _current_order_balance(sale),
+        'cheque': ({
+            'number': cheque.cheque_number,
+            'bank_name': cheque.bank_name,
+            'date': cheque.cheque_date.strftime('%Y-%m-%d') if cheque.cheque_date else ''
+        } if cheque else None),
         'items': items
     })
 
