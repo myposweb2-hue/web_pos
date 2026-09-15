@@ -1,0 +1,536 @@
+{% extends "base.html" %}
+
+{% block title %}Suppliers - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="fas fa-truck me-2 text-primary"></i>Suppliers
+        </h2>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#supplierModal" onclick="openSupplierModal()">
+            <i class="fas fa-plus me-2"></i>Add Supplier
+        </button>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" class="form-control" id="searchInput" placeholder="Search suppliers...">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Suppliers Table -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Contact Person</th>
+                            <th>Phone</th>
+                            <th>Email</th>
+                            <th>Products</th>
+                            <th>Purchases</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="suppliersTableBody">
+                        <tr>
+                            <td colspan="7" class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    <nav aria-label="Suppliers pagination" class="mt-4">
+        <ul class="pagination justify-content-center" id="pagination"></ul>
+    </nav>
+</div>
+
+<!-- Add/Edit Supplier Modal -->
+<div class="modal fade" id="supplierModal" tabindex="-1" aria-labelledby="supplierModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="supplierModalLabel">Add Supplier</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="supplierForm">
+                    <input type="hidden" id="supplierId">
+                    <div class="mb-3">
+                        <label for="supplierName" class="form-label">Supplier Name *</label>
+                        <input type="text" class="form-control" id="supplierName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="contactPerson" class="form-label">Contact Person</label>
+                        <input type="text" class="form-control" id="contactPerson">
+                    </div>
+                    <div class="mb-3">
+                        <label for="supplierPhone" class="form-label">Phone</label>
+                        <input type="text" class="form-control" id="supplierPhone">
+                    </div>
+                    <div class="mb-3">
+                        <label for="supplierEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="supplierEmail">
+                    </div>
+                    <div class="mb-3">
+                        <label for="supplierAddress" class="form-label">Address</label>
+                        <textarea class="form-control" id="supplierAddress" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveSupplier()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Supplier Modal -->
+<!-- Add Product for Supplier Modal -->
+<div class="modal fade" id="supplierProductModal" tabindex="-1" aria-labelledby="supplierProductModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="supplierProductModalLabel">Add Product</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info py-2"><i class="fas fa-link me-1"></i>This product will be linked to <strong id="productSupplierName">the selected supplier</strong>.</div>
+                <form id="supplierProductForm">
+                    <input type="hidden" id="supplierProductSupplierId">
+                    <div class="row g-3">
+                        <div class="col-md-8"><label class="form-label" for="supplierProductName">Product Name *</label><input class="form-control" id="supplierProductName" required></div>
+                        <div class="col-md-4"><label class="form-label" for="supplierProductBarcode">Barcode</label><input class="form-control" id="supplierProductBarcode"></div>
+                        <div class="col-md-4"><label class="form-label" for="supplierProductPrice">Selling Price *</label><input type="number" class="form-control" id="supplierProductPrice" min="0" step="0.01" required></div>
+                        <div class="col-md-4"><label class="form-label" for="supplierProductCost">Cost Price</label><input type="number" class="form-control" id="supplierProductCost" min="0" step="0.01" value="0"></div>
+                        <div class="col-md-4"><label class="form-label" for="supplierProductStock">Opening Stock</label><input type="number" class="form-control" id="supplierProductStock" min="0" step="0.01" value="0"></div>
+                        <div class="col-md-4"><label class="form-label" for="supplierProductUnit">Unit Type</label><select class="form-select" id="supplierProductUnit"><option value="unit">Unit</option><option value="kg">Kilogram (kg)</option><option value="g">Gram (g)</option><option value="l">Liter (L)</option><option value="ml">Milliliter (mL)</option><option value="box">Box</option><option value="pack">Pack</option><option value="case">Case</option></select></div>
+                        <div class="col-md-8"><label class="form-label" for="supplierProductCategory">Category</label><input class="form-control" id="supplierProductCategory" value="General"></div>
+                        <div class="col-12"><label class="form-label" for="supplierProductDescription">Description</label><textarea class="form-control" id="supplierProductDescription" rows="2"></textarea></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" onclick="saveSupplierProduct()"><i class="fas fa-save me-1"></i>Save Product</button></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="viewSupplierModal" tabindex="-1" aria-labelledby="viewSupplierModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewSupplierModalLabel">Supplier Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Contact Information</h6>
+                        <p class="mb-1"><strong>Name:</strong> <span id="viewSupplierName"></span></p>
+                        <p class="mb-1"><strong>Contact Person:</strong> <span id="viewContactPerson"></span></p>
+                        <p class="mb-1"><strong>Phone:</strong> <span id="viewSupplierPhone"></span></p>
+                        <p class="mb-1"><strong>Email:</strong> <span id="viewSupplierEmail"></span></p>
+                        <p class="mb-0"><strong>Address:</strong> <span id="viewSupplierAddress"></span></p>
+                    </div>
+                    <div class="col-12 mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="text-muted mb-0">Linked Products</h6><button type="button" class="btn btn-sm btn-outline-primary" id="supplierAddProductFromDetails"><i class="fas fa-plus me-1"></i>Add Product</button></div>
+                        <div class="table-responsive"><table class="table table-sm" id="supplierProductsTable"><thead><tr><th>Product</th><th>Barcode</th><th>Stock</th><th>Cost</th><th>Selling Price</th></tr></thead><tbody></tbody></table></div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-muted mb-2">Recent Purchases</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm" id="purchaseHistoryTable">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Invoice</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a class="btn btn-primary" id="supplierPurchaseLink" href="#"><i class="fas fa-cart-plus me-1"></i>New Purchase</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let totalPages = 1;
+let currencySymbol = 'Rs. ';
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+}
+
+function startSupplierPurchase(supplierId) {
+    window.location.href = `/purchases?open_modal=new_purchase&supplier_id=${supplierId}`;
+}
+
+function openSupplierProductModal(supplierId, supplierName) {
+    const modalElement = document.getElementById('supplierProductModal');
+    const form = document.getElementById('supplierProductForm');
+    const supplierIdInput = document.getElementById('supplierProductSupplierId');
+    const supplierNameElement = document.getElementById('productSupplierName');
+    const categoryInput = document.getElementById('supplierProductCategory');
+
+    if (!modalElement || !form || !supplierIdInput) {
+        console.error('Supplier product modal markup is missing. Please refresh the page or redeploy the latest template.', {
+            modal: Boolean(modalElement), form: Boolean(form), supplierIdInput: Boolean(supplierIdInput)
+        });
+        if (typeof showAlert === 'function') showAlert('Add Product is unavailable. Please refresh the page and try again.', 'danger');
+        return;
+    }
+
+    form.reset();
+    supplierIdInput.value = supplierId;
+    if (supplierNameElement) supplierNameElement.textContent = supplierName || 'the selected supplier';
+    if (categoryInput) categoryInput.value = 'General';
+    new bootstrap.Modal(modalElement).show();
+}
+
+function saveSupplierProduct() {
+    const form = document.getElementById('supplierProductForm');
+    if (!form) {
+        if (typeof showAlert === 'function') showAlert('Add Product is unavailable. Please refresh the page and try again.', 'danger');
+        return;
+    }
+    if (!form.reportValidity()) return;
+    const payload = {
+        name: document.getElementById('supplierProductName').value.trim(),
+        price: Number(document.getElementById('supplierProductPrice').value || 0),
+        cost_price: Number(document.getElementById('supplierProductCost').value || 0),
+        stock: Number(document.getElementById('supplierProductStock').value || 0),
+        unit_type: document.getElementById('supplierProductUnit').value,
+        category: document.getElementById('supplierProductCategory').value.trim() || 'General',
+        barcode: document.getElementById('supplierProductBarcode').value.trim() || null,
+        description: document.getElementById('supplierProductDescription').value.trim() || null,
+        supplier_id: Number(document.getElementById('supplierProductSupplierId').value)
+    };
+    if (payload.price < 0 || payload.cost_price < 0 || payload.stock < 0) {
+        showAlert('Prices and opening stock cannot be negative', 'danger');
+        return;
+    }
+    fetch('/inventory/api/products', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)})
+        .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Unable to create product'); return result; })
+        .then(result => {
+            showAlert(result.message || 'Product created successfully', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('supplierProductModal')).hide();
+            loadSuppliers();
+        })
+        .catch(error => { console.error('Error creating supplier product:', error); showAlert(error.message, 'danger'); });
+}
+
+// Load currency symbol on page load
+function loadCurrencySymbol() {
+    fetch('/api/currency-symbol')
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.currency_symbol) {
+                currencySymbol = data.currency_symbol;
+                console.log('Currency symbol loaded:', currencySymbol);
+            } else {
+                currencySymbol = 'Rs. ';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading currency symbol:', error);
+            currencySymbol = 'Rs. ';
+        });
+}
+
+// Load suppliers on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadCurrencySymbol();
+    loadSuppliers();
+    
+    // Search functionality
+    document.getElementById('searchInput').addEventListener('input', debounce(function() {
+        currentPage = 1;
+        loadSuppliers();
+    }, 300));
+});
+
+function loadSuppliers() {
+    const search = document.getElementById('searchInput').value;
+    
+    fetch(`/suppliers/api/suppliers?page=${currentPage}&search=${encodeURIComponent(search)}`, {
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const tbody = document.getElementById('suppliersTableBody');
+        
+        if (data.suppliers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No suppliers found</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = data.suppliers.map(supplier => `
+            <tr>
+                <td class="fw-bold">${supplier.name}</td>
+                <td>${supplier.contact_person || '-'}</td>
+                <td>${supplier.phone || '-'}</td>
+                <td>${supplier.email || '-'}</td>
+                <td><span class="badge bg-primary">${supplier.product_count || 0} products</span></td>
+                <td><span class="badge bg-info">${supplier.purchase_count} purchases</span></td>
+                <td>
+                    <button class="btn btn-sm btn-success me-1" onclick="openSupplierProductModal(${supplier.id}, '${escapeHtml(supplier.name)}')" title="Add product">
+                        <i class="fas fa-box-open"></i>
+                    </button>
+                    <button class="btn btn-sm btn-primary me-1" onclick="startSupplierPurchase(${supplier.id})" title="New purchase">
+                        <i class="fas fa-cart-plus"></i>
+                    </button>
+                    <button class="btn btn-sm btn-info me-1" onclick="viewSupplier(${supplier.id})" title="View">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-warning me-1" onclick="editSupplier(${supplier.id})" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteSupplier(${supplier.id})" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+        
+        totalPages = data.pages;
+        renderPagination();
+    })
+    .catch(error => {
+        console.error('Error loading suppliers:', error);
+        showAlert('Error loading suppliers', 'danger');
+    });
+}
+
+function renderPagination() {
+    const pagination = document.getElementById('pagination');
+    let html = '';
+    
+    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="goToPage(${currentPage - 1}); return false;">Previous</a>
+    </li>`;
+    
+    for (let i = 1; i <= totalPages; i++) {
+        html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+            <a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>
+        </li>`;
+    }
+    
+    html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="goToPage(${currentPage + 1}); return false;">Next</a>
+    </li>`;
+    
+    pagination.innerHTML = html;
+}
+
+function goToPage(page) {
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        loadSuppliers();
+    }
+}
+
+function openSupplierModal() {
+    document.getElementById('supplierForm').reset();
+    document.getElementById('supplierId').value = '';
+    document.getElementById('supplierModalLabel').textContent = 'Add Supplier';
+}
+
+function saveSupplier() {
+    const supplierId = document.getElementById('supplierId').value;
+    const data = {
+        name: document.getElementById('supplierName').value,
+        contact_person: document.getElementById('contactPerson').value,
+        phone: document.getElementById('supplierPhone').value,
+        email: document.getElementById('supplierEmail').value,
+        address: document.getElementById('supplierAddress').value
+    };
+    
+    if (!data.name) {
+        showAlert('Supplier name is required', 'danger');
+        return;
+    }
+    
+    const apiUrl = supplierId ? `/suppliers/api/suppliers/${supplierId}` : '/suppliers/api/suppliers';
+    const method = supplierId ? 'PUT' : 'POST';
+    
+    fetch(apiUrl, {
+        method: method,
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert(result.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('supplierModal')).hide();
+            loadSuppliers();
+        } else {
+            showAlert(result.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving supplier:', error);
+        showAlert('Error saving supplier', 'danger');
+    });
+}
+
+function editSupplier(id) {
+    fetch(`/suppliers/api/suppliers/${id}`, {
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('supplierId').value = data.id;
+        document.getElementById('supplierName').value = data.name;
+        document.getElementById('contactPerson').value = data.contact_person || '';
+        document.getElementById('supplierPhone').value = data.phone || '';
+        document.getElementById('supplierEmail').value = data.email || '';
+        document.getElementById('supplierAddress').value = data.address || '';
+        
+        document.getElementById('supplierModalLabel').textContent = 'Edit Supplier';
+        new bootstrap.Modal(document.getElementById('supplierModal')).show();
+    })
+    .catch(error => {
+        console.error('Error loading supplier:', error);
+        showAlert('Error loading supplier', 'danger');
+    });
+}
+
+function viewSupplier(id) {
+    fetch(`/suppliers/api/suppliers/${id}`, {
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('viewSupplierName').textContent = data.name;
+        document.getElementById('viewContactPerson').textContent = data.contact_person || '-';
+        document.getElementById('viewSupplierPhone').textContent = data.phone || '-';
+        document.getElementById('viewSupplierEmail').textContent = data.email || '-';
+        document.getElementById('viewSupplierAddress').textContent = data.address || '-';
+        document.getElementById('supplierPurchaseLink').href = `/purchases?open_modal=new_purchase&supplier_id=${data.id}`;
+        document.getElementById('supplierAddProductFromDetails').onclick = () => {
+            bootstrap.Modal.getInstance(document.getElementById('viewSupplierModal')).hide();
+            openSupplierProductModal(data.id, data.name);
+        };
+        const productTbody = document.querySelector('#supplierProductsTable tbody');
+        if (!data.products || data.products.length === 0) {
+            productTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No products linked to this supplier</td></tr>';
+        } else {
+            const uniqueProducts = Array.from(new Map(data.products.filter(p => p && p.id != null).map(p => [String(p.id), p])).values());
+            productTbody.innerHTML = uniqueProducts.map(p => `
+                <tr data-product-id="${escapeHtml(p.id)}"><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.barcode || '-')}</td><td>${Number(p.stock || 0).toLocaleString()}</td><td>${currencySymbol} ${Number(p.cost_price || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td><td>${currencySymbol} ${Number(p.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td></tr>
+            `).join('');
+        }
+        
+        const tbody = document.querySelector('#purchaseHistoryTable tbody');
+        if (data.purchases.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No purchases</td></tr>';
+        } else {
+            tbody.innerHTML = data.purchases.map(p => `
+                <tr>
+                    <td>${p.date ? window.formatTimestamp(p.date, false) : '-'}</td>
+                    <td>${p.invoice_number || '-'}</td>
+                    <td>${currencySymbol} ${p.total_amount || 0}</td>
+                    <td><span class="badge bg-${p.status === 'completed' ? 'success' : 'warning'}">${p.status}</span></td>
+                </tr>
+            `).join('');
+        }
+        
+        new bootstrap.Modal(document.getElementById('viewSupplierModal')).show();
+    })
+    .catch(error => {
+        console.error('Error loading supplier:', error);
+        showAlert('Error loading supplier', 'danger');
+    });
+}
+
+function deleteSupplier(id) {
+    if (!confirm('Are you sure you want to delete this supplier?')) return;
+    
+    fetch(`/suppliers/api/suppliers/${id}`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert(result.message, 'success');
+            loadSuppliers();
+        } else {
+            showAlert(result.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting supplier:', error);
+        showAlert('Error deleting supplier', 'danger');
+    });
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.main-content');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+</script>
+{% endblock %}

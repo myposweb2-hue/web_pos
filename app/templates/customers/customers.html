@@ -1,0 +1,3112 @@
+{% extends "base.html" %}
+
+{% block title %}Customer Management{% endblock %}
+
+{% block head %}
+<style>
+    .customer-card {
+        transition: transform 0.2s;
+    }
+    .customer-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .badge.loyalty-badge {
+        background: linear-gradient(45deg, #ffd700, #ffed4e) !important;
+        color: #000000 !important;
+    }
+    .badge.loyalty-badge::after,
+    .badge.loyalty-badge::before,
+    span.badge.loyalty-badge {
+        color: #000000 !important;
+    }
+    .credit-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 5px;
+    }
+    .credit-good { background-color: #28a745; }
+    
+    /* Simple label styling */
+    label[for="showInactive"] {
+        margin-bottom: 0;
+        cursor: pointer;
+        user-select: none;
+    }
+    
+    #showInactive {
+        display: none !important;
+    }
+    
+    /* Visual checkbox indicator - COMPLETE REDESIGN */
+    #showInactive {
+        display: none !important;
+    }
+    
+    #inactiveLabel {
+        position: relative;
+        margin-bottom: 0;
+        cursor: pointer;
+        user-select: none;
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-radius: 4px;
+        background-color: #f0f0f0;
+        border: 2px solid #ccc;
+        transition: all 0.3s ease;
+    }
+    
+    /* UNCHECKED: Label styling */
+    #inactiveLabel {
+        background-color: #f0f0f0;
+        border-color: #999;
+        color: #333;
+    }
+    
+    /* CHECKED: Label turns blue with green background */
+    #inactiveLabel.checkbox-checked {
+        background-color: #d1ecf1 !important;
+        border-color: #0d6efd !important;
+        color: #0d6efd !important;
+        font-weight: bold;
+    }
+    
+    /* Checkbox box - visible empty by default */
+    #inactiveLabel::before {
+        content: '';
+        position: relative;
+        display: inline-block;
+        width: 22px;
+        height: 22px;
+        border: 2px solid #999999;
+        background-color: #ffffff;
+        border-radius: 3px;
+        margin-right: 10px;
+        flex-shrink: 0;
+        transition: all 0.3s ease;
+        box-sizing: border-box;
+    }
+    
+    /* CHECKED: Box turns blue */
+    #inactiveLabel.checkbox-checked::before {
+        background-color: #0d6efd !important;
+        border-color: #0d6efd !important;
+    }
+    
+    /* Checkmark text inside */
+    .checkbox-checkmark {
+        position: absolute;
+        left: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: white;
+        font-weight: bold;
+        font-size: 16px;
+        line-height: 1;
+        display: none !important;
+        width: 14px;
+        text-align: center;
+        pointer-events: none;
+        z-index: 2;
+    }
+    
+    /* Show checkmark when checked */
+    #inactiveLabel.checkbox-checked .checkbox-checkmark {
+        display: inline !important;
+    }
+    
+    /* Inactive customer row styling - ULTIMATE OVERRIDE */
+    tbody tr.inactive-customer {
+        background-color: #ff9999 !important;
+    }
+    
+    tbody tr.inactive-customer td {
+        background-color: #ff9999 !important;
+        color: #660000 !important;
+        border-left: 6px solid #ff0000 !important;
+        font-weight: bold;
+    }
+    
+    tbody tr.inactive-customer th {
+        background-color: #ff9999 !important;
+    }
+    
+    tbody tr.inactive-customer strong {
+        color: #660000 !important;
+    }
+    
+    tbody tr.inactive-customer .badge.inactive-badge {
+        background-color: #ff0000 !important;
+        color: white !important;
+    }
+    
+    /* Extra specificity for Bootstrap override */
+    .table tbody tr.inactive-customer td {
+        background-color: #ff9999 !important;
+        color: #660000 !important;
+    }
+    
+    /* Outstanding Aging Styles */
+    .aging-0-30 { border-left-color: #28a745; }
+    .aging-30-60 { border-left-color: #17a2b8; }
+    .aging-60-90 { border-left-color: #ffc107; }
+    .aging-90-plus { border-left-color: #dc3545; }
+    
+    .supply-stopped {
+        background-color: #f8d7da;
+        opacity: 0.7;
+    }
+    .supply-stopped-badge {
+        background-color: #dc3545;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+    }
+    
+    .nav-tabs .nav-link.active {
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="fas fa-users me-2"></i>Customer Management</h2>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCustomerModal">
+                <i class="fas fa-plus me-1"></i>Add Customer
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="customerTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="customers-tab" data-bs-toggle="tab" data-bs-target="#customers-content" type="button">
+            <i class="fas fa-users me-1"></i>All Customers
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="outstanding-tab" data-bs-toggle="tab" data-bs-target="#outstanding-content" type="button">
+            <i class="fas fa-money-bill-wave me-1"></i>Outstanding Aging
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders-content" type="button" onclick="loadOrders(1)">
+            <i class="fas fa-shopping-cart me-1"></i>Orders
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content" id="customerTabsContent">
+    <!-- All Customers Tab -->
+    <div class="tab-pane fade show active" id="customers-content" role="tabpanel">
+        
+<!-- Customer Analytics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card customer-card">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                <h4 id="totalCustomers">-</h4>
+                <small class="text-muted">Total Customers</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card customer-card">
+            <div class="card-body text-center">
+                <i class="fas fa-user-check fa-2x text-success mb-2"></i>
+                <h4 id="activeCustomers">-</h4>
+                <small class="text-muted">Active (30 days)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card customer-card">
+            <div class="card-body text-center">
+                <i class="fas fa-rupee-sign fa-2x text-info mb-2"></i>
+                <h4 id="avgOrderValue">₨ -</h4>
+                <small class="text-muted">Avg Order Value</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card customer-card">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-line fa-2x text-warning mb-2"></i>
+                <h4 id="totalRevenue">₨ -</h4>
+                <small class="text-muted">Total Revenue</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="input-group">
+            <input type="text" id="searchInput" class="form-control" placeholder="Search customers by name, phone, or email...">
+            <button class="btn btn-outline-secondary" type="button" id="clearSearch">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="d-flex gap-2">
+            <select id="sortBy" class="form-select">
+                <option value="name">Sort by Name</option>
+                <option value="total_purchases">Sort by Total Purchases</option>
+                <option value="last_purchase_date">Sort by Last Purchase</option>
+                <option value="loyalty_points">Sort by Loyalty Points</option>
+            </select>
+            <button type="button" id="inactiveCheckboxBtn" onclick="window.toggleInactive()" style="
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 15px;
+                border-radius: 5px;
+                border: 2px solid #999;
+                background-color: #f0f0f0;
+                color: #333;
+                font-weight: normal;
+                cursor: pointer;
+                transition: all 0.3s ease;
+                font-size: 14px;
+            ">
+                <span id="checkboxBox" style="
+                    display: inline-block;
+                    width: 20px;
+                    height: 20px;
+                    border: 2px solid #999;
+                    background-color: white;
+                    border-radius: 3px;
+                    flex-shrink: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.3s ease;
+                "></span>
+                📋 Show Inactive
+            </button>
+            <input type="hidden" id="showInactive" value="false">
+        </div>
+    </div>
+</div>
+
+<!-- Customers Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Customers</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="customersTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Contact</th>
+                                <th>Loyalty Points</th>
+                                <th>Total Purchases</th>
+                                <th>Credit Balance</th>
+                                <th>Last Purchase</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersTableBody">
+                            <!-- Customers will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <nav id="paginationNav" class="mt-3" aria-label="Customers pagination">
+                    <ul class="pagination justify-content-center" id="pagination">
+                        <!-- Pagination will be loaded here -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+    </div>
+    
+    <!-- Outstanding Aging Tab -->
+    <div class="tab-pane fade" id="outstanding-content" role="tabpanel">
+        
+        <!-- Outstanding Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card customer-card aging-card aging-0-30">
+                    <div class="card-body text-center">
+                        <i class="fas fa-calendar-check fa-2x text-success mb-2"></i>
+                        <h4 id="outstanding0_30">₨ 0.00</h4>
+                        <small class="text-muted">0-30 Days</small>
+                        <div class="mt-2"><span class="badge bg-success" id="count0_30">0 customers</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card customer-card aging-card aging-30-60">
+                    <div class="card-body text-center">
+                        <i class="fas fa-calendar-alt fa-2x text-info mb-2"></i>
+                        <h4 id="outstanding30_60">₨ 0.00</h4>
+                        <small class="text-muted">30-60 Days</small>
+                        <div class="mt-2"><span class="badge bg-info" id="count30_60">0 customers</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card customer-card aging-card aging-60-90">
+                    <div class="card-body text-center">
+                        <i class="fas fa-calendar-exclamation fa-2x text-warning mb-2"></i>
+                        <h4 id="outstanding60_90">₨ 0.00</h4>
+                        <small class="text-muted">60-90 Days</small>
+                        <div class="mt-2"><span class="badge bg-warning" id="count60_90">0 customers</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card customer-card aging-card aging-90-plus">
+                    <div class="card-body text-center">
+                        <i class="fas fa-exclamation-triangle fa-2x text-danger mb-2"></i>
+                        <h4 id="outstanding90_plus">₨ 0.00</h4>
+                        <small class="text-muted">90+ Days</small>
+                        <div class="mt-2"><span class="badge bg-danger" id="count90_plus">0 customers</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recalculate Button -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <button class="btn btn-primary" onclick="recalculateBalances()">
+                    <i class="fas fa-sync-alt me-1"></i>Recalculate Balances
+                </button>
+                <button class="btn btn-success ms-2" onclick="loadOutstandingAging()">
+                    <i class="fas fa-redo me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Outstanding Customers Table -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Customers with Outstanding Balance</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="outstandingTable">
+                                <thead>
+                                    <tr>
+                                        <th>Customer</th>
+                                        <th>Contact</th>
+                                        <th>0-30 Days</th>
+                                        <th>30-60 Days</th>
+                                        <th>60-90 Days</th>
+                                        <th>90+ Days</th>
+                                        <th>Total Outstanding</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="outstandingTableBody">
+                                    <!-- Outstanding customers will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Orders Tab -->
+    <div class="tab-pane fade" id="orders-content" role="tabpanel">
+        <div class="row g-2 mb-3" id="ordersFilters">
+            <div class="col-12 col-md-6 col-xl-3">
+                <input type="text" id="ordersCustomerSearch" class="form-control" placeholder="Filter by customer name...">
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
+                <input type="text" id="ordersTakenBySearch" class="form-control" placeholder="Taken by...">
+            </div>
+            <div class="col-6 col-md-3 col-xl-2 d-flex align-items-center">
+                <div class="form-check form-switch ms-2">
+                    {% set is_super = (current_user.role and current_user.role.lower() == 'super admin') %}
+                    <input class="form-check-input" type="checkbox" id="ordersShowAll" {% if orders_show_all %}checked{% endif %} {% if not is_super %}disabled{% endif %}>
+                    <label class="form-check-label small" for="ordersShowAll">Show All</label>
+                </div>
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
+                <select id="ordersPaymentMethod" class="form-select">
+                    <option value="">All payment methods</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Card">Card</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Credit Store">Credit Store</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
+                <input type="date" id="ordersDateFrom" class="form-control" aria-label="Orders from date">
+            </div>
+            <div class="col-6 col-md-3 col-xl-2">
+                <input type="date" id="ordersDateTo" class="form-control" aria-label="Orders to date">
+            </div>
+            <div class="col-12 col-xl-1 d-flex gap-2">
+                <button class="btn btn-outline-primary flex-fill" id="applyOrderFiltersBtn" type="button">Filter</button>
+                <button class="btn btn-outline-secondary flex-fill" id="clearOrderFiltersBtn" type="button">Clear</button>
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-12 text-end">
+                <button class="btn btn-primary me-2" id="takeOrderFromOrdersBtn" type="button" onclick="startTakeOrderFromOrders(event)">
+                    <i class="fas fa-plus me-1"></i>Take Order
+                </button>
+                <button class="btn btn-secondary" id="refreshOrdersBtn">Refresh</button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Orders</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover" id="ordersTable">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Date</th>
+                                        <th>Customer</th>
+                                        <th>Items</th>
+                                        <th>Total</th>
+                                        <th>Payment</th>
+                                        <th>Status</th>
+                                        <th>Taken By</th>
+                                        <th>Balance</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ordersTableBody">
+                                    <!-- Orders will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Customer Modal -->
+<div class="modal fade" id="addCustomerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="customerModalTitle">Add New Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="customerForm">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="customerName" class="form-label">Customer Name *</label>
+                                <input type="text" class="form-control" id="customerName" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="customerPhone" class="form-label">Phone</label>
+                                <input type="tel" class="form-control" id="customerPhone">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="customerEmail" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="customerEmail">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="customerPreferredPayment" class="form-label">Preferred Payment Method</label>
+                                <select class="form-select" id="customerPreferredPayment">
+                                    <option value="">Select Method</option>
+                                    <option value="cash">Cash</option>
+                                    <option value="card">Card</option>
+                                    <option value="credit">Store Credit</option>
+                                    <option value="bank_transfer">Bank Transfer</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="customerCreditLimit" class="form-label">Credit Limit</label>
+                                <input type="number" class="form-control" id="customerCreditLimit" step="0.01" min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="customerCurrentBalance" class="form-label">Current Balance</label>
+                                <input type="number" class="form-control" id="customerCurrentBalance" step="0.01" readonly>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="customerAddress" class="form-label">Address</label>
+                        <textarea class="form-control" id="customerAddress" rows="3"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="customerNotes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="customerNotes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveCustomerBtn">Save Customer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Details Modal -->
+<div class="modal fade" id="customerDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Customer Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Customer Information</h6>
+                        <div id="customerInfo">
+                            <!-- Customer info will be loaded here -->
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Loyalty Points</h6>
+                        <div class="d-flex align-items-center mb-3">
+                            <span class="badge loyalty-badge fs-6 me-3" id="loyaltyPoints" style="color: #000 !important;">0</span>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-sm btn-outline-success" onclick="adjustLoyaltyPoints(10)">+10</button>
+                                <button class="btn btn-sm btn-outline-success" onclick="adjustLoyaltyPoints(50)">+50</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="adjustLoyaltyPoints(-10)">-10</button>
+                            </div>
+                        </div>
+                        <div class="d-grid gap-2 mt-3">
+                            <button class="btn btn-outline-primary btn-sm" id="viewCustomerOrdersBtn" type="button">
+                                <i class="fas fa-shopping-cart me-1"></i>View Orders
+                            </button>
+                            <button class="btn btn-success btn-sm" id="takeOrderBtn" type="button">
+                                <i class="fas fa-plus me-1"></i>Take Order
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <hr>
+
+                <h6>Purchase History</h6>
+                <div class="table-responsive">
+                    <table class="table table-striped" id="purchaseHistoryTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Items</th>
+                                <th>Total</th>
+                                <th>Payment</th>
+                            </tr>
+                        </thead>
+                        <tbody id="purchaseHistoryTableBody">
+                            <!-- Purchase history will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Take Order Modal -->
+<div class="modal fade" id="takeOrderModal" tabindex="-1" aria-labelledby="takeOrderModalLabel">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="takeOrderModalLabel">Take Order</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Customer</label>
+                        <input type="text" class="form-control" id="takeOrderCustomerName" readonly>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Order Date</label>
+                        <input type="date" class="form-control" id="takeOrderDate">
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Search Products</label>
+                        <input type="search" class="form-control" id="takeOrderProductSearch" placeholder="Search by product name or barcode..." autocomplete="off" oninput="window.handleTakeOrderProductSearch && window.handleTakeOrderProductSearch()">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                            <div class="d-flex w-100">
+                                <button class="btn btn-primary w-100 me-2" type="button" id="loadTakeOrderProductsBtn">Search Products</button>
+                            </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div id="takeOrderProductResults" class="border rounded p-2" style="max-height: 220px; overflow-y: auto; background: #f8f9fa;"></div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-12">
+                        <h6>Selected Items</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Qty</th>
+                                        <th>Price</th>
+                                        <th>Discount (%)</th>
+                                        <th>Total</th>
+                                        <th>Remove</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="takeOrderItemsTableBody">
+                                    <tr><td colspan="6" class="text-center text-muted">No products added</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Payment Method</label>
+                        <select class="form-select" id="takeOrderPaymentMethod" onchange="toggleTakeOrderChequeFields()">
+                            <option value="Cash">Cash</option>
+                            <option value="Card">Card</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Credit Store">Credit Store</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Total</label>
+                        <input type="number" class="form-control" id="takeOrderTotal" step="0.01" min="0" readonly>
+                    </div>
+                </div>
+
+                <div id="takeOrderChequeDetails" class="row mt-3 d-none">
+                    <div class="col-md-4">
+                        <label class="form-label">Cheque Number</label>
+                        <input type="text" class="form-control" id="takeOrderChequeNumber">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Bank Name</label>
+                        <input type="text" class="form-control" id="takeOrderBankName">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Cheque Date</label>
+                        <input type="date" class="form-control" id="takeOrderChequeDate">
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="takeOrderNotes" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="submitTakeOrderBtn" onclick="window.submitTakeOrderInline && window.submitTakeOrderInline(event)">Save Order</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Order Products Modal -->
+<div class="modal fade" id="viewOrderModal" tabindex="-1" aria-labelledby="viewOrderModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewOrderModalLabel"><i class="fas fa-receipt me-2"></i>Order Products</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4"><small class="text-muted d-block">Order ID</small><strong id="viewOrderNumber">—</strong></div>
+                    <div class="col-md-4"><small class="text-muted d-block">Customer</small><strong id="viewOrderCustomer">—</strong></div>
+                    <div class="col-md-4"><small class="text-muted d-block">Date</small><strong id="viewOrderDate">—</strong></div>
+                    <div class="col-md-4"><small class="text-muted d-block">Taken By</small><strong id="viewOrderUser">—</strong></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle mb-0">
+                        <thead><tr><th>Product</th><th class="text-end">Qty</th><th class="text-end">Price</th><th class="text-end">Discount (%)</th><th class="text-end">Line Total</th></tr></thead>
+                        <tbody id="viewOrderItemsBody"><tr><td colspan="5" class="text-center text-muted">Loading…</td></tr></tbody>
+                        <tfoot><tr><th colspan="4" class="text-end">Order Total</th><th class="text-end" id="viewOrderTotal">₨ 0.00</th></tr></tfoot>
+                    </table>
+                </div>
+                <div class="mt-3 text-muted small">Payment: <strong id="viewOrderPayment">—</strong> · Balance: <strong id="viewOrderBalance">₨ 0.00</strong></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Recording Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentModalLabel">Record Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="paymentForm">
+                    <input type="hidden" id="paymentCustomerId">
+                    <div class="mb-3">
+                        <label class="form-label">Customer Name</label>
+                        <input type="text" class="form-control" id="paymentCustomerName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Outstanding Balance</label>
+                        <input type="text" class="form-control" id="paymentOutstandingBalance" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Amount *</label>
+                        <input type="number" class="form-control" id="paymentAmount" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Method</label>
+                        <select class="form-select" id="paymentMethod">
+                            <option value="Cash">Cash</option>
+                            <option value="Card">Card</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reference Number</label>
+                        <input type="text" class="form-control" id="paymentReference" placeholder="Cheque number, transaction ID, etc.">
+                    </div>
+                    <div id="paymentChequeDetails" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Cheque Number</label>
+                            <input type="text" class="form-control" id="chequeNumber" placeholder="Enter cheque number">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bank Name</label>
+                            <input type="text" class="form-control" id="bankName" placeholder="Bank name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Cheque Date</label>
+                            <input type="date" class="form-control" id="chequeDate">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="paymentNotes" rows="2" placeholder="Optional notes"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="savePaymentBtn">Record Payment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Picker Modal -->
+<div class="modal fade" id="customerPickerModal" tabindex="-1" aria-labelledby="customerPickerModalLabel">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="customerPickerModalLabel">Select Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-3">
+                    <input type="text" id="customerPickerSearch" class="form-control" placeholder="Search customers by name, phone, or email...">
+                    <button class="btn btn-primary" type="button" id="customerPickerSearchBtn">Search</button>
+                </div>
+                <div id="customerPickerResults" style="max-height: 320px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="customerPickerAddBtn">Add New Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+            <!-- Order-linked Receive Payment Modal -->
+            <div class="modal fade" id="orderPaymentModal" tabindex="-1" aria-labelledby="orderPaymentModalLabel">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title" id="orderPaymentModalLabel"><i class="fas fa-hand-holding-usd me-2"></i>Receive Payment</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="d-flex justify-content-between border-bottom pb-2 mb-3"><span>Order</span><strong id="orderPaymentNumber">—</strong></div>
+                            <div class="d-flex justify-content-between border-bottom pb-2 mb-3"><span>Customer</span><strong id="orderPaymentCustomer">—</strong></div>
+                            <div class="d-flex justify-content-between bg-light rounded p-3 mb-3"><span>Outstanding balance</span><strong class="text-danger" id="orderPaymentOutstanding">Rs. 0.00</strong></div>
+                            <input type="hidden" id="orderPaymentOrderId">
+                            <div class="mb-3"><label class="form-label" for="orderPaymentAmount">Payment amount</label><input type="number" class="form-control form-control-lg" id="orderPaymentAmount" min="0.01" step="0.01" required></div>
+                            <div class="mb-3"><label class="form-label" for="orderPaymentMethod">Payment method</label><select class="form-select" id="orderPaymentMethod"><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Cheque</option><option>Credit Store</option><option>Other</option></select></div>
+                            <div id="orderChequeDetails" class="border rounded bg-light p-3 mb-3 d-none">
+                                <div class="fw-semibold mb-2"><i class="fas fa-money-check me-1"></i>Cheque details</div>
+                                <div class="mb-2"><label class="form-label" for="orderChequeNumber">Cheque number <span class="text-danger">*</span></label><input type="text" class="form-control" id="orderChequeNumber" maxlength="50" placeholder="Enter cheque number"></div>
+                                <div class="mb-2"><label class="form-label" for="orderChequeBank">Bank name <span class="text-danger">*</span></label><input type="text" class="form-control" id="orderChequeBank" maxlength="100" placeholder="Enter bank name"></div>
+                                <div><label class="form-label" for="orderChequeDate">Cheque date <span class="text-danger">*</span></label><input type="date" class="form-control" id="orderChequeDate"></div>
+                            </div>
+                            <div class="mb-3"><label class="form-label" for="orderPaymentReference">Reference number</label><input type="text" class="form-control" id="orderPaymentReference" placeholder="Receipt, cheque, or transfer reference"></div>
+                            <div><label class="form-label" for="orderPaymentNotes">Notes</label><textarea class="form-control" id="orderPaymentNotes" rows="2" placeholder="Optional notes"></textarea></div>
+                            <div id="orderPaymentAlert" class="alert d-none mt-3 mb-0" role="alert"></div>
+                        </div>
+                        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-success" id="saveOrderPaymentBtn"><i class="fas fa-check me-1"></i>Record Payment</button></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Order Modal -->
+            <div class="modal fade" id="editOrderModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Order</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="editOrderForm">
+                                <input type="hidden" id="editOrderId">
+                                <div class="mb-3">
+                                    <label class="form-label" for="editOrderPayment">Payment Method</label>
+                                    <select class="form-select" id="editOrderPayment">
+                                        <option value="Cash">Cash</option>
+                                        <option value="Card">Card</option>
+                                        <option value="Bank Transfer">Bank Transfer</option>
+                                        <option value="Cheque">Cheque</option>
+                                        <option value="Credit Store">Credit Store</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div id="editOrderChequeDetails" class="row g-2 mb-3 d-none">
+                                    <div class="col-md-4"><label class="form-label" for="editOrderChequeNumber">Cheque Number <span class="text-danger">*</span></label><input type="text" class="form-control" id="editOrderChequeNumber" maxlength="50"></div>
+                                    <div class="col-md-4"><label class="form-label" for="editOrderChequeBank">Bank Name <span class="text-danger">*</span></label><input type="text" class="form-control" id="editOrderChequeBank" maxlength="100"></div>
+                                    <div class="col-md-4"><label class="form-label" for="editOrderChequeDate">Cheque Date <span class="text-danger">*</span></label><input type="date" class="form-control" id="editOrderChequeDate"></div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Total</label>
+                                    <input type="number" step="0.01" class="form-control" id="editOrderTotal">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Balance</label>
+                                    <input type="number" step="0.01" class="form-control" id="editOrderBalance">
+                                </div>
+
+                                <div class="border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0">Order Items</h6>
+                                    </div>
+                                    <div class="input-group mb-2">
+                                        <input type="text" id="editOrderProductSearch" class="form-control" placeholder="Search product to add...">
+                                        <button type="button" class="btn btn-outline-primary" id="editOrderSearchBtn">Search</button>
+                                    </div>
+                                    <div id="editOrderProductResults" class="mb-2" style="max-height: 180px; overflow-y: auto;"></div>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm">
+                                            <thead>
+                                                <tr>
+                                                    <th>Product</th>
+                                                    <th>Qty</th>
+                                                    <th>Price</th>
+                                                    <th>Total</th>
+                                                    <th>Remove</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="editOrderItemsBody">
+                                                <tr><td colspan="5" class="text-center">No items in this order.</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="saveOrderBtn" onclick="saveEditedOrder(event)">Save</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Recording Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentModalLabel">Record Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="paymentForm">
+                    <input type="hidden" id="paymentCustomerId">
+                    <div class="mb-3">
+                        <label class="form-label">Customer Name</label>
+                        <input type="text" class="form-control" id="paymentCustomerName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Outstanding Balance</label>
+                        <input type="text" class="form-control" id="paymentOutstandingBalance" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Amount *</label>
+                        <input type="number" class="form-control" id="paymentAmount" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Method</label>
+                        <select class="form-select" id="paymentMethod">
+                            <option value="Cash">Cash</option>
+                            <option value="Card">Card</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reference Number</label>
+                        <input type="text" class="form-control" id="paymentReference" placeholder="Cheque number, transaction ID, etc.">
+                    </div>
+                    <div id="paymentChequeDetails" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Cheque Number</label>
+                            <input type="text" class="form-control" id="chequeNumber" placeholder="Enter cheque number">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bank Name</label>
+                            <input type="text" class="form-control" id="bankName" placeholder="Bank name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Cheque Date</label>
+                            <input type="date" class="form-control" id="chequeDate">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="paymentNotes" rows="2" placeholder="Optional notes"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="savePaymentBtn">Record Payment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Picker Modal -->
+<div class="modal fade" id="customerPickerModal" tabindex="-1" aria-labelledby="customerPickerModalLabel">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="customerPickerModalLabel">Select Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-3">
+                    <input type="text" id="customerPickerSearch" class="form-control" placeholder="Search customers by name, phone, or email...">
+                    <button class="btn btn-primary" type="button" id="customerPickerSearchBtn">Search</button>
+                </div>
+                <div id="customerPickerResults" style="max-height: 320px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="customerPickerAddBtn">Add New Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+            <!-- Payment Recording Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentModalLabel">Record Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="paymentForm">
+                    <input type="hidden" id="paymentCustomerId">
+                    <div class="mb-3">
+                        <label class="form-label">Customer Name</label>
+                        <input type="text" class="form-control" id="paymentCustomerName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Outstanding Balance</label>
+                        <input type="text" class="form-control" id="paymentOutstandingBalance" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Amount *</label>
+                        <input type="number" class="form-control" id="paymentAmount" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Method</label>
+                        <select class="form-select" id="paymentMethod">
+                            <option value="Cash">Cash</option>
+                            <option value="Card">Card</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reference Number</label>
+                        <input type="text" class="form-control" id="paymentReference" placeholder="Cheque number, transaction ID, etc.">
+                    </div>
+                    <div id="paymentChequeDetails" class="d-none">
+                        <div class="mb-3">
+                            <label class="form-label">Cheque Number</label>
+                            <input type="text" class="form-control" id="chequeNumber" placeholder="Enter cheque number">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Bank Name</label>
+                            <input type="text" class="form-control" id="bankName" placeholder="Bank name">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Cheque Date</label>
+                            <input type="date" class="form-control" id="chequeDate">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="paymentNotes" rows="2" placeholder="Optional notes"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="savePaymentBtn">Record Payment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Picker Modal -->
+<div class="modal fade" id="customerPickerModal" tabindex="-1" aria-labelledby="customerPickerModalLabel">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="customerPickerModalLabel">Select Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group mb-3">
+                    <input type="text" id="customerPickerSearch" class="form-control" placeholder="Search customers by name, phone, or email...">
+                    <button class="btn btn-primary" type="button" id="customerPickerSearchBtn">Search</button>
+                </div>
+                <div id="customerPickerResults" style="max-height: 320px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="customerPickerAddBtn">Add New Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let currentCustomerId = null;
+let ordersCustomerFilterId = null;
+let pendingTakeOrderAfterCustomerSave = false;
+let pendingTakeOrderCustomerName = '';
+let outstandingRecalcAttempted = false;
+
+function openAddCustomerModalForOrder() {
+    pendingTakeOrderAfterCustomerSave = true;
+    currentCustomerId = null;
+    $('#customerModalTitle').text('Add New Customer');
+    $('#customerForm')[0].reset();
+    $('#addCustomerModal').modal('show');
+}
+
+var csrfToken = $('meta[name="csrf-token"]').attr('content');
+
+$.ajaxSetup({
+    headers: {
+        'X-CSRFToken': csrfToken
+    }
+});
+if (!csrfToken) {
+    console.warn('CSRF token not found in meta; some requests may fail.');
+}
+
+function showModalAlert(message, level='danger') {
+    const html = `<div class="alert alert-${level} alert-dismissible fade show">${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+    $('#takeOrderModal .modal-body').prepend(html);
+    setTimeout(() => $('#takeOrderModal .modal-body .alert').fadeOut(), 7000);
+}
+
+
+$(document).ready(function() {
+    
+    loadCustomerAnalytics();
+    loadCustomers();
+
+    // If the Outstanding Aging tab is already visible on page load, load it immediately
+    try {
+        if ($('#outstanding-content').hasClass('show') || $('#outstanding-content').hasClass('active')) {
+            loadOutstandingAging();
+        }
+    } catch (e) { console.warn('Outstanding auto-load check failed', e); }
+
+    // Search functionality
+    $('#searchInput').on('keyup', function() {
+        currentPage = 1;
+        loadCustomers();
+    });
+
+    // Clear search
+    $('#clearSearch').on('click', function() {
+        $('#searchInput').val('');
+        currentPage = 1;
+        loadCustomers();
+    });
+
+    // Sort functionality
+    $('#sortBy').on('change', function() {
+        currentPage = 1;
+        loadCustomers();
+    });
+
+    // Show inactive toggle - SIMPLE BUTTON with onclick handler
+    console.log('jQuery setup for checkbox button starting...');
+    
+    window.showInactiveState = false;
+    
+    // Global function to toggle inactive
+    window.toggleInactive = function() {
+        console.log('🔴 TOGGLE INACTIVE CALLED');
+        console.log('Current state:', window.showInactiveState);
+        
+        // Toggle state
+        window.showInactiveState = !window.showInactiveState;
+        console.log('New state:', window.showInactiveState);
+        
+        const btn = $('#inactiveCheckboxBtn');
+        const box = $('#checkboxBox');
+        
+        if (window.showInactiveState) {
+            // CHECKED - Turn blue
+            btn.css({
+                'background-color': '#d1ecf1',
+                'border-color': '#0d6efd',
+                'color': '#0d6efd',
+                'font-weight': 'bold'
+            });
+            box.css({
+                'background-color': '#0d6efd',
+                'border-color': '#0d6efd',
+                'color': 'white'
+            }).html('✓');
+            console.log('✓ CHECKED: Button turned BLUE');
+        } else {
+            // UNCHECKED - Turn gray
+            btn.css({
+                'background-color': '#f0f0f0',
+                'border-color': '#999',
+                'color': '#333',
+                'font-weight': 'normal'
+            });
+            box.css({
+                'background-color': 'white',
+                'border-color': '#999',
+                'color': '#333'
+            }).html('');
+            console.log('✓ UNCHECKED: Button turned GRAY');
+        }
+        
+        // Load customers with new state
+        currentPage = 1;
+        loadCustomers();
+    };
+    
+    console.log('✓ toggleInactive function ready');
+
+    // Customer form submission - use event delegation for modal elements
+    $(document).on('submit', '#customerForm', function(e) {
+        e.preventDefault();
+        saveCustomer();
+    });
+
+    // Also use event delegation for button click
+    $(document).on('click', '#saveCustomerBtn', function(e) {
+        console.log('Save customer button clicked');
+    });
+    
+    // Bind customer order buttons
+    bindCustomerOrderButtons();
+    $(document).on('click', '[data-action="take-order"]', function(e) {
+        e.preventDefault();
+        const customerId = Number($(this).data('customer-id'));
+        const customerName = $(this).data('customer-name') || '';
+        console.log('Take Order action clicked', { customerId, customerName });
+        if (customerId) {
+            startTakeOrder(customerId, customerName);
+        } else {
+            console.warn('Take Order clicked with no customerId:', this);
+        }
+    });
+    $(document).on('click', '[data-action="view-orders"]', function(e) {
+        e.preventDefault();
+        const customerId = Number($(this).data('customer-id'));
+        const customerName = $(this).data('customer-name') || '';
+        console.log('View Orders action clicked', { customerId, customerName });
+        if (customerId) {
+            openCustomerOrders(customerId, customerName);
+        }
+    });
+});
+
+// Customer Picker logic
+window.openCustomerPickerModal = function(prefill) {
+    $('#customerPickerSearch').val(prefill || '');
+    $('#customerPickerResults').html('<div class="text-muted">Loading customers...</div>');
+    const modalEl = document.getElementById('customerPickerModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+    // Load recent customers (or search if a prefill is provided)
+    const q = prefill && prefill.trim() !== '' ? prefill : '';
+    $.get('/customers/api/customers', { search: q, per_page: 20 })
+        .done(function(data) {
+            console.log('Customer Picker initial load', data);
+            renderCustomerPickerResults(data.customers || []);
+        })
+        .fail(function(jqXHR, status, err) {
+            console.error('Customer Picker initial load failed', status, err, jqXHR && jqXHR.responseText);
+            $('#customerPickerResults').html('<div class="text-muted">Unable to load customers</div>');
+        });
+};
+
+window.renderCustomerPickerResults = function(customers) {
+    const $r = $('#customerPickerResults');
+    $r.empty();
+    if (!customers || customers.length === 0) {
+        $r.html('<div class="text-muted">No customers found</div>');
+        return;
+    }
+    customers.forEach(c => {
+        const el = $(
+            `<div class="d-flex justify-content-between align-items-center border rounded p-2 mb-2 bg-white">
+                <div>
+                    <strong>${c.name}</strong><br>
+                    <small class="text-muted">${c.phone || '-'} | ${c.email || '-'}</small>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-primary picker-take-order" data-id="${c.id}" data-name="${c.name}">Take Order</button>
+                </div>
+            </div>`
+        );
+        $r.append(el);
+    });
+    $r.find('.picker-take-order').off('click').on('click', function() {
+        const id = Number($(this).data('id'));
+        const name = $(this).data('name') || '';
+        const modalEl = document.getElementById('customerPickerModal');
+        const bs = bootstrap.Modal.getInstance(modalEl);
+        if (bs) bs.hide();
+        startTakeOrder(id, name);
+    });
+}
+
+// Use delegated handlers to ensure bindings work even if elements are added later
+$(document).on('click', '#customerPickerSearchBtn', function() {
+    const q = $('#customerPickerSearch').val() || '';
+    if (!q || q.trim() === '') return renderCustomerPickerResults([]);
+    console.log('Customer Picker searching for:', q);
+    $.get('/customers/api/customers', { search: q, per_page: 20 })
+        .done(function(data) {
+            console.log('Customer Picker search response', data);
+            renderCustomerPickerResults(data.customers || []);
+        })
+        .fail(function(jqXHR, status, err) {
+            console.error('Customer Picker search failed', status, err, jqXHR && jqXHR.responseText);
+            renderCustomerPickerResults([]);
+            showAlert('Failed to search customers', 'danger');
+        });
+});
+
+$(document).on('keyup', '#customerPickerSearch', function(e) { if (e.key === 'Enter') $('#customerPickerSearchBtn').click(); });
+
+$(document).on('click', '#customerPickerAddBtn', function() {
+    const modalEl = document.getElementById('customerPickerModal');
+    const bs = bootstrap.Modal.getInstance(modalEl);
+    if (bs) bs.hide();
+    openAddCustomerModalForOrder();
+});
+
+function loadCustomerAnalytics() {
+    $.get('/customers/api/customers/analytics')
+        .done(function(data) {
+            $('#totalCustomers').text(data.total_customers);
+            $('#activeCustomers').text(data.active_customers);
+            $('#avgOrderValue').text('₨ ' + parseFloat(data.average_order_value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#totalRevenue').text('₨ ' + parseFloat(data.total_revenue).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        })
+        .fail(function() {
+            console.error('Failed to load customer analytics');
+        });
+}
+
+function loadCustomers() {
+    const search = $('#searchInput').val();
+    const sortBy = $('#sortBy').val();
+    
+    // Ensure state variable is initialized
+    if (window.showInactiveState === undefined) {
+        window.showInactiveState = false;
+    }
+    
+    // Use the persistent state variable
+    const showInactive = window.showInactiveState ? 'true' : 'false';
+
+    $.get('/customers/api/customers', {
+        page: currentPage,
+        per_page: 50,
+        search: search,
+        sort_by: sortBy,
+        show_inactive: showInactive
+    })
+    .done(function(data) {
+        console.log('DEBUG: Received', data.customers.length, 'customers');
+        console.log('DEBUG: Customer statuses:', data.customers.map(c => ({name: c.name, is_active: c.is_active})));
+        renderCustomers(data.customers);
+        renderPagination(data);
+    })
+    .fail(function() {
+        showAlert('Error loading customers', 'danger');
+    });
+}
+
+function renderCustomers(customers) {
+    const $tbody = $('#customersTableBody');
+    $tbody.empty();
+
+    if (customers.length === 0) {
+        $tbody.append('<tr><td colspan="7" class="text-center">No customers found</td></tr>');
+        return;
+    }
+
+    customers.forEach(customer => {
+        const creditStatus = getCreditStatus(customer);
+        const lastPurchase = customer.last_purchase_date ?
+            window.formatTimestamp(customer.last_purchase_date, false) : 'Never';
+        
+        // Add class for inactive customers
+        const inactiveClass = customer.is_active ? '' : 'inactive-customer';
+        const inactiveStyle = customer.is_active ? '' : 'style="background-color: #ff6666 !important; color: #660000 !important;"';
+        const inactiveBadge = customer.is_active ? '' : '<span class="badge" style="background-color: #ff0000 !important; color: white !important; font-size: 12px; padding: 5px 10px; margin-left: 8px; font-weight: bold;">INACTIVE</span>';
+        
+        if (!customer.is_active) {
+            console.log(`DEBUG: Adding inactive-customer class to ${customer.name}`);
+        }
+
+        const row = `
+            <tr class="${inactiveClass}" ${inactiveStyle}>
+                <td ${inactiveStyle}>
+                    <strong style="${customer.is_active ? '' : 'color: #660000 !important;'}">${customer.name}</strong>
+                    ${inactiveBadge}
+                    ${customer.email ? `<br><small class="text-muted">${customer.email}</small>` : ''}
+                </td>
+                <td ${inactiveStyle}>
+                    ${customer.phone || '-'}
+                    ${customer.address ? `<br><small class="text-muted">${customer.address.substring(0, 30)}${customer.address.length > 30 ? '...' : ''}</small>` : ''}
+                </td>
+                <td ${inactiveStyle}>
+                    <span class="badge loyalty-badge" style="color: #000 !important;">${customer.loyalty_points || 0}</span>
+                </td>
+                <td ${inactiveStyle}>₨ ${parseFloat(customer.total_purchases || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td ${inactiveStyle}>
+                    <span class="credit-indicator ${creditStatus.class}"></span>
+                    ₨ ${parseFloat(customer.current_balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    ${customer.credit_limit ? ` / ₨ ${parseFloat(customer.credit_limit).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : ''}
+                </td>
+                <td ${inactiveStyle}>${lastPurchase}</td>
+                <td ${inactiveStyle}>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-info" onclick="viewCustomerDetails(${customer.id})" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" data-action="take-order" data-customer-id="${customer.id}" data-customer-name="${customer.name.replace(/'/g, "\\'")}" title="Take Order">
+                            <i class="fas fa-cart-plus"></i>
+                        </button>
+                        ${customer.is_active ? `
+                        <button class="btn btn-sm btn-outline-secondary" onclick="editCustomer(${customer.id})" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteCustomer(${customer.id}, '${customer.name}')" title="Archive">
+                            <i class="fas fa-archive"></i>
+                        </button>
+                        ` : `
+                        <button class="btn btn-sm btn-outline-success" onclick="restoreCustomer(${customer.id}, '${customer.name}')" title="Restore">
+                            <i class="fas fa-trash-restore"></i>
+                        </button>
+                        `}
+                    </div>
+                </td>
+            </tr>
+        `;
+        $tbody.append(row);
+    });
+    
+    // Debug: Verify inactive class was applied
+    const inactiveRows = $tbody.find('tr.inactive-customer').length;
+    console.log('DEBUG: Found', inactiveRows, 'inactive customer rows');
+}
+
+function getCreditStatus(customer) {
+    const balance = parseFloat(customer.current_balance || 0);
+    const limit = parseFloat(customer.credit_limit || 0);
+
+    if (balance === 0) return { class: 'credit-good' };
+    if (limit > 0 && balance >= limit * 0.9) return { class: 'credit-danger' };
+    if (limit > 0 && balance >= limit * 0.7) return { class: 'credit-warning' };
+    return { class: 'credit-good' };
+}
+
+function renderPagination(data) {
+    const $pagination = $('#pagination');
+    $pagination.empty();
+
+    if (data.pages <= 1) return;
+
+    // Previous button
+    if (data.current_page > 1) {
+        $pagination.append(`<li class="page-item"><a class="page-link" href="#" onclick="changePage(${data.current_page - 1})">Previous</a></li>`);
+    }
+
+    // Page numbers
+    for (let i = Math.max(1, data.current_page - 2); i <= Math.min(data.pages, data.current_page + 2); i++) {
+        const activeClass = i === data.current_page ? 'active' : '';
+        $pagination.append(`<li class="page-item ${activeClass}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`);
+    }
+
+    // Next button
+    if (data.current_page < data.pages) {
+        $pagination.append(`<li class="page-item"><a class="page-link" href="#" onclick="changePage(${data.current_page + 1})">Next</a></li>`);
+    }
+}
+
+function changePage(page) {
+    currentPage = page;
+    loadCustomers();
+}
+
+function editCustomer(customerId) {
+    $.get(`/customers/api/customers/${customerId}`)
+        .done(function(customer) {
+            currentCustomerId = customer.id;
+            $('#customerModalTitle').text('Edit Customer');
+            $('#customerName').val(customer.name);
+            $('#customerPhone').val(customer.phone || '');
+            $('#customerEmail').val(customer.email || '');
+            $('#customerAddress').val(customer.address || '');
+            $('#customerNotes').val(customer.notes || '');
+            $('#customerPreferredPayment').val(customer.preferred_payment_method || '');
+            $('#customerCreditLimit').val(customer.credit_limit || '');
+            $('#customerCurrentBalance').val(customer.current_balance || '');
+
+            $('#addCustomerModal').modal('show');
+        })
+        .fail(function() {
+            showAlert('Error loading customer details', 'danger');
+        });
+}
+
+function saveCustomer() {
+    const customerData = {
+        name: $('#customerName').val(),
+        phone: $('#customerPhone').val(),
+        email: $('#customerEmail').val(),
+        address: $('#customerAddress').val(),
+        notes: $('#customerNotes').val(),
+        preferred_payment_method: $('#customerPreferredPayment').val(),
+        credit_limit: $('#customerCreditLimit').val(),
+        current_balance: $('#customerCurrentBalance').val()
+    };
+
+    // Validate name
+    if (!customerData.name || customerData.name.trim() === '') {
+        showAlert('Customer name is required', 'danger');
+        return;
+    }
+
+    const url = currentCustomerId ? `/customers/api/customers/${currentCustomerId}` : '/customers/api/customers';
+    const method = currentCustomerId ? 'PUT' : 'POST';
+
+    $.ajax({
+        url: url,
+        method: method,
+        contentType: 'application/json',
+        headers: {
+            'X-CSRFToken': csrfToken
+        },
+        data: JSON.stringify(customerData)
+    })
+    .done(function(response) {
+        if (response.success) {
+            const createdCustomerId = response.customer_id;
+            const savedCustomerName = customerData.name.trim();
+            console.log('saveCustomer success', { createdCustomerId, savedCustomerName, pendingTakeOrderAfterCustomerSave });
+            if (pendingTakeOrderAfterCustomerSave) {
+                pendingTakeOrderAfterCustomerSave = false;
+                pendingTakeOrderCustomerName = savedCustomerName;
+                currentCustomerId = createdCustomerId;
+                $('#addCustomerModal').modal('hide');
+                loadCustomers();
+                loadCustomerAnalytics();
+                showAlert(response.message, 'success');
+                return;
+            }
+            $('#addCustomerModal').modal('hide');
+            $('#customerForm')[0].reset();
+            currentCustomerId = null;
+            loadCustomers();
+            loadCustomerAnalytics();
+            showAlert(response.message, 'success');
+        } else {
+            showAlert(response.error || 'Error saving customer', 'danger');
+        }
+    })
+    .fail(function(jqXHR) {
+        // Handle the case when an archived customer with same name exists
+        try {
+            const response = JSON.parse(jqXHR.responseText);
+            if (response.error && response.archived_customer_id) {
+                // Show confirmation to restore the archived customer
+                const customerName = $('#customerName').val();
+                if (confirm(`A customer with name "${customerName}" already exists but is archived. Would you like to restore it?`)) {
+                    restoreAndUpdateCustomer(response.archived_customer_id, customerData);
+                }
+            } else {
+                showAlert(response.error || 'Error saving customer', 'danger');
+            }
+        } catch (e) {
+            console.error('Error parsing response:', e);
+            showAlert('Error saving customer: ' + jqXHR.status + ' ' + jqXHR.statusText, 'danger');
+        }
+    });
+}
+
+function restoreAndUpdateCustomer(archivedCustomerId, customerData) {
+    // First restore the customer
+    $.ajax({
+        url: `/customers/api/customers/${archivedCustomerId}/restore`,
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .done(function(response) {
+        if (response.success) {
+            // Then update with the new data
+            $.ajax({
+                url: `/customers/api/customers/${archivedCustomerId}`,
+                method: 'PUT',
+                contentType: 'application/json',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                },
+                data: JSON.stringify(customerData)
+            })
+            .done(function(updateResponse) {
+                if (updateResponse.success) {
+                    const restoredCustomerId = archivedCustomerId;
+                    const restoredCustomerName = customerData.name.trim();
+                    if (pendingTakeOrderAfterCustomerSave) {
+                        pendingTakeOrderAfterCustomerSave = false;
+                        pendingTakeOrderCustomerName = restoredCustomerName;
+                        currentCustomerId = restoredCustomerId;
+                        $('#addCustomerModal').modal('hide');
+                        loadCustomers();
+                        loadCustomerAnalytics();
+                        showAlert('Customer restored and updated successfully!', 'success');
+                        return;
+                    }
+                    $('#addCustomerModal').modal('hide');
+                    $('#customerForm')[0].reset();
+                    currentCustomerId = null;
+                    loadCustomers();
+                    loadCustomerAnalytics();
+                    showAlert('Customer restored and updated successfully!', 'success');
+                } else {
+                    showAlert(updateResponse.error || 'Error updating customer', 'danger');
+                }
+            })
+            .fail(function() {
+                showAlert('Error updating customer', 'danger');
+            });
+        } else {
+            showAlert(response.error || 'Error restoring customer', 'danger');
+        }
+    })
+    .fail(function() {
+        showAlert('Error restoring customer', 'danger');
+    });
+}
+
+function deleteCustomer(customerId, customerName) {
+    if (confirm(`Are you sure you want to archive "${customerName}"? The customer data will be preserved and can be restored later.`)) {
+        $.ajax({
+            url: `/customers/api/customers/${customerId}`,
+            method: 'DELETE'
+        })
+        .done(function(response) {
+            if (response.success) {
+                loadCustomers();
+                loadCustomerAnalytics();
+                showAlert(response.message, 'success');
+            } else {
+                showAlert(response.error || 'Error archiving customer', 'danger');
+            }
+        })
+        .fail(function() {
+            showAlert('Error archiving customer', 'danger');
+        });
+    }
+}
+
+function restoreCustomer(customerId, customerName) {
+    if (confirm(`Are you sure you want to restore "${customerName}"?`)) {
+        $.ajax({
+            url: `/customers/api/customers/${customerId}/restore`,
+            method: 'POST'
+        })
+        .done(function(response) {
+            if (response.success) {
+                loadCustomers();
+                loadCustomerAnalytics();
+                showAlert(response.message, 'success');
+            } else {
+                showAlert(response.error || 'Error restoring customer', 'danger');
+            }
+        })
+        .fail(function() {
+            showAlert('Error restoring customer', 'danger');
+        });
+    }
+}
+
+function viewCustomerDetails(customerId) {
+    currentCustomerId = customerId;
+
+    // Load customer info
+    $.get(`/customers/api/customers/${customerId}`)
+        .done(function(customer) {
+            const infoHtml = `
+                <p><strong>Name:</strong> ${customer.name}</p>
+                <p><strong>Phone:</strong> ${customer.phone || '-'}</p>
+                <p><strong>Email:</strong> ${customer.email || '-'}</p>
+                <p><strong>Address:</strong> ${customer.address || '-'}</p>
+                <p><strong>Total Purchases:</strong> ₨ ${parseFloat(customer.total_purchases || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <p><strong>Credit Limit:</strong> ₨ ${parseFloat(customer.credit_limit || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <p><strong>Current Balance:</strong> ₨ ${parseFloat(customer.current_balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <p><strong>Registration Date:</strong> ${customer.registration_date || '-'}</p>
+                <p><strong>Notes:</strong> ${customer.notes || '-'}</p>
+            `;
+            $('#customerInfo').html(infoHtml);
+            $('#loyaltyPoints').text(customer.loyalty_points || 0);
+        });
+
+    // Load purchase history
+    $.get(`/customers/api/customers/${customerId}/purchase-history`)
+        .done(function(data) {
+            const $tbody = $('#purchaseHistoryTableBody');
+            $tbody.empty();
+
+            if (data.sales.length === 0) {
+                $tbody.append('<tr><td colspan="4" class="text-center">No purchase history found</td></tr>');
+            } else {
+                data.sales.forEach(sale => {
+                    const itemsText = sale.items.map(item => `${item.product_name} (${item.quantity})`).join(', ');
+                    const row = `
+                        <tr>
+                            <td>${window.formatTimestamp(sale.date, true)}</td>
+                            <td><small>${itemsText}</small></td>
+                            <td>₨ ${parseFloat(sale.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                            <td>${sale.payment}</td>
+                        </tr>
+                    `;
+                    $tbody.append(row);
+                });
+            }
+        });
+
+    $('#customerDetailsModal').modal('show');
+    bindCustomerOrderButtons();
+}
+
+function bindCustomerOrderButtons() {
+    $('#viewCustomerOrdersBtn').off('click').on('click', function() {
+        const customerId = currentCustomerId;
+        const customerName = $('#customerInfo').text().match(/Name:\\s*(.*?)(?:\\n|$)/)?.[1] || '';
+        openCustomerOrders(customerId, customerName.trim());
+    });
+
+    $('#takeOrderBtn').off('click').on('click', function() {
+        const customerId = currentCustomerId;
+        const customerName = $('#customerInfo').text().match(/Name:\\s*(.*?)(?:\\n|$)/)?.[1] || '';
+        openTakeOrderModal(customerId, customerName.trim());
+    });
+}
+
+function adjustLoyaltyPoints(points) {
+    if (!currentCustomerId) return;
+
+    $.ajax({
+        url: `/customers/api/customers/${currentCustomerId}/loyalty`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ points: points })
+    })
+    .done(function(response) {
+        if (response.success) {
+            $('#loyaltyPoints').text(response.new_points);
+            loadCustomers(); // Refresh the table
+            showAlert(`Loyalty points updated to ${response.new_points}`, 'success');
+        } else {
+            showAlert(response.error || 'Error updating loyalty points', 'danger');
+        }
+    })
+    .fail(function() {
+        showAlert('Error updating loyalty points', 'danger');
+    });
+}
+
+function showAlert(message, type) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    $('.container-fluid').prepend(alertHtml);
+    setTimeout(() => $('.alert').fadeOut(), 5000);
+}
+
+// Reset modal when closed
+$('#addCustomerModal').on('hidden.bs.modal', function() {
+    $('#customerForm')[0].reset();
+    if (pendingTakeOrderCustomerName && currentCustomerId) {
+        const customerName = pendingTakeOrderCustomerName;
+        pendingTakeOrderCustomerName = '';
+        $('#customerModalTitle').text('Add New Customer');
+        openTakeOrderModal(currentCustomerId, customerName);
+        return;
+    }
+    currentCustomerId = null;
+    $('#customerModalTitle').text('Add New Customer');
+});
+
+// Outstanding Aging Functions
+$('#outstanding-tab').on('click', function() {
+    loadOutstandingAging();
+});
+
+function loadOutstandingAging() {
+    $.get('/customers/api/customers/outstanding-aging')
+        .done(function(data) {
+            // Update summary cards
+            $('#outstanding0_30').text('₨ ' + parseFloat(data.totals['0_30_days'].total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#count0_30').text(data.totals['0_30_days'].count + ' customers');
+            
+            $('#outstanding30_60').text('₨ ' + parseFloat(data.totals['30_60_days'].total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#count30_60').text(data.totals['30_60_days'].count + ' customers');
+            
+            $('#outstanding60_90').text('₨ ' + parseFloat(data.totals['60_90_days'].total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#count60_90').text(data.totals['60_90_days'].count + ' customers');
+            
+            $('#outstanding90_plus').text('₨ ' + parseFloat(data.totals['90_plus_days'].total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#count90_plus').text(data.totals['90_plus_days'].count + ' customers');
+
+            // If server returned no totals/customers, attempt a recalc and reload once.
+            const totalsZero = (parseFloat(data.totals['0_30_days'].total) || 0) === 0 && (parseFloat(data.totals['30_60_days'].total) || 0) === 0 && (parseFloat(data.totals['60_90_days'].total) || 0) === 0 && (parseFloat(data.totals['90_plus_days'].total) || 0) === 0;
+            const noCustomers = !data.customers || data.customers.length === 0;
+            // Trigger recalc if either totals are zero OR no customers returned, but do it only once per page load
+            if ((totalsZero || noCustomers) && !outstandingRecalcAttempted) {
+                outstandingRecalcAttempted = true;
+                console.log('Outstanding aging appears empty — triggering server recalc then reloading.');
+                $.ajax({
+                    url: '/customers/api/customers/recalculate-balance',
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken }
+                }).done(function(resp) {
+                    console.log('Recalculated balances:', resp);
+                    // reload once after recalc
+                    $.get('/customers/api/customers/outstanding-aging')
+                        .done(function(d2) { 
+                            $('#outstanding0_30').text('₨ ' + parseFloat(d2.totals['0_30_days'].total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                            $('#count0_30').text(d2.totals['0_30_days'].count + ' customers');
+                            $('#outstanding30_60').text('₨ ' + parseFloat(d2.totals['30_60_days'].total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                            $('#count30_60').text(d2.totals['30_60_days'].count + ' customers');
+                            $('#outstanding60_90').text('₨ ' + parseFloat(d2.totals['60_90_days'].total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                            $('#count60_90').text(d2.totals['60_90_days'].count + ' customers');
+                            $('#outstanding90_plus').text('₨ ' + parseFloat(d2.totals['90_plus_days'].total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                            $('#count90_plus').text(d2.totals['90_plus_days'].count + ' customers');
+                            renderOutstandingCustomers(d2.customers);
+                        }).fail(function() { showAlert('Error loading outstanding aging data', 'danger'); });
+                }).fail(function() {
+                    showAlert('Error recalculating balances', 'danger');
+                });
+                return;
+            }
+
+            // Render customers table
+            renderOutstandingCustomers(data.customers);
+        })
+        .fail(function() {
+            showAlert('Error loading outstanding aging data', 'danger');
+        });
+}
+
+function renderOutstandingCustomers(customers) {
+    const $tbody = $('#outstandingTableBody');
+    $tbody.empty();
+
+    if (customers.length === 0) {
+        $tbody.append('<tr><td colspan="10" class="text-center">No customers with outstanding balance</td></tr>');
+        return;
+    }
+
+    customers.forEach(customer => {
+        const rowClass = customer.supply_stopped ? 'supply-stopped' : '';
+        const statusBadge = customer.supply_stopped 
+            ? '<span class="supply-stopped-badge">Supply Stopped</span>' 
+            : '<span class="badge bg-success">Active</span>';
+        
+        const row = `
+            <tr class="${rowClass}">
+                <td>
+                    <strong>${customer.name}</strong>
+                </td>
+                <td>${customer.phone || '-'}</td>
+                <td class="text-success">₨ ${parseFloat(customer.outstanding_0_30 || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="text-info">₨ ${parseFloat(customer.outstanding_30_60 || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="text-warning">₨ ${parseFloat(customer.outstanding_60_90 || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td class="text-danger">₨ ${parseFloat(customer.outstanding_90_plus || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td><strong>₨ ${parseFloat(customer.total_outstanding || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong></td>
+                <td>${statusBadge}</td>
+                <td>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-outline-info" onclick="viewCustomerDetails(${customer.id})" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${customer.total_outstanding > 0 ? `
+                        <button class="btn btn-sm btn-success" onclick="openPaymentModal(${customer.id}, '${customer.name.replace(/'/g, "\\'")}', ${customer.total_outstanding})" title="Record Payment">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </button>
+                        ` : ''}
+                        ${customer.supply_stopped ? `
+                        <button class="btn btn-sm btn-outline-success" onclick="toggleSupply(${customer.id}, false)" title="Resume Supply">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        ` : `
+                        <button class="btn btn-sm btn-outline-danger" onclick="toggleSupply(${customer.id}, true)" title="Stop Supply">
+                            <i class="fas fa-ban"></i>
+                        </button>
+                        `}
+                    </div>
+                </td>
+            </tr>
+        `;
+        $tbody.append(row);
+    });
+}
+
+function recalculateBalances() {
+    if (!confirm('This will recalculate all customer balances based on their credit sales. Continue?')) {
+        return;
+    }
+    
+    $.ajax({
+        url: '/customers/api/customers/recalculate-balance',
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .done(function(response) {
+        if (response.success) {
+            showAlert(response.message, 'success');
+            loadOutstandingAging();
+        } else {
+            showAlert(response.error || 'Error recalculating balances', 'danger');
+        }
+    })
+    .fail(function() {
+        showAlert('Error recalculating balances', 'danger');
+    });
+}
+
+function toggleSupply(customerId, stop) {
+    const action = stop ? 'stop' : 'resume';
+    if (!confirm(`Are you sure you want to ${action} supply for this customer?`)) {
+        return;
+    }
+    
+    $.ajax({
+        url: `/customers/api/customers/${customerId}/stop-supply`,
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({ stop: stop }),
+        headers: {
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .done(function(response) {
+        if (response.success) {
+            showAlert(response.message, 'success');
+            loadOutstandingAging();
+        } else {
+            showAlert(response.error || 'Error updating supply status', 'danger');
+        }
+    })
+    .fail(function() {
+        showAlert('Error updating supply status', 'danger');
+    });
+}
+
+// Payment Recording Functions
+// Payment Recording - Use event delegation for modal buttons
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Payment handler setup starting...');
+    // Setup cheque field toggle for payment modal
+    function toggleChequeFieldsCustomer() {
+        try {
+            var pm = document.getElementById('paymentMethod');
+            var chequeDiv = document.getElementById('paymentChequeDetails');
+            if (!chequeDiv) return;
+            var val = pm && pm.value ? pm.value : null;
+            console.log('toggleChequeFieldsCustomer called, paymentMethod=', val);
+            if (val && val.toLowerCase() === 'cheque') {
+                chequeDiv.classList.remove('d-none');
+                chequeDiv.classList.add('d-block');
+                var cn = document.getElementById('chequeNumber');
+                var pref = document.getElementById('paymentReference');
+                if (cn && (!cn.value || cn.value.trim() === '') && pref && pref.value) cn.value = pref.value;
+            } else {
+                chequeDiv.classList.remove('d-block');
+                chequeDiv.classList.add('d-none');
+            }
+        } catch (e) { console.error('toggleChequeFieldsCustomer error', e); }
+    }
+    // Attach listeners
+    var pmElCust = document.getElementById('paymentMethod');
+    if (pmElCust) {
+        pmElCust.addEventListener('change', toggleChequeFieldsCustomer);
+        pmElCust.addEventListener('input', toggleChequeFieldsCustomer);
+    }
+    document.addEventListener('change', function(e){ if (e.target && e.target.id === 'paymentMethod') toggleChequeFieldsCustomer(); });
+    try { window.toggleChequeFieldsCustomer = toggleChequeFieldsCustomer; } catch(e) {}
+    
+    // Use event delegation on document level for modal button
+    document.addEventListener('click', function(e) {
+        // Check if the clicked element is the save payment button
+        if (e.target.id === 'savePaymentBtn' || e.target.closest('#savePaymentBtn')) {
+            console.log('==== BUTTON CLICK FIRED (via delegation) ====');
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const customerId = document.getElementById('paymentCustomerId').value;
+            const amount = document.getElementById('paymentAmount').value;
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            const reference = document.getElementById('paymentReference').value;
+            const notes = document.getElementById('paymentNotes').value;
+            
+            console.log('Form values:', {
+                customerId: customerId,
+                amount: amount,
+                paymentMethod: paymentMethod,
+                reference: reference,
+                notes: notes
+            });
+            
+            const amountFloat = parseFloat(amount);
+            console.log('Parsed amount:', amountFloat);
+            
+            if (!customerId) {
+                console.error('Customer ID is missing!');
+                showAlert('Customer ID is missing', 'danger');
+                return;
+            }
+            
+            if (!amountFloat || amountFloat <= 0) {
+                console.error('Invalid amount:', amountFloat);
+                showAlert('Please enter a valid payment amount', 'danger');
+                return;
+            }
+            
+            console.log('Validation passed, submitting...');
+            const savePaymentBtn = document.getElementById('savePaymentBtn');
+            if (savePaymentBtn) {
+                savePaymentBtn.disabled = true;
+                savePaymentBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            }
+            
+            const paymentUrl = '/customers/api/customers/' + customerId + '/record-payment';
+            console.log('POST URL:', paymentUrl);
+            
+            const csrfTokenElement = document.querySelector('meta[name="csrf-token"]');
+            const csrfToken = csrfTokenElement ? csrfTokenElement.content : '';
+            console.log('CSRF Token present:', csrfToken ? 'YES (' + csrfToken.substring(0, 10) + '...)' : 'NO');
+            
+            const requestBody = {
+                amount: amountFloat,
+                payment_method: paymentMethod,
+                reference_number: reference,
+                notes: notes
+            };
+            // Include cheque details if payment method is Cheque
+            if (paymentMethod && paymentMethod.toLowerCase() === 'cheque') {
+                requestBody.cheque_number = (document.getElementById('chequeNumber') && document.getElementById('chequeNumber').value) || reference;
+                requestBody.cheque_bank = (document.getElementById('bankName') && document.getElementById('bankName').value) || '';
+                requestBody.cheque_date = (document.getElementById('chequeDate') && document.getElementById('chequeDate').value) || '';
+            }
+            console.log('Request body:', requestBody);
+            
+            fetch(paymentUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(requestBody)
+            })
+            .then(response => {
+                console.log('==== FETCH RESPONSE RECEIVED ====');
+                console.log('Status:', response.status, response.statusText);
+                console.log('Content-Type:', response.headers.get('content-type'));
+                
+                if (!response.ok) {
+                    console.error('HTTP Error:', response.status);
+                    if (response.status === 403) {
+                        return response.json().then(data => {
+                            console.error('Permission denied (403):', data);
+                            showAlert('Permission denied: You do not have permission to record payments', 'danger');
+                            throw new Error('Permission denied');
+                        });
+                    } else if (response.status === 404) {
+                        console.error('Not found (404)');
+                        showAlert('Customer not found', 'danger');
+                        throw new Error('Customer not found');
+                    } else if (response.status >= 500) {
+                        console.error('Server error (' + response.status + ')');
+                        showAlert('Server error while recording payment. Status: ' + response.status, 'danger');
+                        throw new Error('Server error');
+                    }
+                }
+                console.log('Response OK, parsing JSON...');
+                return response.json();
+            })
+            .then(data => {
+                console.log('==== JSON PARSED SUCCESSFULLY ====');
+                console.log('Response data:', data);
+                if (data.success) {
+                    console.log('SUCCESS! Recording payment completed');
+                    showAlert('Payment recorded successfully! New balance: ₨' + data.new_balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}), 'success');
+                    // Properly close Bootstrap modal
+                    const modalElement = document.getElementById('paymentModal');
+                    if (modalElement) {
+                        console.log('Closing payment modal...');
+                        const bsModal = bootstrap.Modal.getInstance(modalElement) || new bootstrap.Modal(modalElement);
+                        bsModal.hide();
+                    }
+                    // Refresh data
+                    setTimeout(function() {
+                        console.log('Refreshing data...');
+                        try { 
+                            if (typeof loadOutstandingAging === 'function') loadOutstandingAging();
+                            if (typeof loadCustomers === 'function') loadCustomers();
+                            if (typeof loadCustomerAnalytics === 'function') loadCustomerAnalytics();
+                        } catch(e) { console.error('Refresh error:', e); }
+                    }, 500);
+                } else if (data.error) {
+                    console.error('API returned error:', data.error);
+                    showAlert('Error: ' + data.error, 'danger');
+                } else {
+                    console.error('Unexpected response format:', data);
+                    showAlert('Unexpected response from server', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('==== FETCH ERROR CAUGHT ====');
+                console.error('Error message:', error.message);
+                               console.error('Error stack:', error.stack);
+                if (error.message !== 'Permission denied' && error.message !== 'Customer not found' && error.message !== 'Server error') {
+                    showAlert('Error recording payment: ' + error.message, 'danger');
+                }
+            })
+            .finally(() => {
+                console.log('==== PAYMENT REQUEST COMPLETED ====');
+                const savePaymentBtn = document.getElementById('savePaymentBtn');
+                if (savePaymentBtn) {
+                    savePaymentBtn.disabled = false;
+                    savePaymentBtn.innerHTML = 'Record Payment';
+                }
+            });
+        }
+    }, true); // Use capture phase to catch all clicks
+    
+    console.log('Payment event delegation setup complete');
+});
+
+function openPaymentModal(customerId, customerName, outstandingBalance) {
+    $('#paymentCustomerId').val(customerId);
+    $('#paymentCustomerName').val(customerName);
+    $('#paymentOutstandingBalance').val('₨ ' + outstandingBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#paymentAmount').val(outstandingBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#paymentReference').val('');
+    $('#paymentNotes').val('');
+    
+    $('#paymentModal').modal('show');
+}
+
+$(document).ready(function() {
+    // Orders tab functionality
+    console.log('Orders tab handlers attaching');
+    $('#orders-tab').on('click', function() {
+        loadOrders();
+    });
+
+    $('#refreshOrdersBtn').on('click', function() { loadOrders(); });
+    $('#applyOrderFiltersBtn').on('click', function() { loadOrders(1); });
+    $('#clearOrderFiltersBtn').on('click', function() {
+        $('#ordersCustomerSearch, #ordersTakenBySearch, #ordersDateFrom, #ordersDateTo').val('');
+        $('#ordersPaymentMethod').val('');
+        ordersCustomerFilterId = null;
+        loadOrders(1);
+    });
+    $('#takeOrderFromOrdersBtn').on('click', function(e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const filterVal = $('#ordersCustomerSearch').val() || '';
+        console.log('Orders tab Take Order clicked - opening Customer Picker', { filterVal: filterVal });
+        openCustomerPickerModal(filterVal);
+        return;
+    });
+    // Persisted global Show All setting for Super Admins
+    if ($('#ordersShowAll').length) {
+        // Initialize checkbox from server setting
+        $.get('/customers/api/orders-settings')
+            .done(function(resp) {
+                try {
+                    if (resp && resp.show_all_orders) {
+                        $('#ordersShowAll').prop('checked', true);
+                    } else {
+                        $('#ordersShowAll').prop('checked', false);
+                    }
+                } catch(e) { console.error('Error applying orders setting', e); }
+            })
+            .fail(function() { console.warn('Could not fetch orders settings'); });
+
+        // When Super Admin changes the checkbox, persist the global setting
+        // Use delegated handler so it works even if the element is re-rendered
+        $(document).on('change', '#ordersShowAll', function() {
+            const val = $(this).is(':checked');
+            console.log('ordersShowAll changed ->', val);
+            $.ajax({
+                url: '/customers/api/orders-settings',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ show_all_orders: val })
+            }).done(function(resp) {
+                console.log('orders-settings saved', resp);
+                loadOrders(1);
+                showAlert('Orders visibility setting saved', 'success');
+            }).fail(function(err) {
+                console.error('Failed to update orders setting', err);
+                showAlert('Unable to save orders setting', 'danger');
+                // revert checkbox if save failed
+                try { $('#ordersShowAll').prop('checked', !val); } catch(e){}
+            });
+        });
+    }
+
+    $('#ordersCustomerSearch, #ordersTakenBySearch').on('keyup', function(event) {
+        if (event.key === 'Enter') loadOrders(1);
+    });
+    $('#ordersDateFrom, #ordersDateTo, #ordersPaymentMethod').on('change', function() { loadOrders(1); });
+});
+
+function loadOrders(page = 1) {
+    const customerName = $('#ordersCustomerSearch').val().trim();
+    const takenBy = $('#ordersTakenBySearch').val().trim();
+    const dateFrom = $('#ordersDateFrom').val();
+    const dateTo = $('#ordersDateTo').val();
+    const paymentMethod = $('#ordersPaymentMethod').val();
+    const params = { page: page, per_page: 50 };
+    if (takenBy) params.taken_by = takenBy;
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    if (paymentMethod) params.payment_method = paymentMethod;
+    // Include show_all param when Super Admin toggles it
+    const showAllCheckbox = $('#ordersShowAll');
+    if (showAllCheckbox.length && showAllCheckbox.is(':checked')) {
+        params.show_all = true;
+    }
+    
+    // Only apply a customer filter when the user explicitly opened that customer's orders.
+    if (ordersCustomerFilterId) {
+        params.customer_id = ordersCustomerFilterId;
+    } else if (customerName) {
+        params.customer_name = customerName;
+    }
+    
+    console.log('loadOrders called with params:', params, 'ordersCustomerFilterId:', ordersCustomerFilterId, 'currentCustomerId:', currentCustomerId);
+    
+    $.get('/customers/api/orders', params)
+        .done(function(data) {
+            console.log('Orders API response:', data);
+            renderOrders(data.orders);
+        })
+        .fail(function(error) { 
+            console.error('Error loading orders:', error);
+            showAlert('Error loading orders', 'danger'); 
+        });
+}
+
+// Called from Orders tab button (inline) as a fallback if jQuery handler isn't attached
+window.startTakeOrderFromOrders = function(e) {
+    try {
+        if (e && e.preventDefault) e.preventDefault();
+        if (e && e.stopImmediatePropagation) e.stopImmediatePropagation();
+        if (e && e.stopPropagation) e.stopPropagation();
+        const filterVal = (document.getElementById('ordersCustomerSearch') && document.getElementById('ordersCustomerSearch').value) || '';
+        console.log('startTakeOrderFromOrders fallback invoked - opening Customer Picker', { filterVal: filterVal });
+        openCustomerPickerModal(filterVal);
+    } catch (e) {
+        console.error('startTakeOrderFromOrders error', e);
+    }
+};
+
+let currentEditOrderItems = [];
+
+function renderEditOrderItems() {
+    const body = document.getElementById('editOrderItemsBody');
+    if (!body) return;
+
+    if (!currentEditOrderItems.length) {
+        body.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No items in this order.</td></tr>';
+        return;
+    }
+
+    let total = 0;
+    body.innerHTML = currentEditOrderItems.map((item, index) => {
+        const lineTotal = Number(item.quantity || 0) * Number(item.price || 0);
+        total += lineTotal;
+        return `
+            <tr>
+                <td>${item.product_name}</td>
+                <td>
+                    <input type="number" min="1" class="form-control form-control-sm" value="${item.quantity}" data-index="${index}" data-role="edit-order-qty">
+                </td>
+                <td>₨ ${Number(item.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td>₨ ${Number(lineTotal || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td><button type="button" class="btn btn-sm btn-outline-danger" data-index="${index}" data-role="edit-order-remove">Remove</button></td>
+            </tr>
+        `;
+    }).join('');
+
+    const totalField = document.getElementById('editOrderTotal');
+    if (totalField) totalField.value = total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+    body.querySelectorAll('[data-role="edit-order-qty"]').forEach(el => {
+        el.addEventListener('input', function() {
+            const idx = Number(this.dataset.index);
+            const qty = Number(this.value || 0);
+            currentEditOrderItems[idx].quantity = qty > 0 ? qty : 0;
+            renderEditOrderItems();
+        });
+    });
+
+    body.querySelectorAll('[data-role="edit-order-remove"]').forEach(el => {
+        el.addEventListener('click', function() {
+            const idx = Number(this.dataset.index);
+            currentEditOrderItems.splice(idx, 1);
+            renderEditOrderItems();
+        });
+    });
+}
+
+function loadEditOrderProductResults(search = '') {
+    const results = document.getElementById('editOrderProductResults');
+    if (!results) return;
+
+    fetch(`/customers/api/products/search?search=${encodeURIComponent(search)}`)
+        .then(res => res.json())
+        .then(products => {
+            results.innerHTML = '';
+            if (!products || products.length === 0) {
+                results.innerHTML = '<div class="text-muted">No products found.</div>';
+                return;
+            }
+
+            products.slice(0, 10).forEach(product => {
+                const row = document.createElement('div');
+                row.className = 'd-flex justify-content-between align-items-center border rounded p-2 mb-2 bg-light';
+                row.innerHTML = `
+                    <div>
+                        <strong>${product.name}</strong><br>
+                        <small class="text-muted">₨ ${Number(product.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-success" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${Number(product.price || 0)}">Add</button>
+                `;
+                results.appendChild(row);
+            });
+        })
+        .catch(() => {
+            results.innerHTML = '<div class="text-danger">Unable to load products</div>';
+        });
+}
+
+function addEditOrderItem(productId, productName, productPrice) {
+    const existing = currentEditOrderItems.find(item => Number(item.product_id) === Number(productId));
+    if (existing) {
+        existing.quantity += 1;
+    } else {
+        currentEditOrderItems.push({
+            product_id: Number(productId),
+            product_name: productName,
+            quantity: 1,
+            price: Number(productPrice || 0)
+        });
+    }
+    renderEditOrderItems();
+}
+
+function renderOrders(orders) {
+    const $tbody = $('#ordersTableBody');
+    $tbody.empty();
+    
+    console.log('renderOrders called with:', orders, 'Array?', Array.isArray(orders), 'Length:', orders ? orders.length : 'N/A');
+    
+    if (!orders || !Array.isArray(orders) || orders.length === 0) {
+        $tbody.append('<tr><td colspan="10" class="text-center text-muted py-4">No orders found.<br><small>Create an order from the Customers tab or by clicking "Take Order".</small></td></tr>');
+        return;
+    }
+    
+    orders.forEach((o, idx) => {
+        try {
+            const itemsArray = o.items || [];
+            const itemsText = itemsArray.map(i => `${i.product_name} (${i.quantity})`).join(', ');
+            const row = `
+                <tr>
+                    <td>${o.id}</td>
+                    <td>${o.date}</td>
+                    <td>${o.customer}</td>
+                    <td><small>${itemsText || 'No items'}</small></td>
+                    <td>₨ ${parseFloat(o.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${o.payment}</td>
+                    <td>${(function(){
+                        const bal = Number(o.balance || 0);
+                        const tot = Number(o.total || 0);
+                        if (isNaN(bal) || isNaN(tot)) return '<span class="badge bg-secondary">Unknown</span>';
+                        if (bal <= 0) return '<span class="badge bg-success">Paid</span>';
+                        if (bal < tot) return '<span class="badge bg-warning text-dark">Partially Paid</span>';
+                        return '<span class="badge bg-danger">Pending</span>';
+                    })()}</td>
+                    <td>${o.user || 'System'}</td>
+                    <td>₨ ${parseFloat(o.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="openViewOrderModal(${o.id})" title="View order products"><i class="fas fa-eye me-1"></i>View</button>
+                            ${Number(o.balance || 0) > 0
+                                ? `<button class="btn btn-sm btn-outline-success" onclick="openOrderPaymentModal(${o.id})" title="Receive payment against this order"><i class="fas fa-hand-holding-usd me-1"></i>Receive</button>`
+                                : `<button class="btn btn-sm btn-outline-secondary" disabled title="This order is fully paid"><i class="fas fa-check me-1"></i>Paid</button>`}
+                            <button class="btn btn-sm btn-outline-info" onclick="openEditOrderModal(${o.id})" title="Edit order"><i class="fas fa-edit me-1"></i>Edit</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteOrder(${o.id})" title="Delete order"><i class="fas fa-trash me-1"></i>Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            $tbody.append(row);
+        } catch (err) {
+            console.error('Error rendering order', idx, o, err);
+        }
+    });
+    
+    console.log('Finished rendering', orders.length, 'orders');
+}
+
+function openViewOrderModal(orderId) {
+    const body = document.getElementById('viewOrderItemsBody');
+    if (body) body.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Loading…</td></tr>';
+    $('#viewOrderModal').modal('show');
+
+    fetch('/customers/api/orders/' + orderId)
+        .then(res => {
+            if (!res.ok) throw new Error('Unable to load order');
+            return res.json();
+        })
+        .then(order => {
+            $('#viewOrderNumber').text('#' + order.id);
+            $('#viewOrderCustomer').text(order.customer || 'Walk-in Customer');
+            $('#viewOrderDate').text(order.date || '—');
+            $('#viewOrderUser').text(order.user || 'System');
+            $('#viewOrderPayment').text(order.payment || '—');
+            $('#viewOrderBalance').text('₨ ' + Number(order.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            $('#viewOrderTotal').text('₨ ' + Number(order.total || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            const items = order.items || [];
+            if (!items.length) {
+                body.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No products recorded for this order.</td></tr>';
+                return;
+            }
+            body.innerHTML = items.map(item => {
+                const qty = Number(item.quantity || 0);
+                const price = Number(item.price || 0);
+                const discountPercent = Math.min(Math.max(Number(item.discount_percent || 0), 0), 100);
+                const lineTotal = qty * price * (1 - discountPercent / 100);
+                return `<tr><td>${item.product_name || 'Unknown product'}</td><td class="text-end">${qty}</td><td class="text-end">₨ ${price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td><td class="text-end">${discountPercent.toFixed(2)}%</td><td class="text-end">₨ ${lineTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td></tr>`;
+            }).join('');
+        })
+        .catch(error => {
+            console.error('Error viewing order', error);
+            if (body) body.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Unable to load order products.</td></tr>';
+        });
+}
+
+let editingOrderId = null;
+function openEditOrderModal(orderId) {
+    fetch('/customers/api/orders/' + encodeURIComponent(orderId))
+        .then(res => res.json())
+        .then(order => {
+            if (!order || !order.id) {
+                showAlert('Order not found', 'danger');
+                return;
+            }
+            editingOrderId = Number(order.id);
+            currentCustomerId = order.customer_id || currentCustomerId;
+            $('#takeOrderModalLabel').text('Edit Order');
+            $('#takeOrderCustomerName').val(order.customer || '');
+            $('#takeOrderDate').val(order.date || new Date().toISOString().slice(0, 10));
+            $('#takeOrderProductSearch').val('');
+            $('#takeOrderPaymentMethod').val(order.payment || 'Cash');
+            $('#takeOrderChequeNumber, #takeOrderBankName, #takeOrderChequeDate').val('');
+            $('#takeOrderNotes').val(order.notes || '');
+            takeOrderItems = (order.items || []).map(item => ({
+                product_id: Number(item.product_id),
+                product_name: item.product_name || 'Unknown',
+                quantity: Number(item.quantity || 0),
+                price: Number(item.price || 0),
+                discount_percent: Number(item.discount_percent || 0)
+            }));
+            updateTakeOrderItemsTable();
+            toggleTakeOrderChequeFields();
+            $('#takeOrderModal').modal('show');
+            loadTakeOrderProducts();
+        })
+        .catch(() => showAlert('Error opening order', 'danger'));
+}
+
+function toggleEditOrderChequeFields() {
+    const isCheque = String($('#editOrderPayment').val() || '').toLowerCase() === 'cheque';
+    $('#editOrderChequeDetails').toggleClass('d-none', !isCheque);
+    $('#editOrderChequeNumber, #editOrderChequeBank, #editOrderChequeDate').prop('required', isCheque);
+}
+$(document).off('change.editOrderCheque', '#editOrderPayment').on('change.editOrderCheque', '#editOrderPayment', toggleEditOrderChequeFields);
+
+function toggleOrderChequeFields() {
+    const isCheque = String($('#orderPaymentMethod').val() || '').toLowerCase() === 'cheque';
+    $('#orderChequeDetails').toggleClass('d-none', !isCheque);
+    $('#orderChequeNumber, #orderChequeBank, #orderChequeDate').prop('required', isCheque);
+}
+
+$(document).on('change', '#orderPaymentMethod', toggleOrderChequeFields);
+
+async function openOrderPaymentModal(orderId) {
+    try {
+        const response = await fetch('/customers/api/orders/' + encodeURIComponent(orderId));
+        const order = await response.json();
+        if (!response.ok || !order.id) throw new Error(order.error || 'Unable to load order');
+        const balance = Number(order.balance || 0);
+        if (balance <= 0) {
+            showAlert('This order has no outstanding balance.', 'info');
+            return;
+        }
+        $('#orderPaymentOrderId').val(order.id);
+        $('#orderPaymentNumber').text('#' + order.id);
+        $('#orderPaymentCustomer').text(order.customer || 'Walk-in Customer');
+        $('#orderPaymentOutstanding').text('₨ ' + balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        $('#orderPaymentAmount').val(balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})).attr('max', balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        $('#orderPaymentReference, #orderPaymentNotes').val('');
+        $('#orderChequeNumber, #orderChequeBank').val(order.cheque ? (order.cheque.number || '') : '');
+        $('#orderChequeDate').val(order.cheque && order.cheque.date ? order.cheque.date : new Date().toISOString().slice(0, 10));
+        $('#orderPaymentMethod').val(order.payment || 'Cash');
+        toggleOrderChequeFields();
+        $('#orderPaymentAlert').addClass('d-none').text('');
+        $('#orderPaymentModal').modal('show');
+    } catch (error) {
+        console.error('Error opening order payment modal', error);
+        showAlert(error.message || 'Unable to open payment form', 'danger');
+    }
+}
+
+async function submitOrderPayment() {
+    const orderId = $('#orderPaymentOrderId').val();
+    const amount = Number.parseFloat($('#orderPaymentAmount').val());
+    const paymentMethod = $('#orderPaymentMethod').val();
+    const isCheque = String(paymentMethod || '').toLowerCase() === 'cheque';
+    const chequeNumber = $('#orderChequeNumber').val().trim();
+    const chequeBank = $('#orderChequeBank').val().trim();
+    const chequeDate = $('#orderChequeDate').val();
+    const button = this;
+    if (!orderId || !Number.isFinite(amount) || amount <= 0) {
+        $('#orderPaymentAlert').removeClass('d-none alert-success').addClass('alert-danger').text('Enter a valid payment amount.');
+        return;
+    }
+    if (isCheque && (!chequeNumber || !chequeBank || !chequeDate)) {
+        $('#orderPaymentAlert').removeClass('d-none alert-success').addClass('alert-danger').text('Cheque number, bank name, and cheque date are required.');
+        return;
+    }
+    const original = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Recording…';
+    try {
+        const response = await fetch('/customers/api/orders/' + encodeURIComponent(orderId) + '/record-payment', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
+            body: JSON.stringify({
+                amount,
+                payment_method: paymentMethod,
+                reference_number: $('#orderPaymentReference').val().trim() || chequeNumber,
+                notes: $('#orderPaymentNotes').val().trim(),
+                cheque_number: chequeNumber,
+                cheque_bank: chequeBank,
+                cheque_date: chequeDate
+            })
+        });
+        const raw = await response.text();
+        let data = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch (_) {}
+        if (!response.ok || !data.success) throw new Error(data.error || `Unable to record payment (HTTP ${response.status})`);
+        $('#orderPaymentModal').modal('hide');
+        showAlert((data.message || 'Payment recorded successfully') + '. New balance: ₨ ' + Number(data.new_balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}), 'success');
+        await loadOrders();
+    } catch (error) {
+        console.error('Error recording order payment', error);
+        $('#orderPaymentAlert').removeClass('d-none alert-success').addClass('alert-danger').text(error.message || 'Unable to record payment.');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = original;
+    }
+}
+
+$(document).off('click.orderPayment', '#saveOrderPaymentBtn').on('click.orderPayment', '#saveOrderPaymentBtn', function(event) {
+    event.preventDefault();
+    if (this.dataset.submitting === 'true') return;
+    this.dataset.submitting = 'true';
+    submitOrderPayment().finally(() => { this.dataset.submitting = 'false'; });
+});
+
+window.openOrderPaymentModal = openOrderPaymentModal;
+function deleteOrder(orderId) {
+    if (!confirm('Are you sure you want to delete this order? This cannot be undone.')) {
+        return;
+    }
+
+    fetch('/customers/api/orders/' + orderId, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message || 'Order deleted successfully', 'success');
+            loadOrders();
+        } else {
+            showAlert(data.error || 'Error deleting order', 'danger');
+        }
+    })
+    .catch(err => {
+        console.error('Error deleting order', err);
+        showAlert('Error deleting order', 'danger');
+    });
+}
+
+async function saveEditedOrder(event) {
+    if (event) { event.preventDefault(); event.stopPropagation(); }
+    const orderId = $('#editOrderId').val();
+    const saveButton = (event && event.currentTarget && event.currentTarget.id === 'saveOrderBtn') ? event.currentTarget : document.getElementById('saveOrderBtn');
+    if (!saveButton) {
+        showAlert('Save control is unavailable. Please reopen the Edit Order window.', 'danger');
+        return;
+    }
+    if (!orderId) {
+        showAlert('Order ID is missing. Please close and reopen the order.', 'danger');
+        return;
+    }
+    const payment = String($('#editOrderPayment').val() || 'Cash').trim();
+    const isCheque = payment.toLowerCase() === 'cheque';
+    const chequeNumber = $('#editOrderChequeNumber').val().trim();
+    const chequeBank = $('#editOrderChequeBank').val().trim();
+    const chequeDate = $('#editOrderChequeDate').val();
+    if (isCheque && (!chequeNumber || !chequeBank || !chequeDate)) {
+        showAlert('Cheque number, bank name, and cheque date are required.', 'danger');
+        return;
+    }
+    const items = currentEditOrderItems.filter(item => Number(item.quantity) > 0).map(item => ({
+        product_id: Number(item.product_id),
+        product_name: item.product_name,
+        quantity: Number(item.quantity),
+        price: Number(item.price)
+    }));
+    if (items.some(item => !item.product_id || item.quantity <= 0 || item.price < 0)) {
+        showAlert('Please check every product quantity and price before saving.', 'warning');
+        return;
+    }
+    const payload = {
+        payment,
+        cheque_number: chequeNumber,
+        cheque_bank: chequeBank,
+        cheque_date: chequeDate,
+        total: Number.parseFloat($('#editOrderTotal').val()),
+        balance: Number.parseFloat($('#editOrderBalance').val()),
+        items
+    };
+    if (!Number.isFinite(payload.total) || payload.total < 0 || !Number.isFinite(payload.balance) || payload.balance < 0) {
+        showAlert('Please enter valid non-negative total and balance amounts.', 'warning');
+        return;
+    }
+    const originalText = saveButton.innerHTML;
+    saveButton.disabled = true;
+    saveButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving…';
+    try {
+        const response = await fetch('/customers/api/orders/' + encodeURIComponent(orderId), {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
+            body: JSON.stringify(payload)
+        });
+        const raw = await response.text();
+        let data;
+        try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = {}; }
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || data.message || `Unable to save order (HTTP ${response.status})`);
+        }
+        $('#editOrderModal').modal('hide');
+        showAlert(data.message || 'Order updated successfully', 'success');
+        await loadOrders();
+    } catch (error) {
+        console.error('Error updating order', error);
+        showAlert(error.message || 'Unable to save order. Please try again.', 'danger');
+    } finally {
+        saveButton.disabled = false;
+        saveButton.innerHTML = originalText;
+    }
+}
+window.saveEditedOrder = saveEditedOrder;
+$(document).off('click.orderSave', '#saveOrderBtn').on('click.orderSave', '#saveOrderBtn', function(event) {
+    if (event.__inlineSaveHandled) return;
+    event.__inlineSaveHandled = true;
+    saveEditedOrder(event);
+});
+
+$(document).off('click.editOrderAdd', '#editOrderProductResults [data-product-id]').on('click.editOrderAdd', '#editOrderProductResults [data-product-id]', function() {
+    addEditOrderItem(this.dataset.productId, this.dataset.productName, this.dataset.productPrice);
+    this.disabled = true;
+    this.textContent = 'Added';
+});
+$('#editOrderSearchBtn').on('click', function() {
+    loadEditOrderProductResults($('#editOrderProductSearch').val());
+});
+
+$('#editOrderProductSearch').on('input', function() {
+    loadEditOrderProductResults($(this).val());
+});
+
+function openCustomerOrders(customerId, customerName) {
+    currentCustomerId = customerId;
+    ordersCustomerFilterId = customerId;
+    const ordersTabEl = document.querySelector('#orders-tab');
+    if (ordersTabEl) {
+        const tab = bootstrap.Tab.getOrCreateInstance(ordersTabEl);
+        tab.show();
+    }
+    $('#ordersCustomerSearch').val(customerName || '');
+    loadOrders(1);
+}
+
+function startTakeOrder(customerId, customerName) {
+    openTakeOrderModal(customerId, customerName);
+}
+
+window.openCustomerOrders = openCustomerOrders;
+window.startTakeOrder = startTakeOrder;
+
+let takeOrderItems = [];
+let takeOrderSearchRequestId = 0;
+let takeOrderSearchTimer = null;
+
+function openTakeOrderModal(customerId, customerName) {
+    editingOrderId = null;
+    $('#takeOrderModalLabel').text('Take Order');
+    if (!customerId) {
+        showAlert('Unable to open order form: missing customer ID.', 'danger');
+        return;
+    }
+
+    currentCustomerId = customerId;
+    $('#takeOrderCustomerName').val(customerName || '');
+    $('#takeOrderDate').val(new Date().toISOString().slice(0, 10));
+    $('#takeOrderProductSearch').val('');
+    $('#takeOrderPaymentMethod').val('Cash');
+    $('#takeOrderChequeNumber, #takeOrderBankName, #takeOrderChequeDate').val('');
+    $('#takeOrderNotes').val('');
+    $('#takeOrderProductResults').html('');
+    takeOrderItems = [];
+    updateTakeOrderItemsTable();
+    toggleTakeOrderChequeFields();
+    $('#takeOrderModal').modal('show');
+    setTimeout(toggleTakeOrderChequeFields, 0);
+    loadTakeOrderProducts();
+}
+
+function loadTakeOrderProducts() {
+    const search = String($('#takeOrderProductSearch').val() || '').trim();
+    const requestId = ++takeOrderSearchRequestId;
+    const results = $('#takeOrderProductResults');
+    results.html('<div class="text-muted small">Searching products…</div>');
+    const url = `/customers/api/products/search?search=${encodeURIComponent(search)}`;
+    fetch(url, { credentials: 'same-origin', cache: 'no-store' })
+        .then(res => {
+            if (!res.ok) throw new Error(`Product search failed (${res.status})`);
+            return res.json();
+        })
+        .then(products => {
+            // Ignore responses from an earlier request; otherwise an initial
+            // full-catalog response can overwrite a newer search response.
+            if (requestId !== takeOrderSearchRequestId) return;
+            results.empty();
+            const normalizedSearch = search.toLowerCase();
+            const filteredProducts = (Array.isArray(products) ? products : [])
+                .filter(product => {
+                    if (!normalizedSearch) return true;
+                    const haystack = `${product.name || ''} ${product.barcode || ''}`.toLowerCase();
+                    return haystack.includes(normalizedSearch);
+                })
+                .sort((a, b) => {
+                    if (!normalizedSearch) return String(a.name || '').localeCompare(String(b.name || ''));
+                    const aName = String(a.name || '').toLowerCase();
+                    const bName = String(b.name || '').toLowerCase();
+                    const score = value => value === normalizedSearch ? 0 : value.startsWith(normalizedSearch) ? 1 : value.includes(normalizedSearch) ? 2 : 3;
+                    return score(aName) - score(bName) || aName.localeCompare(bName);
+                });
+            if (filteredProducts.length === 0) {
+                results.html('<div class="text-muted">No products found</div>');
+                return;
+            }
+            filteredProducts.forEach(product => {
+                const isTestProduct = Boolean(product.is_test || product.is_test_product || (Array.isArray(product.tags) && product.tags.some(tag => String(tag).toLowerCase() === 'test')) || /\btest\b/i.test(product.name || ''));
+                const testBadge = isTestProduct ? '<span class="badge bg-warning text-dark ms-2" title="Test product">TEST</span>' : '';
+                const item = document.createElement('div');
+                item.className = 'd-flex justify-content-between align-items-center border rounded p-2 mb-2 bg-white';
+                item.innerHTML = `
+                    <div>
+                        <strong>${product.name}${testBadge}</strong><br>
+                        <small class="text-muted">Stock: ${product.stock} | Price: ₨ ${parseFloat(product.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</small>
+                    </div>
+                    <button class="btn btn-sm btn-success" type="button" data-role="add-product" data-product-id="${product.id}" data-product-name="${(product.name || '').replace(/'/g, "\\'")}" data-product-price="${Number(product.price || 0)}">Add</button>
+                `;
+                results.append(item);
+            });
+        })
+        .catch(error => {
+            if (requestId !== takeOrderSearchRequestId) return;
+            console.error('Take Order product search failed', error);
+            results.html('<div class="text-danger">Unable to load products. Please try again.</div>');
+        });
+}
+
+function addTakeOrderItem(productId, productName, productPrice) {
+    const existing = takeOrderItems.find(item => item.product_id === productId);
+    if (existing) {
+        existing.quantity += 1;
+    } else {
+        takeOrderItems.push({
+            product_id: productId,
+            product_name: productName,
+            quantity: 1,
+            price: productPrice,
+            discount_percent: 0
+        });
+    }
+    updateTakeOrderItemsTable();
+}
+
+function updateTakeOrderItemsTable() {
+    const body = document.getElementById('takeOrderItemsTableBody');
+    if (!body) return;
+
+    if (!takeOrderItems || takeOrderItems.length === 0) {
+        body.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No products added</td></tr>';
+        const totalInput = document.getElementById('takeOrderTotal');
+        if (totalInput) totalInput.value = '0.00';
+        return;
+    }
+
+    let total = 0;
+    let rowsHtml = '';
+    takeOrderItems.forEach((item, index) => {
+        const grossTotal = Number(item.quantity || 0) * Number(item.price || 0);
+        const discountPercent = Math.min(Math.max(Number(item.discount_percent || 0), 0), 100);
+        const discount = grossTotal * (discountPercent / 100);
+        const lineTotal = grossTotal - discount;
+        total += lineTotal;
+        rowsHtml += `
+            <tr>
+                <td>${item.product_name}</td>
+                <td>
+                    <input type="number" class="form-control form-control-sm" min="1" value="${item.quantity}" data-index="${index}" data-role="qty">
+                </td>
+                <td>₨ ${parseFloat(item.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td><div class="input-group input-group-sm"><input type="number" class="form-control line-discount" min="0" max="100" step="0.01" value="${discountPercent.toFixed(2)}" data-index="${index}" data-role="line-discount" aria-label="Discount percentage for ${item.product_name}"><span class="input-group-text">%</span></div></td>
+                <td>₨ ${parseFloat(lineTotal).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td><button class="btn btn-sm btn-outline-danger" type="button" data-index="${index}" data-role="remove-item">Remove</button></td>
+            </tr>
+        `;
+    });
+
+    body.innerHTML = rowsHtml;
+    const totalInput = document.getElementById('takeOrderTotal');
+    // Keep number inputs unformatted; commas make values invalid in HTML number fields.
+    if (totalInput) totalInput.value = total.toFixed(2);
+
+    body.querySelectorAll('[data-role="qty"]').forEach(el => {
+        el.onchange = function() {
+            const idx = Number(this.dataset.index);
+            const qty = Number(this.value) || 0;
+            if (qty <= 0) {
+                takeOrderItems.splice(idx, 1);
+            } else {
+                takeOrderItems[idx].quantity = qty;
+            }
+            updateTakeOrderItemsTable();
+        };
+    });
+
+    body.querySelectorAll('[data-role="line-discount"]').forEach(el => {
+        // Do not redraw the table on every keystroke: redraws replace the
+        // focused input and prevent entering multi-digit discounts.
+        el.onchange = function() {
+            const idx = Number(this.dataset.index);
+            const percent = Math.min(Math.max(Number(this.value) || 0, 0), 100);
+            takeOrderItems[idx].discount_percent = percent;
+            this.value = percent.toFixed(2);
+            updateTakeOrderItemsTable();
+        };
+    });
+
+    body.querySelectorAll('[data-role="remove-item"]').forEach(el => {
+        el.onclick = function() {
+            const idx = Number(this.dataset.index);
+            takeOrderItems.splice(idx, 1);
+            updateTakeOrderItemsTable();
+        };
+    });
+}
+
+function toggleTakeOrderChequeFields() {
+    const method = $('#takeOrderPaymentMethod').val();
+    const detailDiv = $('#takeOrderChequeDetails');
+        const isCheque = method && method.toLowerCase() === 'cheque';
+    detailDiv.toggleClass('d-none', !isCheque);
+    $('#takeOrderChequeNumber, #takeOrderBankName, #takeOrderChequeDate').prop('required', Boolean(isCheque));
+}
+function submitTakeOrderHandler(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!editingOrderId && !currentCustomerId) {
+        showAlert('Please select a customer first', 'danger');
+        return;
+    }
+    if (!takeOrderItems || takeOrderItems.length === 0) {
+        showAlert('Please add at least one product to the order', 'danger');
+        return;
+    }
+
+    const paymentMethod = $('#takeOrderPaymentMethod').val();
+    const chequeNumber = $('#takeOrderChequeNumber').val();
+    const bankName = $('#takeOrderBankName').val();
+    const chequeDate = $('#takeOrderChequeDate').val();
+
+    if (paymentMethod === 'Cheque' && (!chequeNumber || !bankName || !chequeDate)) {
+        toggleTakeOrderChequeFields();
+        showModalAlert('Enter Cheque Number, Bank Name, and Cheque Date before saving.', 'danger');
+        if (!chequeNumber) $('#takeOrderChequeNumber').trigger('focus');
+        else if (!bankName) $('#takeOrderBankName').trigger('focus');
+        else $('#takeOrderChequeDate').trigger('focus');
+        return;
+    }
+
+    const editItems = takeOrderItems.map(item => ({
+        product_id: Number(item.product_id),
+        product_name: item.product_name,
+        quantity: Number(item.quantity),
+        price: Number(item.price),
+        discount_percent: Number(item.discount_percent || 0)
+    }));
+    if (editingOrderId) {
+        const editPayload = {
+            payment: paymentMethod,
+            total: parseFloat($('#takeOrderTotal').val() || 0),
+            balance: ['credit store', 'cheque', 'other'].includes(paymentMethod.toLowerCase()) ? parseFloat($('#takeOrderTotal').val() || 0) : 0,
+            cheque_number: chequeNumber || '',
+            cheque_bank: bankName || '',
+            cheque_date: chequeDate || '',
+            items: editItems
+        };
+        fetch('/customers/api/orders/' + encodeURIComponent(editingOrderId), {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
+            body: JSON.stringify(editPayload)
+        }).then(r => r.json()).then(data => {
+            if (!data.success) throw new Error(data.error || 'Unable to update order');
+            $('#takeOrderModal').modal('hide');
+            editingOrderId = null;
+            $('#takeOrderModalLabel').text('Take Order');
+            showAlert(data.message || 'Order updated successfully', 'success');
+            if (typeof loadOrders === 'function') loadOrders(1);
+        }).catch(err => showModalAlert(err.message || 'Unable to update order', 'danger'));
+        return;
+    }
+    const payload = {
+        customer_id: currentCustomerId,
+        customer_name: $('#takeOrderCustomerName').val(),
+        payment_method: paymentMethod,
+        total: parseFloat($('#takeOrderTotal').val() || 0),
+        balance: 0,
+        notes: $('#takeOrderNotes').val() || '',
+        cheque_number: chequeNumber || '',
+        cheque_bank: bankName || '',
+        cheque_date: chequeDate || '',
+        items: takeOrderItems.map(item => ({
+            product_id: Number(item.product_id),
+            product_name: item.product_name,
+            quantity: Number(item.quantity),
+            price: Number(item.price),
+            discount_percent: Number(item.discount_percent || 0)
+        }))
+    };
+
+    if (!csrfToken) {
+        showModalAlert('CSRF token missing — please refresh the page and login again.', 'danger');
+        return;
+    }
+
+    fetch('/customers/api/orders', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            $('#takeOrderModal').modal('hide');
+            showAlert(data.message || 'Order created successfully', 'success');
+            // A newly created order should not replace the previous order history.
+            ordersCustomerFilterId = null;
+            $('#ordersCustomerSearch').val('');
+            if (typeof loadOrders === 'function') loadOrders(1);
+        } else {
+            showModalAlert(data.error || 'Error creating order', 'danger');
+        }
+    })
+    .catch(err => {
+        console.error('submitTakeOrder error', err);
+        showModalAlert('Unable to create order', 'danger');
+    });
+}
+
+window.loadTakeOrderProducts = loadTakeOrderProducts;
+window.handleTakeOrderProductSearch = function() {
+    const results = $('#takeOrderProductResults');
+    results.html('<div class="text-muted small">Searching products…</div>');
+    clearTimeout(takeOrderSearchTimer);
+    takeOrderSearchTimer = setTimeout(loadTakeOrderProducts, 220);
+};
+window.submitTakeOrderInline = submitTakeOrderHandler;
+
+$(document).ready(function() {
+    $('#loadTakeOrderProductsBtn').on('click', function() { loadTakeOrderProducts(); });
+    $('#takeOrderProductSearch').on('input', function() {
+        window.handleTakeOrderProductSearch();
+    });
+    $('#takeOrderProductSearch').on('keyup', function(e) {
+        if (e.key === 'Enter') {
+            clearTimeout(takeOrderSearchTimer);
+            loadTakeOrderProducts();
+        }
+    });
+    $('#takeOrderPaymentMethod').on('change', toggleTakeOrderChequeFields);
+    $('#submitTakeOrderBtn').on('click', submitTakeOrderHandler);
+    $(document).on('click', '#takeOrderProductResults [data-role="add-product"]', function() {
+        const productId = Number($(this).data('product-id'));
+        const productName = $(this).data('product-name') || '';
+        const productPrice = Number($(this).data('product-price')) || 0;
+        addTakeOrderItem(productId, productName, productPrice);
+    });
+});
+</script>
+{% endblock %}
