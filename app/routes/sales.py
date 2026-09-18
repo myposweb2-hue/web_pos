@@ -554,18 +554,45 @@ def create_sale():
         # Never persist a zero total when the checkout contains priced lines.
         # This protects against stale clients and older formatted-number bugs.
         if total <= 0:
-            total = max(0.0, sum(
+            # Recompute subtotal (excluding tax) from items and apply overall sale discount
+            subtotal_items = sum(
                 (float(item.get('price', 0) or 0) * float(item.get('quantity', 0) or 0))
                 - float(item.get('discount', 0) or 0)
-                + float(item.get('tax', 0) or 0)
                 for item in data.get('items', [])
-            ))
+            )
+            overall_discount = float(data.get('discount', 0.0) or 0.0)
+
+            # Load tax settings for the current company to compute tax the same way
+            company_id = get_company_id()
+            try:
+                tax_rate_setting = Setting.query.filter(
+                    Setting.company_id == company_id,
+                    Setting.setting_category == 'tax',
+                    Setting.setting_key == 'rate'
+                ).first()
+                enable_tax_setting = Setting.query.filter(
+                    Setting.company_id == company_id,
+                    Setting.setting_category == 'tax',
+                    Setting.setting_key == 'enable_tax'
+                ).first()
+
+                tax_rate = float(tax_rate_setting.setting_value) if tax_rate_setting and tax_rate_setting.setting_value is not None else 18.0
+                enable_tax = (enable_tax_setting.setting_value == 'true') if enable_tax_setting and enable_tax_setting.setting_value is not None else True
+            except Exception:
+                tax_rate = 18.0
+                enable_tax = True
+
+            taxable_base = max(0.0, subtotal_items - overall_discount)
+            tax_amount = taxable_base * (tax_rate / 100.0) if enable_tax else 0.0
+            total = max(0.0, taxable_base + tax_amount)
         current_app.logger.info(f"SALES CREATE - Payment method: {payment_method}, Total: {total}")
         current_app.logger.info(f"SALES CREATE - Full payment data received: {{'payment_method': '{payment_method}', 'balance': {data.get('balance', 0)}, 'cash_given': {data.get('cash_given', 0)}}}")
         
         if payment_method == 'Cash':
             cash_given = float(data.get('cash_given', 0.0))
-            if cash_given < total:
+            # Allow a small rounding tolerance to avoid rejecting payments
+            # because of minor floating-point/display rounding differences.
+            if cash_given + 0.005 < total:
                 return jsonify({'error': 'Insufficient cash payment'}), 400
 
         # Discounts above 10% require a manager/admin to authorize the sale.
