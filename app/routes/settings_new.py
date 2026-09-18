@@ -465,8 +465,13 @@ def save_settings():
 @settings_bp.route('/api/settings/categories/<category>')
 @csrf.exempt
 @login_required
-@require_permission('can_access_settings')
 def get_category_settings(category):
+    """Read a company-scoped settings category for UI features like receipt format.
+
+    Sales pages fetch this endpoint for receipt formatting and display values.
+    Access is intentionally not restricted to the full settings permission so that
+    regular users can use the receipt workflow without being blocked by a 403.
+    """
     settings = get_company_filtered_settings(category=category).all()
     result = {}
     for setting in settings:
@@ -1168,7 +1173,7 @@ def delete_backup(filename):
     if filename.startswith('pos_full_backup_') and filename.endswith('.tar.gz'):
         backup_dir = os.path.abspath(os.path.join(current_app.root_path, '..', 'backups'))
         backup_path = os.path.abspath(os.path.join(backup_dir, filename))
-        if os.path.commonpath([backup_dir, backup_path]) != backup_dir:
+        if os.path.commonpath([backup_dir, backup_path]) != backup_dir or not os.path.isfile(backup_path):
             return jsonify({'error': 'Invalid backup filename'}), 400
         if os.path.isfile(backup_path):
             try:

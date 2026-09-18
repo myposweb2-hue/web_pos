@@ -220,8 +220,12 @@ def save_settings():
 @settings_bp.route('/api/settings/categories/<category>')
 @csrf.exempt
 @login_required
-@require_any_settings_permission()
 def get_category_settings(category):
+    """Read settings by category without requiring full settings admin rights.
+
+    This is used by receipt-related UI features in the sales flow; the actual
+    write/update endpoints remain protected by the settings permission checks.
+    """
     settings = Setting.query.filter_by(setting_category=category).all()
     result = {}
     for setting in settings:
