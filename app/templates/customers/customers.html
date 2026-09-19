@@ -170,6 +170,24 @@
     .nav-tabs .nav-link.active {
         font-weight: bold;
     }
+
+    /* Mobile responsive styles for take order items table */
+    @media (max-width: 768px) {
+        #takeOrderItemsTableBody input[type="number"][data-role="qty"],
+        #takeOrderItemsTableBody input[type="number"][data-role="line-discount"] {
+            min-height: 40px;
+            font-size: 16px;
+            padding: 8px 6px;
+        }
+        #takeOrderItemsTableBody .table {
+            font-size: 0.85rem;
+        }
+        #takeOrderItemsTableBody button {
+            min-height: 40px;
+            padding: 6px 8px;
+            font-size: 12px;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -2996,7 +3014,7 @@ function submitTakeOrderHandler(e) {
         return;
     }
 
-    const paymentMethod = $('#takeOrderPaymentMethod').val();
+    const paymentMethod = $('#takeOrderPaymentMethod').val() || 'Cash';
     const chequeNumber = $('#takeOrderChequeNumber').val();
     const bankName = $('#takeOrderBankName').val();
     const chequeDate = $('#takeOrderChequeDate').val();
@@ -3022,7 +3040,7 @@ function submitTakeOrderHandler(e) {
             payment: paymentMethod,
             status: $('#takeOrderStatus').val() || 'Pending',
             total: parseFloat($('#takeOrderTotal').val() || 0),
-            balance: ['credit store', 'cheque', 'other'].includes(paymentMethod.toLowerCase()) ? parseFloat($('#takeOrderTotal').val() || 0) : 0,
+            balance: ['credit store', 'cheque', 'other'].includes((paymentMethod || 'Cash').toLowerCase()) ? parseFloat($('#takeOrderTotal').val() || 0) : 0,
             cheque_number: chequeNumber || '',
             cheque_bank: bankName || '',
             cheque_date: chequeDate || '',
