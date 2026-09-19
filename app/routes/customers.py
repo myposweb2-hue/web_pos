@@ -5,6 +5,7 @@ from app.utils.permissions import require_permission
 from app.utils.security import get_company_id, require_company_context
 from app.utils.audit import log_create, log_update, log_delete, log_audit
 from datetime import datetime, timedelta
+import pytz
 from sqlalchemy import func, desc, or_
 from sqlalchemy.exc import OperationalError
 from flask import current_app
@@ -41,6 +42,23 @@ def get_sale_secure(sale_id):
     else:
         sale_query = sale_query.filter(Sale.company_id.is_(None))
     return sale_query.first()
+
+
+def _to_utc_iso(dt):
+    """Convert a naive UTC datetime (or aware datetime) to an ISO8601 UTC string with Z."""
+    if not dt:
+        return None
+    try:
+        if dt.tzinfo is None:
+            # assume stored as UTC
+            return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        else:
+            return dt.astimezone(pytz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    except Exception:
+        try:
+            return datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+        except Exception:
+            return None
 
 @customers_bp.route('/customers')
 @login_required
@@ -394,7 +412,8 @@ def list_orders():
     for s in orders.items:
         order = {
             'id': s.id,
-            'date': s.date.strftime('%Y-%m-%d %H:%M:%S'),
+            # send full UTC ISO timestamp for list display (frontend will localize)
+            'date': _to_utc_iso(s.date),
             'customer': s.customer,
             'status': (s.status if getattr(s, 'status', None) else 'Pending'),
             'total': s.total,
@@ -498,11 +517,18 @@ def create_order():
         if requested_status not in allowed_statuses:
             requested_status = 'Pending'
 
+        requested_date = (data.get('date') or '').strip()
+        try:
+            sale_date = datetime.strptime(requested_date, '%Y-%m-%d') if requested_date else datetime.now()
+        except ValueError:
+            sale_date = datetime.now()
+
         sale = Sale(
             customer=customer.name,
             payment=payment_method,
             cash_given=float(data.get('cash_given', 0.0) or 0.0),
             total=total,
+            date=sale_date,
             status=requested_status,
             discount=float(data.get('discount', 0.0) or 0.0),
             tax=float(data.get('tax', 0.0) or 0.0),
@@ -518,7 +544,7 @@ def create_order():
                 cheque_number=(data.get('cheque_number') or '').strip(),
                 bank_name=(data.get('cheque_bank') or 'Unknown').strip() or 'Unknown',
                 branch=None,
-                cheque_date=datetime.strptime((data.get('cheque_date') or '').strip(), '%Y-%m-%d').date() if (data.get('cheque_date') or '').strip() else datetime.utcnow().date(),
+                cheque_date=datetime.strptime((data.get('cheque_date') or '').strip(), '%Y-%m-%d').date() if (data.get('cheque_date') or '').strip() else datetime.now().date(),
                 amount=total,
                 payer_name=customer.name,
                 customer_id=customer.id,
@@ -597,7 +623,9 @@ def get_order(order_id):
         'id': sale.id,
         'customer': sale.customer,
         'status': (sale.status if getattr(sale, 'status', None) else 'Pending'),
-        'date': sale.date.strftime('%Y-%m-%d %H:%M:%S') if sale.date else None,
+        # keep a date-only field for date inputs, and a full UTC timestamp for display
+        'date': sale.date.strftime('%Y-%m-%d') if sale.date else None,
+        'date_ts': _to_utc_iso(sale.date),
         'total': sale.total,
         'payment': sale.payment,
         'user': (sale.user.username if sale.user else 'System'),
@@ -1201,7 +1229,7 @@ def get_customer_purchase_history(customer_id):
     for sale in sales.items:
         sale_data = {
             'id': sale.id,
-            'date': sale.date.strftime('%Y-%m-%d %H:%M:%S'),
+            'date': _to_utc_iso(sale.date),
             'total': sale.total,
             'payment': sale.payment,
             'items': []
@@ -1844,9 +1872,9 @@ def record_customer_payment(customer_id):
 
             if cheque_number:
                 try:
-                    cheque_date = datetime.strptime(cheque_date_str, '%Y-%m-%d').date() if cheque_date_str else datetime.utcnow().date()
+                    cheque_date = datetime.strptime(cheque_date_str, '%Y-%m-%d').date() if cheque_date_str else datetime.now().date()
                 except Exception:
-                    cheque_date = datetime.utcnow().date()
+                    cheque_date = datetime.now().date()
 
                 # Avoid inserting duplicate cheques (unique constraint on cheque_number + bank_name)
                 existing_cheque = Cheque.query.filter(

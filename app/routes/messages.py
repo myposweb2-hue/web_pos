@@ -10,6 +10,21 @@ from app.utils.message_scheduler import MessageScheduler, send_sale_receipt, sen
 from app import csrf
 from sqlalchemy import or_
 import logging
+import pytz
+
+
+def _to_utc_iso(dt):
+    if not dt:
+        return None
+    try:
+        if dt.tzinfo is None:
+            return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        return dt.astimezone(pytz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    except Exception:
+        try:
+            return datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+        except Exception:
+            return None
 
 logger = logging.getLogger(__name__)
 
@@ -297,7 +312,7 @@ def api_get_sales_for_messaging():
         for sale in sales:
             result.append({
                 'id': sale.id,
-                'date': sale.date.strftime('%Y-%m-%d %H:%M'),
+                'date': _to_utc_iso(sale.date),
                 'customer': sale.customer,
                 'total': sale.total,
                 'payment': sale.payment,

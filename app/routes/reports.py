@@ -4,6 +4,7 @@ from app.models import db, Sale, SaleItem, Product, Customer, InventoryTransacti
 from app.utils.permissions import require_permission
 from app.utils.security import get_company_id, require_company_context
 from datetime import datetime, timedelta
+import pytz
 from sqlalchemy import func, desc, and_, or_
 import calendar
 import io
@@ -13,8 +14,8 @@ import pytz
 
 reports_bp = Blueprint('reports', __name__, template_folder='../../templates')
 
-# Timezone configuration (Pakistan Standard Time)
-LOCAL_TIMEZONE = pytz.timezone('Asia/Karachi')
+# Timezone configuration (Sri Lanka Standard Time)
+LOCAL_TIMEZONE = pytz.timezone('Asia/Colombo')
 
 def get_company_filter(model):
     """Get company filter for a model - returns filter or None if no company_id column."""
@@ -65,11 +66,26 @@ def cashier_shift_report():
     })
 
 def to_local_datetime(dt):
-    """Convert UTC datetime to local timezone."""
+    """Convert UTC datetime to Sri Lanka local timezone."""
     if dt.tzinfo is None:
         # Assume UTC if naive
         dt = pytz.utc.localize(dt)
     return dt.astimezone(LOCAL_TIMEZONE)
+
+
+def _to_utc_iso(dt):
+    """Convert naive or aware datetime to ISO8601 UTC (Z) string."""
+    if not dt:
+        return None
+    try:
+        if dt.tzinfo is None:
+            return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        return dt.astimezone(pytz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    except Exception:
+        try:
+            return datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+        except Exception:
+            return None
 
 @reports_bp.route('')
 @login_required
@@ -1866,6 +1882,7 @@ def get_sales_report():
             'id': sale.id,
             'date': sale.date.strftime('%Y-%m-%d'),
             'time': sale.date.strftime('%H:%M:%S'),
+            'date_ts': _to_utc_iso(sale.date),
             'invoice_no': f'INV-{sale.id:06d}',
             'customer': sale.customer,
             'total_items': int(items or 0),

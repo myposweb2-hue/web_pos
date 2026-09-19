@@ -601,21 +601,25 @@
     <script>
         window.formatTimestamp = function(timestamp, includeTime = true) {
             if (!timestamp) return '-';
-            
+
             try {
                 let dateStr = String(timestamp).trim();
-                if (!dateStr.endsWith('Z') && !dateStr.includes('+')) {
-                    dateStr += 'Z';
+                if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(dateStr)) {
+                    dateStr = dateStr.replace(' ', 'T');
+                } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    dateStr = `${dateStr}T00:00:00`;
+                } else if (!dateStr.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(dateStr) && !dateStr.includes('T') && !dateStr.includes(' ')) {
+                    dateStr = `${dateStr}T00:00:00`;
                 }
-                
+
                 const date = new Date(dateStr);
                 if (isNaN(date.getTime())) {
                     console.warn('Invalid timestamp:', timestamp);
                     return timestamp;
                 }
-                
+
                 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                
+
                 if (includeTime) {
                     return date.toLocaleString('en-GB', {
                         year: 'numeric',

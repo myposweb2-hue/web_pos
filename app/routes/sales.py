@@ -8,6 +8,7 @@ from app.utils.sales_totals import sale_total_for_display
 from app.utils.inventory_batches import allocate_batches, restore_batches
 from app.utils.company import column_exists_in_db
 from datetime import datetime, timedelta
+import pytz
 from sqlalchemy import desc, case, or_
 import json
 from app.utils.email_sender import send_email
@@ -28,6 +29,21 @@ sales_bp = Blueprint('sales', __name__, template_folder='../../templates')
 def _sale_total_for_display(sale):
     """Compatibility wrapper around the shared canonical sale-total helper."""
     return sale_total_for_display(sale)
+
+
+def _to_utc_iso(dt):
+    """Convert a naive or aware datetime to an ISO8601 UTC string (Z)."""
+    if not dt:
+        return None
+    try:
+        if dt.tzinfo is None:
+            return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        return dt.astimezone(pytz.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    except Exception:
+        try:
+            return datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+        except Exception:
+            return None
 
 
 def _receipt_settlement(sale):
@@ -860,6 +876,7 @@ def get_receipt(sale_id):
     receipt_data = {
         'sale_id': sale.id,
         'date': sale.date.strftime('%Y-%m-%d %H:%M:%S'),
+        'date_ts': _to_utc_iso(sale.date),
         'customer': sale.customer,
         'items': [],
         'subtotal': 0,
@@ -2415,6 +2432,7 @@ def get_all_sales():
             result['sales'].append({
                 'id': sale.id,
                 'date': sale.date.strftime('%Y-%m-%d %H:%M:%S'),
+                'date_ts': _to_utc_iso(sale.date),
                 'customer': sale.customer,
                 'total': _sale_total_for_display(sale),
                 'payment': sale.payment,
@@ -2444,6 +2462,7 @@ def get_sale(sale_id):
     sale_data = {
         'id': sale.id,
         'date': sale.date.strftime('%Y-%m-%d %H:%M:%S'),
+        'date_ts': _to_utc_iso(sale.date),
         'customer': sale.customer,
         'customer_phone': customer_details.get('phone', ''),
         'customer_email': customer_details.get('email', ''),
@@ -2529,6 +2548,7 @@ def get_sale_items_for_return(sale_id):
     return jsonify({
         'sale_id': sale.id,
         'sale_date': sale.date.strftime('%Y-%m-%d %H:%M:%S'),
+        'sale_date_ts': _to_utc_iso(sale.date),
         'customer': sale.customer,
         'total': _sale_total_for_display(sale),
         'payment': sale.payment,
