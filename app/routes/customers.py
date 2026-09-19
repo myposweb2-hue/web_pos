@@ -6,6 +6,7 @@ from app.utils.security import get_company_id, require_company_context
 from app.utils.audit import log_create, log_update, log_delete, log_audit
 from datetime import datetime, timedelta
 from sqlalchemy import func, desc, or_
+from sqlalchemy.exc import OperationalError
 from flask import current_app
 
 
@@ -332,7 +333,56 @@ def list_orders():
     except ValueError:
         return jsonify({'error': 'Invalid date filter. Use YYYY-MM-DD.'}), 400
 
-    orders = query.order_by(desc(Sale.date)).paginate(page=page, per_page=per_page)
+    try:
+        orders = query.order_by(desc(Sale.date)).paginate(page=page, per_page=per_page)
+    except OperationalError as oe:
+        # Likely the DB schema is missing the new `status` column (migration not applied).
+        # Fall back to a conservative raw query that excludes the status column so
+        # the endpoint remains available until migrations are run.
+        current_app.logger.warning('OperationalError when querying orders - falling back: %s', oe)
+        # Build a raw SQL query excluding the status column
+        from sqlalchemy import text
+        sql = text("""
+            SELECT id, date, customer, total, payment, cash_given, balance, discount, tax, user_id, company_id
+            FROM sales
+            WHERE (company_id = :company_id OR company_id IS NULL)
+            ORDER BY date DESC
+            LIMIT :limit OFFSET :offset
+        """)
+        # compute offset
+        offset = (page - 1) * per_page
+        params = {'company_id': company_id, 'limit': per_page, 'offset': offset}
+        result = db.session.execute(sql, params).fetchall()
+        # Create a lightweight orders-like pagination object
+        class SimplePagination:
+            def __init__(self, items, total, page, per_page):
+                self.items = items
+                self.total = total
+                self.page = page
+                self.per_page = per_page
+                self.pages = (total + per_page - 1) // per_page
+
+        # Estimate total count
+        count_sql = text("SELECT COUNT(1) FROM sales WHERE (company_id = :company_id OR company_id IS NULL)")
+        total_count = db.session.execute(count_sql, {'company_id': company_id}).scalar() or 0
+        # Create fake sale-like objects using simple namespace
+        class RowObj:
+            def __init__(self, row):
+                self.id = row['id']
+                self.date = row['date']
+                self.customer = row['customer']
+                self.total = row['total']
+                self.payment = row['payment']
+                self.cash_given = row['cash_given']
+                self.balance = row['balance']
+                self.discount = row['discount']
+                self.tax = row['tax']
+                self.user = None
+                self.items = []
+                self.user_id = row['user_id']
+                self.company_id = row['company_id']
+
+        orders = SimplePagination([RowObj(dict(r)) for r in result], total_count, page, per_page)
 
     result = {
         'orders': [],
