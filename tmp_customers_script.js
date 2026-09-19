@@ -958,8 +958,16 @@ function renderOrders(orders) {
                 <td>${o.customer}</td>
                 <td><small>${itemsText}</small></td>
                 <td>₨ ${parseFloat(o.total || 0).toFixed(2)}</td>
-                <td>${o.payment}</td>
-                <td>₨ ${parseFloat(o.balance || 0).toFixed(2)}</td>
+                    <td>${o.payment}</td>
+                    <td>${(function(){
+                        const st = (o.status || 'Pending').toString();
+                        if (st.toLowerCase() === 'pending') return '<span class="badge bg-secondary">Pending</span>';
+                        if (st.toLowerCase() === 'processing') return '<span class="badge bg-info text-dark">Processing</span>';
+                        if (st.toLowerCase() === 'delivered') return '<span class="badge bg-success">Delivered</span>';
+                        if (st.toLowerCase() === 'cancelled') return '<span class="badge bg-danger">Cancelled</span>';
+                        return `<span class="badge bg-secondary">${st}</span>`;
+                    })()}</td>
+                    <td>₨ ${parseFloat(o.balance || 0).toFixed(2)}</td>
                 <td>
                     <div class="btn-group">
                         <button class="btn btn-sm btn-outline-info" onclick="openEditOrderModal(${o.id})">Edit</button>
@@ -1206,6 +1214,7 @@ $(document).ready(function() {
         customer_id: currentCustomerId,
         customer_name: $('#takeOrderCustomerName').val(),
         payment_method: paymentMethod,
+        status: $('#takeOrderStatus').val() || 'Pending',
         total: parseFloat($('#takeOrderTotal').val() || 0),
         balance: 0,
         notes: $('#takeOrderNotes').val() || '',

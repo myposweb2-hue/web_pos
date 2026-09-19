@@ -268,6 +268,7 @@ class Sale(db.Model):
     payment = db.Column(db.String(20), default='Cash')
     cash_given = db.Column(db.Float, default=0.0)
     balance = db.Column(db.Float, default=0.0)
+    status = db.Column(db.String(20), default='Pending')
     discount = db.Column(db.Float, default=0.0)
     tax = db.Column(db.Float, default=0.0)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))

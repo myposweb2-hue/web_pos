@@ -346,6 +346,7 @@ def list_orders():
             'id': s.id,
             'date': s.date.strftime('%Y-%m-%d %H:%M:%S'),
             'customer': s.customer,
+            'status': (s.status if getattr(s, 'status', None) else 'Pending'),
             'total': s.total,
             'payment': s.payment,
             'user': (s.user.username if s.user else 'System'),
@@ -441,11 +442,18 @@ def create_order():
             if not cheque_number or not cheque_bank or not cheque_date:
                 return jsonify({'error': 'Cheque number, bank name, and date are required'}), 400
 
+        # Validate status if provided
+        allowed_statuses = {'Pending', 'Processing', 'Delivered', 'Cancelled'}
+        requested_status = str(data.get('status', 'Pending') or 'Pending').strip()
+        if requested_status not in allowed_statuses:
+            requested_status = 'Pending'
+
         sale = Sale(
             customer=customer.name,
             payment=payment_method,
             cash_given=float(data.get('cash_given', 0.0) or 0.0),
             total=total,
+            status=requested_status,
             discount=float(data.get('discount', 0.0) or 0.0),
             tax=float(data.get('tax', 0.0) or 0.0),
             balance=balance,
@@ -538,6 +546,7 @@ def get_order(order_id):
     return jsonify({
         'id': sale.id,
         'customer': sale.customer,
+        'status': (sale.status if getattr(sale, 'status', None) else 'Pending'),
         'date': sale.date.strftime('%Y-%m-%d %H:%M:%S') if sale.date else None,
         'total': sale.total,
         'payment': sale.payment,
@@ -567,7 +576,13 @@ def update_order(order_id):
 
     try:
         old_values = {'payment': sale.payment, 'total': sale.total, 'balance': sale.balance}
+        allowed_statuses = {'Pending', 'Processing', 'Delivered', 'Cancelled'}
         payment_value = str(data.get('payment', sale.payment or 'Cash')).strip()
+        # status update
+        if 'status' in data:
+            requested_status = str(data.get('status') or '').strip()
+            if requested_status in allowed_statuses:
+                sale.status = requested_status
         if payment_value.lower() == 'cheque':
             cheque_number = str(data.get('cheque_number') or '').strip()
             cheque_bank = str(data.get('cheque_bank') or '').strip()
