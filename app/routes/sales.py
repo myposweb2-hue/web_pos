@@ -639,14 +639,14 @@ def create_sale():
             customer=data.get('customer', 'Walk-in Customer'),
             payment=payment_method,
             cash_given=float(data.get('cash_given', 0.0)),
-            total=float(data.get('total', 0.0)),
+            total=total,  # Use recalculated total (includes discount applied before tax)
             discount=float(data.get('discount', 0.0)),
             tax=float(data.get('tax', 0.0)),
-            # Set balance correctly: 0 for paid sales (Cash/Cheque), balance_due for credit
+            # Set balance correctly: 0 for paid sales (Cash/Cheque), full total for credit
             balance=(
-                max(0.0, float(data.get('total', 0.0)) - float(data.get('cash_given', 0.0)))
+                max(0.0, total - float(data.get('cash_given', 0.0)))
                 if payment_method == 'Cash'
-                else (0.0 if payment_method == 'Cheque' else float(data.get('balance', 0.0)))
+                else (0.0 if payment_method == 'Cheque' else total)  # Credit: balance = full total
             ),
             user_id=current_user.id,
             company_id=company_id
