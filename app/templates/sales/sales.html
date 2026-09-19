@@ -673,7 +673,7 @@ function setupEventListeners() {
     const productSearch = document.getElementById('productSearch');
     productSearch.addEventListener('input', function() {
         activeProductIndex = -1;
-        loadProducts(this.value);
+        scheduleProductSearch();
     });
     productSearch.addEventListener('keydown', handleProductSearchKeydown);
 
@@ -989,7 +989,7 @@ function addWeightedBarcodeProduct(barcode) {
         });
 }
 
-function searchAndAddProduct(query) {
+function searchAndAddProduct(query = '') {
     const search = String(query || '').trim();
     if (!search) {
         if (activeProductIndex >= 0 && productResults[activeProductIndex]) {
@@ -1435,15 +1435,22 @@ function loadProducts(search = '', category = '') {
     const params = new URLSearchParams();
     if (search) params.append('search', search);
     if (category) params.append('category', category);
-    
+
     if (params.toString()) {
         url += '?' + params.toString();
     }
 
+    if (productSearchAbortController) {
+        productSearchAbortController.abort();
+    }
+
+    productSearchAbortController = new AbortController();
+    const requestId = ++productSearchRequestId;
+
     console.log('Loading products from:', url);
     console.log('Search:', search, 'Category:', category);
-    
-    fetch(url)
+
+    fetch(url, { signal: productSearchAbortController.signal })
         .then(response => {
             console.log('Response status:', response.status);
             console.log('Content-Type:', response.headers.get('content-type'));
@@ -1456,6 +1463,9 @@ function loadProducts(search = '', category = '') {
             return response.json();
         })
         .then(products => {
+            if (requestId !== productSearchRequestId) {
+                return;
+            }
             console.log('Products loaded:', products);
             console.log('Products count:', products.length);
             productResults = Array.isArray(products) ? products : [];
@@ -1463,6 +1473,9 @@ function loadProducts(search = '', category = '') {
             displayProducts(productResults);
         })
         .catch(error => {
+            if (error.name === 'AbortError') {
+                return;
+            }
             console.error('Error loading products:', error);
             showNotification('Failed to load products: ' + error.message, 'danger');
         });
@@ -1731,6 +1744,7 @@ function updateCartDisplay() {
     const discount = parseFloat(document.getElementById('discountInput').value) || 0;
     const pointsRedeemed = parseInt(document.getElementById('pointsToRedeemInput').value) || 0;
     const pointsDiscount = pointsRedeemed * loyaltyPointsConversionRate;
+
     const totalDiscount = discount + pointsDiscount;
 
     // taxable amount is subtotal after per-item discounts but before sale-level discounts
@@ -2838,568 +2852,19 @@ function processCreditCheckout(customerId, total, heldBillIdToDelete, checkoutBt
     });
 }
 
-function saveNewCustomer() {
-    const customerData = {
-        name: document.getElementById('newCustomerName').value,
-        phone: document.getElementById('newCustomerPhone').value,
-        email: document.getElementById('newCustomerEmail').value,
-    };
+// Product search request throttling/state
+let productSearchRequestId = 0;
+let productSearchAbortController = null;
+let productSearchDebounceTimer = null;
 
-    if (!customerData.name) {
-        showNotification('Customer name is required', 'warning');
-        return;
-    }
-
-    // Get CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
-    fetch('/customers/api/customers', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-        },
-        body: JSON.stringify(customerData)
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(err => { throw new Error(err.error || 'Failed to create customer'); });
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            showNotification('Customer created successfully. Selecting...', 'success');
-            bootstrap.Modal.getInstance(document.getElementById('newCustomerModal')).hide();
-            
-            // Now, find the customer we just created to select them
-            fetch(`/sales/api/customers/search?search=${encodeURIComponent(customerData.name)}`)
-                .then(res => res.json())
-                .then(customers => {
-                    const newCustomer = customers.find(c => c.name === customerData.name);
-                    if (newCustomer) {
-                        selectCustomer(newCustomer.id, newCustomer.name);
-                    } else {
-                        // Fallback if search fails, just set the name
-                        currentCustomer = { id: null, name: customerData.name };
-                        document.getElementById('customerName').textContent = customerData.name;
-                    }
-                });
-        } else {
-            throw new Error(data.error || 'Failed to create customer.');
-        }
-    })
-    .catch(error => {
-        console.error('Error creating customer:', error);
-        showNotification(error.message, 'danger');
-    });
-}
-
-function holdSale() {
-    if (cart.length === 0) {
-        showNotification('No items to hold', 'warning');
-        return;
-    }
-
-    showHeldBillNotesModal();
-}
-
-function proceedWithHoldBill() {
-    const notes = window.heldBillNotes || '';
-    const discount = parseFloat(document.getElementById('discountInput').value) || 0;
-    const subtotal = parseDisplayedNumber(document.getElementById('subtotal').textContent);
-    const tax = parseDisplayedNumber(document.getElementById('tax').textContent);
-    const total = parseDisplayedNumber(document.getElementById('total').textContent);
-
-    const holdData = {
-        cart: cart,
-        customer: currentCustomer ? currentCustomer.name : 'Walk-in Customer',
-        subtotal: subtotal,
-        discount: discount,
-        tax: tax,
-        total: total,
-        notes: notes || ''
-    };
-
-    // Get CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
-    fetch('/sales/api/sales/hold', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-        },
-        body: JSON.stringify(holdData)
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            showNotification(`âœ“ Bill held successfully! Held Bill #${data.held_bill_id}`, 'success');
-            setTimeout(() => resetSale(), 1500);
-        } else {
-            showNotification(`Error: ${data.error || 'Failed to hold bill'}`, 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showNotification(`Network error: ${error.message}`, 'danger');
-    });
-}
-
-function loadHeldBills() {
-    fetch('/sales/api/sales/held')
-        .then(response => {
-            if (!response.ok) throw new Error('Failed to load held bills');
-            return response.json();
-        })
-        .then(bills => {
-            if (Array.isArray(bills)) {
-                displayHeldBills(bills);
-            } else {
-                throw new Error('Invalid response format');
-            }
-        })
-        .catch(error => {
-            console.error('Error loading held bills:', error);
-            showNotification('Failed to load held bills', 'danger');
-        });
-}
-
-function displayHeldBills(bills) {
-    const tbody = document.getElementById('heldBillsList');
-    const noBillsDiv = document.getElementById('noHeldBills');
-    
-    tbody.innerHTML = '';
-
-    if (bills.length === 0) {
-        noBillsDiv.style.display = 'block';
-        document.getElementById('heldBillsTable').style.display = 'none';
-        return;
-    }
-
-    noBillsDiv.style.display = 'none';
-    document.getElementById('heldBillsTable').style.display = 'table';
-
-    bills.forEach(bill => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>#${bill.id}</td>
-            <td>${window.formatTimestamp(bill.held_date, true)}</td>
-            <td>${bill.items_count} items</td>
-            <td>${currencySymbol} ${bill.total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-            <td>${bill.notes || '-'}</td>
-            <td>
-                <button class="btn btn-primary btn-sm me-1" onclick="loadHeldBill(${bill.id})">
-                    <i class="fas fa-upload"></i>
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="deleteHeldBill(${bill.id})">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>
-        `;
-        tbody.appendChild(row);
-    });
-}
-
-function loadHeldBill(billId) {
-    fetch(`/sales/api/sales/held/${billId}`)
-        .then(response => response.json())
-        .then(data => {
-            cart = data.cart;
-            currentHeldBillId = billId;  // Track the loaded held bill
-            document.getElementById('customerName').textContent = data.customer || 'Walk-in';
-            document.getElementById('discountInput').value = data.discount || 0;
-            updateCartDisplay();
-            showPaymentSection();
-            selectedCartIndex = cart.length ? 0 : -1;
-            setSelectedCartItem(selectedCartIndex, false);
-            const heldBillsModal = bootstrap.Modal.getInstance(document.getElementById('heldBillsModal'));
-            if (heldBillsModal) {
-                document.getElementById('heldBillsModal').addEventListener('hidden.bs.modal', focusProductSearch, { once: true });
-                heldBillsModal.hide();
-            } else {
-                focusProductSearch();
-            }
-        })
-        .catch(error => console.error('Error loading held bill:', error));
-}
-
-function editProductFromSales(productId) {
-    // Load product details and show edit modal
-    fetch(`/inventory/api/products/${productId}`)
-        .then(response => {
-            if (!response.ok) throw new Error('Failed to load product');
-            return response.json();
-        })
-        .then(product => {
-            // Populate form with product details
-            document.getElementById('editProductName').value = product.name;
-            document.getElementById('editProductSKU').value = product.barcode || '';
-            document.getElementById('editProductPrice').value = product.price;
-            document.getElementById('editProductCost').value = product.cost_price || 0;
-            // Stock is now read-only display - shows current stock (cannot be edited from Sales)
-            document.getElementById('editProductStockDisplay').value = product.stock + ' ' + product.unit_type;
-            document.getElementById('editProductUnit').value = product.unit_type;
-            document.getElementById('editProductCategory').value = product.category || '';
-            document.getElementById('editProductLowStock').value = product.low_stock_threshold;
-            document.getElementById('editProductDescription').value = product.description || '';
-            
-            // Store product ID for save function
-            document.getElementById('editProductForm').dataset.productId = productId;
-            
-            // Show modal
-            new bootstrap.Modal(document.getElementById('editProductModal')).show();
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showNotification('Failed to load product details', 'danger');
-        });
-}
-
-function saveEditProduct() {
-    const productId = document.getElementById('editProductForm').dataset.productId;
-    
-    if (!productId) {
-        showNotification('Product ID not found', 'danger');
-        return;
-    }
-    
-    // Note: Stock is NOT included here - it can only be changed via transactions (sales, purchases, returns)
-    // not through manual edits in the Sales screen
-    const productData = {
-        name: document.getElementById('editProductName').value,
-        barcode: document.getElementById('editProductSKU').value,
-        price: parseFloat(document.getElementById('editProductPrice').value),
-        cost_price: parseFloat(document.getElementById('editProductCost').value) || 0,
-        unit_type: document.getElementById('editProductUnit').value,
-        category: document.getElementById('editProductCategory').value,
-        low_stock_threshold: parseFloat(document.getElementById('editProductLowStock').value),
-        description: document.getElementById('editProductDescription').value
-    };
-    
-    fetch(`/inventory/api/products/${productId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(productData)
-    })
-    .then(response => {
-        if (!response.ok) throw new Error('Failed to save product');
-        return response.json();
-    })
-    .then(data => {
-        showNotification('Product updated successfully', 'success');
-        bootstrap.Modal.getInstance(document.getElementById('editProductModal')).hide();
-        // Reload products to reflect changes
-        loadProducts();
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        showNotification('Failed to save product changes', 'danger');
-    });
-}
-
-function deleteHeldBill(billId) {
-    if (!confirm('Delete this held bill?')) return;
-
-    // Get CSRF token
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
-    fetch(`/sales/api/sales/held/${billId}`, {
-        method: 'DELETE',
-        headers: {
-            'X-CSRFToken': csrfToken
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            showNotification('âœ“ Held bill deleted successfully', 'success');
-            loadHeldBills();
-        } else {
-            showNotification('Error: ' + (data.error || 'Failed to delete held bill'), 'danger');
-        }
-    })
-    .catch(error => {
-        console.error('Error deleting held bill:', error);
-        showNotification('Network error: ' + error.message, 'danger');
-    });
-}
-
-// Helper function to silently delete a held bill (used after checkout)
-function deleteHeldBillSilent(billId) {
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    
-    fetch(`/sales/api/sales/held/${billId}`, {
-        method: 'DELETE',
-        headers: {
-            'X-CSRFToken': csrfToken
-        }
-    })
-    .then(response => {
-        if (!response.ok) {
-            console.error('Failed to delete held bill after checkout');
-        }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            console.log('Held bill deleted after checkout');
-        }
-    })
-    .catch(error => {
-        console.error('Error deleting held bill after checkout:', error);
-    });
-}
-
-function cancelSale() {
-    if (cart.length === 0 || confirm('Cancel the current sale?')) {
-        resetSale();
-    }
-}
-
-function showReceiptActions() {
-    if (lastSaleId) {
-        document.getElementById('receiptActions').classList.remove('d-none');
-    }
-}
-
-function downloadReceipt() {
-    if (!lastSaleId) {
-        alert('No recent sale to generate receipt for');
-        return;
-    }
-
-    // Get default format from settings, then open PDF for viewing
-    fetch(`/api/settings/categories/receipt`, {
-        headers: { 'Accept': 'application/json' }
-    })
-    .then(response => response.json())
-    .then(settings => {
-        const format = settings.default_format || 'a4';
-        // Open the PDF in the selected format
-        const pdfUrl = `/sales/api/sales/${lastSaleId}/receipt/pdf?format=${format}`;
-        window.open(pdfUrl, '_blank');
-    })
-    .catch(err => {
-        console.error('Error getting settings:', err);
-        // Fallback to a4 if settings fail
-        const pdfUrl = `/sales/api/sales/${lastSaleId}/receipt/pdf?format=a4`;
-        window.open(pdfUrl, '_blank');
-    });
-}
-
-function printReceipt() {
-    if (!lastSaleId) {
-        alert('No recent sale to print receipt for');
-        return;
-    }
-
-    console.log('Opening print window for sale:', lastSaleId);
-    
-    // Open receipt in new window - using unique name to avoid caching
-    const windowName = 'receipt_print_' + lastSaleId + '_' + Math.random().toString(36).substr(2, 9);
-    const receiptUrl = `/sales/${lastSaleId}/receipt/html?format=a4&t=${Date.now()}`;
-    
-    try {
-        const newWindow = window.open(receiptUrl, windowName, 'width=900,height=1000,resizable=yes,scrollbars=yes');
-        if (!newWindow) {
-            console.error('Window.open returned null - popup blocker may be active');
-            // Fallback: navigate to receipt in current window
-            window.location.href = receiptUrl;
-        } else {
-            console.log('Receipt window opened successfully');
-            // Try to focus the new window
-            newWindow.focus();
-            
-            // Wait for page to load, then trigger print dialog
-            if (newWindow.document.readyState === 'loading') {
-                newWindow.document.addEventListener('DOMContentLoaded', function() {
-                    console.log('Receipt page loaded, triggering print dialog...');
-                    setTimeout(() => {
-                        newWindow.print();
-                    }, 500);
-                });
-            } else {
-                // Page already loaded
-                console.log('Receipt page already loaded, triggering print dialog...');
-                setTimeout(() => {
-                    newWindow.print();
-                }, 500);
-            }
-        }
-    } catch (error) {
-        console.error('Error opening receipt window:', error);
-        // Fallback: navigate to receipt in current window
-        window.location.href = receiptUrl;
-    }
-}
-
-function showReceiptOptionsModal() {
-    // Show modal for choosing receipt action
-    const modal = new bootstrap.Modal(document.getElementById('receiptOptionsModal'));
-    modal.show();
-}
-
-function handlePrintReceipt() {
-    console.log('handlePrintReceipt called');
-    const modal = bootstrap.Modal.getInstance(document.getElementById('receiptOptionsModal'));
-    if (modal) modal.hide();
-    if (receiptActionTimeout) clearTimeout(receiptActionTimeout);
-    printReceipt();
-    setTimeout(() => resetSale(), 2000);
-}
-
-function handleSendWhatsapp() {
-    console.log('handleSendWhatsapp called');
-    const modal = bootstrap.Modal.getInstance(document.getElementById('receiptOptionsModal'));
-    if (modal) modal.hide();
-    if (receiptActionTimeout) clearTimeout(receiptActionTimeout);
-    sendReceiptViaWhatsapp();
-}
-
-function sendReceiptViaEmail() {
-    const emailModal = document.getElementById('emailReceiptModal');
-    const emailInput = document.getElementById('receiptEmail');
-    if (!emailModal || !emailInput) return;
-    emailInput.value = currentCustomer?.email || '';
-    document.getElementById('receiptEmailError')?.classList.add('d-none');
-    bootstrap.Modal.getOrCreateInstance(emailModal).show();
-    setTimeout(() => emailInput.focus(), 250);
-}
-
-function sendReceiptEmailAPI() {
-    const saleId = pendingSaleId;
-    const emailInput = document.getElementById('receiptEmail');
-    const email = emailInput?.value.trim() || '';
-    const errorEl = document.getElementById('receiptEmailError');
-    if (!saleId || !email) {
-        if (errorEl) { errorEl.textContent = 'Please enter the customer email address.'; errorEl.classList.remove('d-none'); }
-        return;
-    }
-    if (!emailInput.checkValidity()) {
-        if (errorEl) { errorEl.textContent = 'Please enter a valid email address.'; errorEl.classList.remove('d-none'); }
-        return;
-    }
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    fetch(`/sales/api/sales/${saleId}/send-email`, {
-        method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-        body: JSON.stringify({email})
-    }).then(async response => {
-        const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to send email');
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('emailReceiptModal')).hide();
-        showNotification('Receipt email sent successfully.', 'success');
-        setTimeout(() => resetSale(), 2000);
-    }).catch(error => {
-        if (errorEl) { errorEl.textContent = error.message; errorEl.classList.remove('d-none'); }
-    });
-}
-
-function sendReceiptViaWhatsapp() {
-    const savedPhone = currentCustomer?.phone?.trim() || '';
-    if (savedPhone) {
-        // Use the saved customer number immediately; the API normalizes Sri Lankan 0-prefixed numbers.
-        sendReceiptViaWhatsappAPI(savedPhone);
-        return;
-    }
-    const whatsappModal = document.getElementById('whatsappNumberModal');
-    if (!whatsappModal) return;
-    bootstrap.Modal.getOrCreateInstance(whatsappModal).show();
-    setTimeout(() => document.getElementById('whatsappNumber')?.focus(), 250);
-}
-
-function sendReceiptViaWhatsappAPI(phoneNumber) {
-    // Use pendingSaleId instead of lastSaleId
-    const saleId = pendingSaleId;
-    
-    if (!saleId) {
-        alert('No recent sale to send receipt for');
-        return;
-    }
-    
-    // Cancel the auto-reset timeout
-    if (receiptActionTimeout) {
-        clearTimeout(receiptActionTimeout);
-    }
-    
-    // Get default format from settings, then send via WhatsApp
-    fetch(`/api/settings/categories/receipt`, {
-        headers: { 'Accept': 'application/json' }
-    })
-    .then(response => response.json())
-    .then(settings => {
-        const format = settings.default_format || 'thermal';
-        
-        // Call WhatsApp API endpoint
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        
-        fetch(`/sales/api/sales/${saleId}/send-receipt-whatsapp`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({
-                phone_number: phoneNumber,
-                format: format
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.whatsapp_link) {
-                showNotification(`✓ Opening WhatsApp for ${phoneNumber}...`, 'success');
-                // Open WhatsApp in new tab/window
-                window.open(data.whatsapp_link, '_blank');
-                // Reset after successful send
-                setTimeout(() => resetSale(), 2000);
-            } else {
-                showNotification(`Error: ${data.error || 'Failed to send receipt'}`, 'danger');
-            }
-        })
-        .catch(err => {
-            console.error('Error sending receipt:', err);
-            showNotification('Failed to send receipt via WhatsApp', 'danger');
-        });
-    })
-    .catch(err => {
-        console.error('Error getting settings:', err);
-        showNotification('Failed to get receipt settings', 'danger');
-    });
-}
-
-function resetSale() {
-    cart = [];
-    currentCustomer = null;
-    lastSaleId = null;
-    pendingSaleId = null;  // Clear pending sale ID
-    currentHeldBillId = null;
-    // Clear any cached customer-specific prices
-    if (window.customerLastPrices) {
-        window.customerLastPrices = {};
-    }
-    if (receiptActionTimeout) {
-        clearTimeout(receiptActionTimeout);
-        receiptActionTimeout = null;
-    }
-    document.getElementById('customerName').textContent = 'Walk-in';
-    document.getElementById('discountInput').value = '0';
-    document.getElementById('pointsToRedeemInput').value = '0';
-    document.getElementById('cashGiven').value = '';
-    document.getElementById('receiptActions').classList.add('d-none');
-    updateCartDisplay();
-    showPaymentSection();
-    focusProductSearch();
+function scheduleProductSearch() {
+    const productSearch = document.getElementById('productSearch');
+    if (!productSearch) return;
+    const value = productSearch.value || '';
+    clearTimeout(productSearchDebounceTimer);
+    productSearchDebounceTimer = setTimeout(() => {
+        loadProducts(value, document.getElementById('categoryFilter')?.value || '');
+    }, 200);
 }
 </script>
 
