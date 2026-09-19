@@ -2269,14 +2269,13 @@ def hold_sale():
 @require_company_context
 @require_permission('can_access_sales')
 def get_held_bills():
-    """Get all held bills for the current user and company."""
+    """Get all held bills for the current company (shared across all users)."""
     try:
         company_id = get_company_id()
-        query = HeldBill.query.filter_by(user_id=current_user.id)
+        # Filter by company only - all users in the company can see all held bills
+        query = HeldBill.query
         
-        # Filter by company if company is set
         if company_id and hasattr(HeldBill, 'company_id'):
-            from sqlalchemy import or_
             query = query.filter(HeldBill.company_id == company_id)
         
         held_bills = query.order_by(desc(HeldBill.held_date)).all()
@@ -2305,13 +2304,14 @@ def get_held_bills():
 @require_company_context
 @require_permission('can_access_sales')
 def get_held_bill(bill_id):
-    """Get a specific held bill."""
+    """Get a specific held bill (accessible to all users in the same company)."""
     held_bill = HeldBill.query.get(bill_id)
     if not held_bill:
         return jsonify({'error': 'Held bill not found'}), 404
 
-    # Only allow users to see their own held bills (or admin/super admin)
-    if held_bill.user_id != current_user.id and current_user.role not in ['admin', 'Admin', 'super admin', 'Super Admin']:
+    # Verify held bill belongs to the same company
+    company_id = get_company_id()
+    if company_id and hasattr(HeldBill, 'company_id') and held_bill.company_id != company_id:
         return jsonify({'error': 'Access denied'}), 403
 
     bill_data = json.loads(held_bill.bill_data)
@@ -2332,13 +2332,14 @@ def get_held_bill(bill_id):
 @login_required
 @require_permission('can_access_sales')
 def delete_held_bill(bill_id):
-    """Delete a held bill."""
+    """Delete a held bill (accessible to all users in the same company)."""
     held_bill = HeldBill.query.get(bill_id)
     if not held_bill:
         return jsonify({'error': 'Held bill not found'}), 404
 
-    # Only allow users to delete their own held bills (or admin/super admin)
-    if held_bill.user_id != current_user.id and current_user.role not in ['admin', 'Admin', 'super admin', 'Super Admin']:
+    # Verify held bill belongs to the same company
+    company_id = get_company_id()
+    if company_id and hasattr(HeldBill, 'company_id') and held_bill.company_id != company_id:
         return jsonify({'error': 'Access denied'}), 403
 
     try:
