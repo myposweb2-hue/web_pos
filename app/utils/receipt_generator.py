@@ -193,26 +193,17 @@ Business: {qr_business_name}
             if logo_path:
                 try:
                     from flask import current_app
-                    # Get the project root (parent of app folder)
-                    project_root = os.path.dirname(current_app.root_path)
-                    # Build the full path - logo_path starts with /static/
-                    full_logo_path = os.path.join(project_root, logo_path.lstrip('/'))
+                    # logo_path is stored as /static/uploads/filename
+                    # Convert to file system path: app_root/static/uploads/filename
+                    logo_file_path = os.path.join(current_app.root_path, logo_path.lstrip('/'))
                     
-                    # Also check app/static/uploads as fallback
-                    app_static_path = os.path.join(current_app.root_path, 'static/uploads', os.path.basename(logo_path))
-                    
-                    if os.path.exists(full_logo_path):
-                        logo = Image(full_logo_path, width=40*mm, height=20*mm)
-                        logo.hAlign = 'CENTER'
-                        story.append(logo)
-                        story.append(Spacer(1, 3))
-                    elif os.path.exists(app_static_path):
-                        logo = Image(app_static_path, width=40*mm, height=20*mm)
+                    if os.path.exists(logo_file_path):
+                        logo = Image(logo_file_path, width=40*mm, height=20*mm)
                         logo.hAlign = 'CENTER'
                         story.append(logo)
                         story.append(Spacer(1, 3))
                     else:
-                        print(f"Logo file not found at: {full_logo_path} or {app_static_path}")
+                        print(f"Logo file not found at: {logo_file_path}")
                 except Exception as e:
                     print(f"Error loading logo: {e}")
 
