@@ -618,7 +618,8 @@
                     return timestamp;
                 }
 
-                const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                // Force display in Sri Lanka timezone for consistency across UI
+                const sriLankaTZ = 'Asia/Colombo';
 
                 if (includeTime) {
                     return date.toLocaleString('en-GB', {
@@ -629,14 +630,14 @@
                         minute: '2-digit',
                         second: '2-digit',
                         hour12: false,
-                        timeZone: userTimezone
+                        timeZone: sriLankaTZ
                     });
                 } else {
                     return date.toLocaleDateString('en-GB', {
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit',
-                        timeZone: userTimezone
+                        timeZone: sriLankaTZ
                     });
                 }
             } catch(error) {
