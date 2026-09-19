@@ -1204,7 +1204,8 @@ function openAddCustomerModalForOrder() {
     currentCustomerId = null;
     $('#customerModalTitle').text('Add New Customer');
     $('#customerForm')[0].reset();
-    $('#addCustomerModal').modal('show');
+    const addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
+    addCustomerModal.show();
 }
 
 var csrfToken = $('meta[name="csrf-token"]').attr('content');
@@ -1593,7 +1594,8 @@ function editCustomer(customerId) {
             $('#customerCreditLimit').val(customer.credit_limit || '');
             $('#customerCurrentBalance').val(customer.current_balance || '');
 
-            $('#addCustomerModal').modal('show');
+            const addCustomerModal = new bootstrap.Modal(document.getElementById('addCustomerModal'));
+            addCustomerModal.show();
         })
         .fail(function() {
             showAlert('Error loading customer details', 'danger');
@@ -1704,7 +1706,8 @@ function restoreAndUpdateCustomer(archivedCustomerId, customerData) {
                         pendingTakeOrderAfterCustomerSave = false;
                         pendingTakeOrderCustomerName = restoredCustomerName;
                         currentCustomerId = restoredCustomerId;
-                        $('#addCustomerModal').modal('hide');
+                        const acm = bootstrap.Modal.getInstance(document.getElementById('addCustomerModal'));
+                        if (acm) acm.hide();
                         loadCustomers();
                         loadCustomerAnalytics();
                         showAlert('Customer restored and updated successfully!', 'success');
@@ -1819,7 +1822,8 @@ function viewCustomerDetails(customerId) {
             }
         });
 
-    $('#customerDetailsModal').modal('show');
+    const customerDetailsModal = new bootstrap.Modal(document.getElementById('customerDetailsModal'));
+    customerDetailsModal.show();
     bindCustomerOrderButtons();
 }
 
@@ -2245,7 +2249,8 @@ function openPaymentModal(customerId, customerName, outstandingBalance) {
     $('#paymentReference').val('');
     $('#paymentNotes').val('');
     
-    $('#paymentModal').modal('show');
+    const paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'));
+    paymentModal.show();
 }
 
 $(document).ready(function() {
@@ -2518,7 +2523,8 @@ function renderOrders(orders) {
 function openViewOrderModal(orderId) {
     const body = document.getElementById('viewOrderItemsBody');
     if (body) body.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Loading…</td></tr>';
-    $('#viewOrderModal').modal('show');
+    const viewOrderModal = new bootstrap.Modal(document.getElementById('viewOrderModal'));
+    viewOrderModal.show();
 
     fetch('/customers/api/orders/' + orderId)
         .then(res => {
@@ -2581,7 +2587,8 @@ function openEditOrderModal(orderId) {
             }));
             updateTakeOrderItemsTable();
             toggleTakeOrderChequeFields();
-            $('#takeOrderModal').modal('show');
+            const takeOrderModal = new bootstrap.Modal(document.getElementById('takeOrderModal'));
+    takeOrderModal.show();
             loadTakeOrderProducts();
         })
         .catch(() => showAlert('Error opening order', 'danger'));
@@ -2623,7 +2630,8 @@ async function openOrderPaymentModal(orderId) {
         $('#orderPaymentMethod').val(order.payment || 'Cash');
         toggleOrderChequeFields();
         $('#orderPaymentAlert').addClass('d-none').text('');
-        $('#orderPaymentModal').modal('show');
+        const opm = new bootstrap.Modal(document.getElementById('orderPaymentModal'));
+        opm.show();
     } catch (error) {
         console.error('Error opening order payment modal', error);
         showAlert(error.message || 'Unable to open payment form', 'danger');
@@ -2669,7 +2677,8 @@ async function submitOrderPayment() {
         let data = {};
         try { data = raw ? JSON.parse(raw) : {}; } catch (_) {}
         if (!response.ok || !data.success) throw new Error(data.error || `Unable to record payment (HTTP ${response.status})`);
-        $('#orderPaymentModal').modal('hide');
+        const opm = bootstrap.Modal.getInstance(document.getElementById('orderPaymentModal'));
+        if (opm) opm.hide();
         showAlert((data.message || 'Payment recorded successfully') + '. New balance: ₨ ' + Number(data.new_balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}), 'success');
         await loadOrders();
     } catch (error) {
@@ -2773,7 +2782,8 @@ async function saveEditedOrder(event) {
         if (!response.ok || !data.success) {
             throw new Error(data.error || data.message || `Unable to save order (HTTP ${response.status})`);
         }
-        $('#editOrderModal').modal('hide');
+        const editOrderModal = bootstrap.Modal.getInstance(document.getElementById('editOrderModal'));
+        if (editOrderModal) editOrderModal.hide();
         showAlert(data.message || 'Order updated successfully', 'success');
         await loadOrders();
     } catch (error) {
@@ -2847,7 +2857,11 @@ function openTakeOrderModal(customerId, customerName) {
     takeOrderItems = [];
     updateTakeOrderItemsTable();
     toggleTakeOrderChequeFields();
-    $('#takeOrderModal').modal('show');
+    const modalElement = document.getElementById('takeOrderModal');
+    if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    }
     setTimeout(toggleTakeOrderChequeFields, 0);
     loadTakeOrderProducts();
 }
