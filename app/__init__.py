@@ -91,14 +91,14 @@ def create_app(config_class=None):
     from app.utils.security import before_request_company_check
     app.before_request(before_request_company_check)
 
-    # Add Jinja filter for timezone conversion (UTC to Pakistan Standard Time UTC+5)
+    # Add Jinja filter for timezone conversion (UTC to Sri Lanka Time UTC+5:30)
     @app.template_filter('to_local_time')
     def to_local_time(dt):
-        """Convert UTC datetime to Pakistan Standard Time (UTC+5)"""
+        """Convert UTC datetime to Sri Lanka Time (UTC+5:30)"""
         from datetime import timedelta
         if dt is None:
             return ''
-        local_dt = dt + timedelta(hours=5)
+        local_dt = dt + timedelta(hours=5, minutes=30)
         return local_dt.strftime('%d/%m/%Y %H:%M')
 
     @app.template_filter('format_number')
