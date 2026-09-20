@@ -1100,6 +1100,149 @@ function openHeldBillsModal() {
     new bootstrap.Modal(modalElement).show();
 }
 
+// Hold current sale (show notes then save held bill)
+function holdSale() {
+    if (!cart || !cart.length) {
+        showNotification('Add items to cart before holding a bill', 'info');
+        return;
+    }
+    // Prompt for optional notes; this will call proceedWithHoldBill when saved
+    showHeldBillNotesModal();
+}
+
+// Called after notes modal is saved
+function proceedWithHoldBill() {
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const payload = {
+            cart: cart,
+            total: parseFloat((document.getElementById('total') && document.getElementById('total').textContent) ? parseDisplayedNumber(document.getElementById('total').textContent) : 0),
+            subtotal: parseFloat((document.getElementById('subtotal') && document.getElementById('subtotal').textContent) ? parseDisplayedNumber(document.getElementById('subtotal').textContent) : 0),
+            discount: parseFloat(document.getElementById('discountInput')?.value) || 0,
+            tax: parseFloat((document.getElementById('tax') && document.getElementById('tax').textContent) ? parseDisplayedNumber(document.getElementById('tax').textContent) : 0),
+            notes: window.heldBillNotes || ''
+        };
+
+        fetch('/sales/api/sales/hold', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+            body: JSON.stringify(payload)
+        }).then(r => r.json()).then(data => {
+            if (data && data.success) {
+                currentHeldBillId = data.held_bill_id || null;
+                showNotification(data.message || 'Bill held successfully', 'success');
+                // refresh held bills list
+                loadHeldBills();
+                // reset current sale
+                resetSale();
+            } else {
+                showNotification(data.error || 'Failed to hold bill', 'danger');
+            }
+        }).catch(err => {
+            console.error('Error holding bill', err);
+            showNotification('Network error while holding bill', 'danger');
+        }).finally(() => { window.heldBillNotes = null; });
+    } catch (err) {
+        console.error('proceedWithHoldBill error', err);
+        showNotification('Error while holding bill', 'danger');
+    }
+}
+
+// Load list of held bills and render into modal
+function loadHeldBills() {
+    const listEl = document.getElementById('heldBillsList');
+    const noEl = document.getElementById('noHeldBills');
+    if (!listEl) return;
+    listEl.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Loading…</td></tr>';
+    fetch('/sales/api/sales/held')
+        .then(r => r.json())
+        .then(data => {
+            if (!Array.isArray(data) || data.length === 0) {
+                listEl.innerHTML = '';
+                if (noEl) noEl.style.display = 'block';
+                return;
+            }
+            if (noEl) noEl.style.display = 'none';
+            listEl.innerHTML = data.map(b => `
+                <tr id="held-bill-${b.id}">
+                    <td>${b.id}</td>
+                    <td>${b.held_date}</td>
+                    <td>${b.items_count}</td>
+                    <td>₨ ${Number(b.total || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}</td>
+                    <td>${b.notes || ''}</td>
+                    <td>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-primary" onclick="loadHeldBill(${b.id})">Load</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteHeldBill(${b.id})">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }).catch(err => {
+            console.error('Error loading held bills', err);
+            listEl.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Unable to load held bills</td></tr>';
+        });
+}
+
+// Load a single held bill into the cart
+function loadHeldBill(billId) {
+    fetch(`/sales/api/sales/held/${billId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.cart) {
+                cart = data.cart.map(i => ({
+                    product_id: i.product_id,
+                    product_name: i.product_name || i.name || 'Unknown',
+                    quantity: Number(i.quantity || 0),
+                    price: Number(i.price || 0),
+                    discount: Number(i.discount || 0),
+                    tax: Number(i.tax || 0)
+                }));
+                currentHeldBillId = data.id || billId;
+                updateCartDisplay();
+                // close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('heldBillsModal'));
+                if (modal) modal.hide();
+                showNotification('Held bill loaded', 'success');
+            } else {
+                showNotification('Unable to load held bill', 'danger');
+            }
+        }).catch(err => {
+            console.error('Error loading held bill', err);
+            showNotification('Network error while loading held bill', 'danger');
+        });
+}
+
+// Delete a held bill without UI noise
+function deleteHeldBillSilent(billId) {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    fetch(`/sales/api/sales/held/${billId}`, {method: 'DELETE', headers: {'X-CSRFToken': csrf}})
+        .then(r => r.json()).then(d => {
+            if (d && d.success) {
+                const row = document.getElementById(`held-bill-${billId}`);
+                if (row) row.remove();
+            }
+        }).catch(err => console.error('Error deleting held bill', err));
+}
+
+// Delete a held bill with confirmation
+function deleteHeldBill(billId) {
+    if (!confirm('Delete held bill #' + billId + '? This cannot be undone.')) return;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    fetch(`/sales/api/sales/held/${billId}`, {method: 'DELETE', headers: {'X-CSRFToken': csrf}})
+        .then(r => r.json()).then(d => {
+            if (d && d.success) {
+                showNotification(d.message || 'Held bill deleted', 'success');
+                loadHeldBills();
+            } else {
+                showNotification(d.error || 'Failed to delete held bill', 'danger');
+            }
+        }).catch(err => {
+            console.error('Error deleting held bill', err);
+            showNotification('Network error while deleting held bill', 'danger');
+        });
+}
+
 function handleCustomerSearchKeydown(e) {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         if (!customerResults.length) return;
