@@ -103,7 +103,7 @@ def transfer_products_between_companies():
     for product in products:
         existing_product = Product.query.filter(
             Product.company_id == target_company_id,
-            db.or_(Product.barcode == product.barcode, Product.name == product.name)
+            or_(Product.barcode == product.barcode, Product.name == product.name)
         ).first()
 
         if existing_product and not overwrite_existing:
@@ -272,14 +272,15 @@ def transfer_products_selective():
             errors.append(f"Product {product_id} not found in source company")
             continue
 
-        if product.stock < quantity:
-            errors.append(f"Product '{product.name}': insufficient stock (have {product.stock}, need {quantity})")
+        current_stock = float(product.stock or 0)
+        if current_stock < quantity:
+            errors.append(f"Product '{product.name}': insufficient stock (have {current_stock}, need {quantity})")
             continue
 
         # Find or create in target company
         existing_product = Product.query.filter(
             Product.company_id == target_company_id,
-            db.or_(Product.barcode == product.barcode, Product.name == product.name)
+            or_(Product.barcode == product.barcode, Product.name == product.name)
         ).first()
 
         warehouse_id = None
@@ -309,8 +310,8 @@ def transfer_products_selective():
             if not overwrite_existing:
                 skipped_count += 1
                 continue
-            
-            existing_product.stock += quantity
+
+            existing_product.stock = (float(existing_product.stock or 0) + float(quantity))
             existing_product.last_updated = datetime.utcnow()
             updated_count += 1
         else:
@@ -334,6 +335,10 @@ def transfer_products_selective():
             )
             db.session.add(new_product)
             created_count += 1
+
+        # Actual transfer: reduce source stock after the target has been updated
+        product.stock = max(0.0, float(product.stock or 0) - float(quantity))
+        product.last_updated = datetime.utcnow()
 
     db.session.commit()
     return jsonify({
