@@ -1233,17 +1233,31 @@ function loadHeldBill(billId) {
     fetch(`/sales/api/sales/held/${billId}`)
         .then(r => r.json())
         .then(data => {
-            if (data && data.cart) {
-                cart = data.cart.map(i => ({
-                    product_id: i.product_id,
-                    product_name: i.product_name || i.name || 'Unknown',
-                    quantity: Number(i.quantity || 0),
-                    price: Number(i.price || 0),
-                    discount: Number(i.discount || 0),
-                    tax: Number(i.tax || 0)
-                }));
+            if (data && Array.isArray(data.cart)) {
+                // Normalize stored held-bill cart items to the runtime cart shape
+                cart = data.cart.map(i => {
+                    const name = i.name || i.product_name || i.product || i.title || 'Unknown';
+                    const price = Number(i.price ?? i.unit_price ?? i.cost ?? 0) || 0;
+                    const qty = Number(i.quantity ?? i.qty ?? i.amount ?? 0) || 0;
+                    const discountValue = Number(i.discount_value ?? i.discount ?? i.discount_amount ?? 0) || 0;
+                    const discountType = i.discount_type || (i.discount_percent ? 'percent' : 'amount');
+                    const tax = Number(i.tax ?? i.tax_value ?? 0) || 0;
+                    return {
+                        product_id: i.product_id || i.id || null,
+                        name: name,
+                        price: price,
+                        current_price: price,
+                        quantity: qty,
+                        unit_type: i.unit_type || null,
+                        discount_value: discountValue,
+                        discount_type: discountType,
+                        tax: tax
+                    };
+                });
                 currentHeldBillId = data.id || billId;
                 updateCartDisplay();
+                // Ensure payment section is visible after loading
+                showPaymentSection();
                 // close modal
                 const modal = bootstrap.Modal.getInstance(document.getElementById('heldBillsModal'));
                 if (modal) modal.hide();
