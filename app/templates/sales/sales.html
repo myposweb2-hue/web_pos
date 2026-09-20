@@ -1100,6 +1100,50 @@ function openHeldBillsModal() {
     new bootstrap.Modal(modalElement).show();
 }
 
+// Reset the current sale to an empty state
+function resetSale() {
+    try {
+        // Clear cart and customer state
+        cart = [];
+        currentCustomer = null;
+        currentHeldBillId = null;
+        pendingSaleId = null;
+        lastSaleId = null;
+
+        // Clear any pending receipt timeout
+        if (receiptActionTimeout) {
+            clearTimeout(receiptActionTimeout);
+            receiptActionTimeout = null;
+        }
+
+        // Reset displayed fields if present
+        try { document.getElementById('customerName') && (document.getElementById('customerName').value = ''); } catch(e){}
+        try { document.getElementById('customerDisplay') && (document.getElementById('customerDisplay').textContent = 'Walk-in Customer'); } catch(e){}
+        try { document.getElementById('discountInput') && (document.getElementById('discountInput').value = '0'); } catch(e){}
+        try { document.getElementById('cashGiven') && (document.getElementById('cashGiven').value = ''); } catch(e){}
+
+        // Update UI totals and cart
+        updateCartDisplay();
+        showPaymentSection(false);
+        focusProductSearch();
+    } catch (err) {
+        console.error('resetSale error', err);
+    }
+}
+
+// Cancel the current sale (with confirmation if it has items)
+function cancelSale() {
+    try {
+        if (cart && cart.length) {
+            if (!confirm('Cancel this sale and clear the cart?')) return;
+        }
+        resetSale();
+        showNotification('Sale cancelled', 'info');
+    } catch (err) {
+        console.error('cancelSale error', err);
+    }
+}
+
 // Hold current sale (show notes then save held bill)
 function holdSale() {
     if (!cart || !cart.length) {
