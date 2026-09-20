@@ -501,6 +501,28 @@ let currentPayableTotal = 0;
 const OFFLINE_QUEUE_KEY = 'infix_pos_offline_checkout_queue_v1';
 const CART_STATE_KEY = 'infix_pos_active_cart_v1';
 
+// Capture Escape early (use capture phase) to ensure it cancels sale or closes modals
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    try {
+        const openModal = getOpenModal();
+        if (openModal) {
+            const modalInstance = bootstrap.Modal.getInstance(openModal);
+            if (modalInstance) {
+                openModal.addEventListener('hidden.bs.modal', focusProductSearch, { once: true });
+                modalInstance.hide();
+                e.preventDefault();
+            }
+            return;
+        }
+        // No modal open — cancel sale
+        cancelSale();
+        e.preventDefault();
+    } catch (err) {
+        console.error('Escape handler error', err);
+    }
+}, true);
+
 function createCheckoutRequestId() {
     if (window.crypto && typeof window.crypto.randomUUID === 'function') {
         return window.crypto.randomUUID();
