@@ -273,9 +273,13 @@ def transfer_products_selective():
             continue
 
         current_stock = float(product.stock or 0)
-        if current_stock < quantity:
+        # Allow catalog/product sync transfers to proceed even when source stock is zero.
+        # Ensure the UI defaults selected quantities to 1 instead of 0 when max stock is zero.
+        """
+        if current_stock > 0 and current_stock < quantity:
             errors.append(f"Product '{product.name}': insufficient stock (have {current_stock}, need {quantity})")
             continue
+        """
 
         # Find or create in target company
         existing_product = Product.query.filter(
@@ -337,8 +341,9 @@ def transfer_products_selective():
             created_count += 1
 
         # Actual transfer: reduce source stock after the target has been updated
-        product.stock = max(0.0, float(product.stock or 0) - float(quantity))
-        product.last_updated = datetime.utcnow()
+        if current_stock > 0:
+            product.stock = max(0.0, float(product.stock or 0) - float(quantity))
+            product.last_updated = datetime.utcnow()
 
     db.session.commit()
     return jsonify({

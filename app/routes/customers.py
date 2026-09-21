@@ -694,12 +694,20 @@ def update_order(order_id):
                     continue
                 if product_id <= 0 or quantity <= 0:
                     continue
+                # Support both `discount_percent` (preferred) and legacy `discount` amount
+                line_gross = max(0.0, quantity * price)
+                if 'discount_percent' in item:
+                    discount_percent = min(max(0.0, float(item.get('discount_percent', 0.0) or 0.0)), 100.0)
+                    line_discount = line_gross * (discount_percent / 100.0)
+                else:
+                    line_discount = min(max(0.0, float(item.get('discount', 0.0) or 0.0)), line_gross)
+
                 new_item = SaleItem(
                     sale_id=sale.id,
                     product_id=product_id,
                     quantity=quantity,
                     price=price,
-                    discount=float(item.get('discount', 0.0) or 0.0),
+                    discount=line_discount,
                     tax=float(item.get('tax', 0.0) or 0.0),
                     company_id=get_company_id(),
                 )
