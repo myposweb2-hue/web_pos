@@ -770,6 +770,10 @@
 
                 <div class="row mt-2">
                     <div class="col-md-4">
+                        <label class="form-label">Cash Given (Payment Received)</label>
+                        <input type="number" class="form-control" id="takeOrderCashGiven" step="0.01" min="0" placeholder="Amount received from customer">
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label">Order Status</label>
                         <select class="form-select" id="takeOrderStatus">
                             <option value="Pending">Pending</option>
@@ -3200,6 +3204,7 @@ function openEditOrderModal(orderId) {
             $('#takeOrderDate').val(order.date || (order.date_ts ? order.date_ts.slice(0, 10) : getLocalDateString()));
             $('#takeOrderProductSearch').val('');
             $('#takeOrderPaymentMethod').val(order.payment || 'Cash');
+            $('#takeOrderCashGiven').val(order.cash_given || '');
             $('#takeOrderChequeNumber, #takeOrderBankName, #takeOrderChequeDate').val('');
             $('#takeOrderNotes').val(order.notes || '');
             // Populate status if available
@@ -3386,6 +3391,7 @@ async function saveEditedOrder(event) {
         cheque_bank: chequeBank,
         cheque_date: chequeDate,
         total: Number.parseFloat($('#editOrderTotal').val()),
+        cash_given: Number.parseFloat($('#editOrderCashGiven').val() || $('#takeOrderCashGiven').val() || 0),
         balance: Number.parseFloat($('#editOrderBalance').val()),
         items
     };

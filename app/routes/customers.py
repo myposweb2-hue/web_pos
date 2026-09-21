@@ -671,8 +671,8 @@ def update_order(order_id):
         return jsonify({'error': 'No data provided'}), 400
 
     try:
-        old_values = {'payment': sale.payment, 'total': sale.total, 'balance': sale.balance}
-        allowed_statuses = {'Pending', 'Processing', 'Delivered', 'Cancelled'}
+        old_values = {'payment': sale.payment, 'total': sale.total, 'balance': sale.balance,'cash_given': sale.cash_given}
+        allowed_statuses = {'Pending', 'Processing','Delivered', 'Cancelled'}
         payment_value = str(data.get('payment', sale.payment or 'Cash')).strip()
         # status update
         if 'status' in data:
@@ -687,6 +687,11 @@ def update_order(order_id):
                 return jsonify({'error': 'Cheque number, bank name, and cheque date are required'}), 400
         if 'payment' in data:
             sale.payment = payment_value
+        if 'cash_given' in data:
+            try:
+                sale.cash_given = float(data.get('cash_given'))
+            except Exception:
+                pass
         if 'total' in data:
             try:
                 sale.total = float(data.get('total'))
