@@ -3075,6 +3075,95 @@ function processCreditCheckout(customerId, total, heldBillIdToDelete, checkoutBt
     });
 }
 
+// Receipt action helpers (safe stubs to avoid undefined errors)
+function _currentReceiptSaleId() {
+    return (lastSaleId || pendingSaleId || null);
+}
+
+function showReceiptActions() {
+    try {
+        const ra = document.getElementById('receiptActions');
+        if (ra) ra.classList.remove('d-none');
+
+        const downloadBtn = document.getElementById('downloadReceiptBtn');
+        const printBtn = document.getElementById('printReceiptBtn');
+
+        if (downloadBtn) downloadBtn.onclick = downloadReceipt;
+        if (printBtn) printBtn.onclick = printReceipt;
+    } catch (e) {
+        console.error('showReceiptActions error', e);
+    }
+}
+
+function downloadReceipt() {
+    const id = _currentReceiptSaleId();
+    if (!id) return showNotification('Receipt not available', 'warning');
+    const url = `/api/sales/${id}/receipt/pdf?format=a4`;
+    window.open(url, '_blank');
+}
+
+function printReceipt() {
+    const id = _currentReceiptSaleId();
+    if (!id) return showNotification('Receipt not available', 'warning');
+    const url = `/api/sales/${id}/print-receipt`;
+    window.open(url, '_blank');
+}
+
+function handlePrintReceipt() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('receiptOptionsModal'));
+    if (modal) modal.hide();
+    printReceipt();
+}
+
+function handleSendWhatsapp() {
+    // If current customer has a phone, send directly; otherwise open modal to ask
+    const phone = currentCustomer && currentCustomer.phone ? String(currentCustomer.phone).replace(/[^0-9]/g, '') : null;
+    if (phone) {
+        sendReceiptViaWhatsappAPI(phone);
+        const modal = bootstrap.Modal.getInstance(document.getElementById('receiptOptionsModal'));
+        if (modal) modal.hide();
+        return;
+    }
+    const modalEl = document.getElementById('whatsappNumberModal');
+    if (modalEl) new bootstrap.Modal(modalEl).show();
+}
+
+function sendReceiptViaWhatsappAPI(number) {
+    const id = _currentReceiptSaleId();
+    if (!id) return showNotification('No sale selected for sending receipt', 'warning');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    fetch(`/sales/api/sales/${id}/send-whatsapp`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({phone: String(number)})
+    }).then(r => r.json()).then(d => {
+        if (d && d.success) showNotification('Receipt sent via WhatsApp', 'success');
+        else showNotification(d.error || 'Unable to send receipt via WhatsApp', 'danger');
+    }).catch(err => {
+        console.error('WhatsApp send error', err);
+        showNotification('Error sending receipt via WhatsApp', 'danger');
+    });
+}
+
+function sendReceiptViaEmail() {
+    const id = _currentReceiptSaleId();
+    if (!id) return showNotification('No sale selected for sending receipt', 'warning');
+    const email = window.prompt('Enter recipient email address');
+    if (!email) return;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    fetch(`/sales/api/sales/${id}/send-email`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({email: String(email)})
+    }).then(r => r.json()).then(d => {
+        if (d && d.success) showNotification('Receipt emailed successfully', 'success');
+        else showNotification(d.error || 'Unable to email receipt', 'danger');
+    }).catch(err => {
+        console.error('Email send error', err);
+        showNotification('Error sending receipt via email', 'danger');
+    });
+}
+
 // Product search request throttling/state
 let productSearchRequestId = 0;
 let productSearchAbortController = null;
