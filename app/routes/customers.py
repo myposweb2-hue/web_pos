@@ -423,14 +423,32 @@ def list_orders():
             'items': []
         }
         for it in s.items:
-            order['items'].append({
-                'product_name': it.product.name if it.product else 'Unknown',
-                'quantity': it.quantity,
-                'price': it.price,
-                'discount': it.discount or 0,
-                'discount_percent': round((float(it.discount or 0) / float(it.quantity * it.price) * 100), 2) if it.quantity and it.price else 0
-            })
-        result['orders'].append(order)
+            # Calculate total returned quantity for this sale item across all returns
+            total_returned = 0.0
+            try:
+                from app.models import ReturnItem
+                returned_items = ReturnItem.query.filter(
+                    ReturnItem.original_sale_item_id == it.id
+                ).all()
+                total_returned = sum(float(ri.quantity or 0) for ri in returned_items)
+            except Exception as e:
+                # If unable to query returns, assume nothing returned
+                pass
+            
+            # Only include item if there's unreturned quantity
+            unreturned_qty = float(it.quantity or 0) - total_returned
+            if unreturned_qty > 0:
+                order['items'].append({
+                    'product_name': it.product.name if it.product else 'Unknown',
+                    'quantity': unreturned_qty,
+                    'price': it.price,
+                    'discount': it.discount or 0,
+                    'discount_percent': round((float(it.discount or 0) / float(unreturned_qty * it.price) * 100), 2) if unreturned_qty and it.price else 0
+                })
+        
+        # Only add order if it has unreturned items (don't show fully returned orders)
+        if order['items']:
+            result['orders'].append(order)
 
     return jsonify(result)
 
