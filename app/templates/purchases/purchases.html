@@ -359,7 +359,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const itemsJsonInput = document.getElementById('items_json');
     let items = [];
 
-    if (!productSearch || !itemsTableBody || !totalAmountInput || !itemsJsonInput) {
+    if (!productSearchInput || !itemsTableBody || !totalAmountInput || !itemsJsonInput) {
         console.error('Required elements not found in the DOM');
         return;
     }
@@ -567,7 +567,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const selectedSupplier = supplierSelect.options[supplierSelect.selectedIndex];
             if (selectedSupplier) {
                 const supplierName = selectedSupplier.textContent.trim();
-                document.getElementById('product_search').setAttribute('data-supplier-name', supplierName);
+                document.getElementById('product_search_input').setAttribute('data-supplier-name', supplierName);
             }
         }
         new bootstrap.Modal(modal).show();
