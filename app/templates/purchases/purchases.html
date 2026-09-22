@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 
+{% block title %}Purchases - {{ super() }}{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+<!-- existing template content... -->
+
+<script>
 document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('newPurchaseModal');
     const productSearch = document.getElementById('product_search');
