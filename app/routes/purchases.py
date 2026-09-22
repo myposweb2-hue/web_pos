@@ -171,6 +171,20 @@ def new_purchase():
                 amount_paid = 0.0
                 status_value = 'credit'
 
+            # Parse credit metadata
+            credit_due_date = data.get('credit_due_date')
+            credit_days = data.get('credit_days')
+            credit_due = None
+            if credit_due_date:
+                try:
+                    credit_due = datetime.strptime(credit_due_date, '%Y-%m-%d').date()
+                except Exception:
+                    credit_due = None
+            try:
+                credit_days_int = int(credit_days) if credit_days not in (None, '') else None
+            except Exception:
+                credit_days_int = None
+
             # Create Purchase
             purchase = Purchase(
                 supplier_id=data.get('supplier_id'),
@@ -179,6 +193,8 @@ def new_purchase():
                 total_amount=round(computed_total, 2),
                 amount_paid=amount_paid,
                 status=status_value,
+                credit_due_date=credit_due,
+                credit_days=credit_days_int,
                 company_id=get_company_id()  # Set company_id
             )
             db.session.add(purchase)

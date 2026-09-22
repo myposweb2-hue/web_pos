@@ -389,6 +389,9 @@ class Purchase(db.Model):
     invoice_number = db.Column(db.String(50))
     total_amount = db.Column(db.Float)
     amount_paid = db.Column(db.Float, default=0.0)
+    # Credit metadata
+    credit_due_date = db.Column(db.Date, nullable=True)
+    credit_days = db.Column(db.Integer, nullable=True, default=0)
     status = db.Column(db.String(20), default='pending')
     company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)
 
