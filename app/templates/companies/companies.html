@@ -6,9 +6,14 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="fas fa-building me-2"></i>Companies</h2>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCompanyModal">
-            <i class="fas fa-plus me-1"></i> Add Company
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-success" id="viewTransferHistoryBtn" type="button">
+                <i class="fas fa-history me-1"></i> View Transfer History
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCompanyModal">
+                <i class="fas fa-plus me-1"></i> Add Company
+            </button>
+        </div>
     </div>
 
     <div class="card shadow-sm">
@@ -46,6 +51,9 @@
                                 <button class="btn btn-sm btn-outline-info" onclick="manageCompanyUsers({{ company.id }})">
                                     <i class="fas fa-users"></i>
                                 </button>
+                                <a href="/companies/{{ company.id }}/transfer-history-page" class="btn btn-sm btn-outline-success" title="Transfer History">
+                                    <i class="fas fa-history"></i>
+                                </a>
                             </td>
                         </tr>
                         {% else %}
@@ -299,6 +307,29 @@
 {{ super() }}
 <script>
 var csrfToken = '{{ csrf_token() }}';
+
+document.addEventListener('DOMContentLoaded', function() {
+    const historyBtn = document.getElementById('viewTransferHistoryBtn');
+    if (historyBtn) {
+        historyBtn.addEventListener('click', function() {
+            const rows = document.querySelectorAll('#companiesTableBody tr');
+            let firstCompanyId = null;
+            rows.forEach(row => {
+                if (!firstCompanyId) {
+                    const btn = row.querySelector('a[href*="/transfer-history-page"]');
+                    if (btn) {
+                        firstCompanyId = btn.getAttribute('href').match(/\/companies\/(\d+)\/transfer-history-page/)[1];
+                    }
+                }
+            });
+            if (firstCompanyId) {
+                window.location.href = `/companies/${firstCompanyId}/transfer-history-page`;
+            } else {
+                alert('No company available to view history.');
+            }
+        });
+    }
+});
 
 function saveCompany() {
     var form = document.getElementById('addCompanyForm');
