@@ -134,6 +134,7 @@ def transfer_products_between_companies():
                 supplier_id = target_supplier.id
 
         if existing_product:
+            prev_stock = float(existing_product.stock or 0)
             existing_product.name = product.name
             existing_product.price = product.price
             existing_product.cost_price = product.cost_price
@@ -151,6 +152,24 @@ def transfer_products_between_companies():
                 existing_product.image_path = product.image_path
             existing_product.last_updated = datetime.utcnow()
             updated_count += 1
+            # Record inventory transaction for target company (transfer in)
+            try:
+                new_stock = float(existing_product.stock or 0)
+                from app.models import InventoryTransaction
+                tx = InventoryTransaction(
+                    product_id=existing_product.id,
+                    transaction_type='transfer_in',
+                    quantity=max(0.0, new_stock - prev_stock),
+                    previous_stock=prev_stock,
+                    new_stock=new_stock,
+                    reference_id=product.id,
+                    notes=f'Transferred from company {source_company_id}',
+                    company_id=target_company_id
+                )
+                db.session.add(tx)
+            except Exception:
+                # Don't fail the whole transfer if logging the transaction fails
+                pass
             continue
 
         new_product = Product(
@@ -172,6 +191,22 @@ def transfer_products_between_companies():
         )
         db.session.add(new_product)
         created_count += 1
+        # Record inventory transaction for target (transfer in - new product)
+        try:
+            from app.models import InventoryTransaction
+            tx = InventoryTransaction(
+                product_id=new_product.id,
+                transaction_type='transfer_in',
+                quantity=float(product.stock or 0),
+                previous_stock=0.0,
+                new_stock=float(product.stock or 0),
+                reference_id=product.id,
+                notes=f'Transferred from company {source_company_id}',
+                company_id=target_company_id
+            )
+            db.session.add(tx)
+        except Exception:
+            pass
 
     db.session.commit()
     return jsonify({
@@ -183,6 +218,42 @@ def transfer_products_between_companies():
         'include_images': include_images,
         'overwrite_existing': overwrite_existing,
     })
+
+
+@companies_bp.route('/api/companies/<int:company_id>/transfer-history')
+@csrf.exempt
+@login_required
+def company_transfer_history(company_id):
+    """Return recent product transfer inventory transactions for a company."""
+    # Only Super Admin may view cross-company transfers
+    if not (current_user.role and current_user.role.lower() == 'super admin'):
+        return jsonify({'error': 'Only Super Admin can view transfer history'}), 403
+
+    # Query recent transfer-related inventory transactions
+    from app.models import InventoryTransaction, Product
+    txs = InventoryTransaction.query.filter(
+        InventoryTransaction.company_id == company_id,
+        InventoryTransaction.transaction_type.ilike('transfer%')
+    ).order_by(InventoryTransaction.date.desc()).limit(100).all()
+
+    result = []
+    for t in txs:
+        prod = Product.query.get(t.product_id)
+        result.append({
+            'id': t.id,
+            'product_id': t.product_id,
+            'product_name': prod.name if prod else None,
+            'transaction_type': t.transaction_type,
+            'quantity': float(t.quantity),
+            'previous_stock': float(t.previous_stock),
+            'new_stock': float(t.new_stock),
+            'reference_id': t.reference_id,
+            'date': t.date.isoformat() if t.date else None,
+            'notes': t.notes,
+            'company_id': t.company_id
+        })
+
+    return jsonify(result)
 
 @companies_bp.route('/api/companies/<int:company_id>/products')
 @csrf.exempt
@@ -315,9 +386,27 @@ def transfer_products_selective():
                 skipped_count += 1
                 continue
 
+            prev_stock = float(existing_product.stock or 0)
             existing_product.stock = (float(existing_product.stock or 0) + float(quantity))
             existing_product.last_updated = datetime.utcnow()
             updated_count += 1
+            # Record inventory transaction for target (transfer in)
+            try:
+                from app.models import InventoryTransaction
+                new_stock = float(existing_product.stock or 0)
+                tx_in = InventoryTransaction(
+                    product_id=existing_product.id,
+                    transaction_type='transfer_in',
+                    quantity=float(quantity),
+                    previous_stock=prev_stock,
+                    new_stock=new_stock,
+                    reference_id=product.id,
+                    notes=f'Transferred from company {source_company_id}',
+                    company_id=target_company_id
+                )
+                db.session.add(tx_in)
+            except Exception:
+                pass
         else:
             # Create new product with specified quantity
             new_product = Product(
@@ -339,11 +428,44 @@ def transfer_products_selective():
             )
             db.session.add(new_product)
             created_count += 1
+            # Record inventory transaction for target (transfer in - new product)
+            try:
+                from app.models import InventoryTransaction
+                tx_in = InventoryTransaction(
+                    product_id=new_product.id,
+                    transaction_type='transfer_in',
+                    quantity=float(quantity),
+                    previous_stock=0.0,
+                    new_stock=float(quantity),
+                    reference_id=product.id,
+                    notes=f'Transferred from company {source_company_id}',
+                    company_id=target_company_id
+                )
+                db.session.add(tx_in)
+            except Exception:
+                pass
 
         # Actual transfer: reduce source stock after the target has been updated
         if current_stock > 0:
+            prev_src = float(product.stock or 0)
             product.stock = max(0.0, float(product.stock or 0) - float(quantity))
             product.last_updated = datetime.utcnow()
+            # Record inventory transaction for source (transfer out)
+            try:
+                from app.models import InventoryTransaction
+                tx_out = InventoryTransaction(
+                    product_id=product.id,
+                    transaction_type='transfer_out',
+                    quantity=float(quantity),
+                    previous_stock=prev_src,
+                    new_stock=float(product.stock or 0),
+                    reference_id=None,
+                    notes=f'Transferred to company {target_company_id}',
+                    company_id=source_company_id
+                )
+                db.session.add(tx_out)
+            except Exception:
+                pass
 
     db.session.commit()
     return jsonify({
