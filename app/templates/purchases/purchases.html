@@ -164,14 +164,16 @@
                         </div>
                         <div class="card-body">
                             <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label for="product_search" class="form-label">Add Product</label>
-                                    <select class="form-select" id="product_search">
+                                <div class="col-md-6 position-relative">
+                                    <label for="product_search_input" class="form-label">Add Product</label>
+                                    <input type="text" class="form-control" id="product_search_input" placeholder="Search for a product to add" autocomplete="off">
+                                    <select class="d-none" id="product_search_options">
                                         <option value="" disabled selected>Search for a product to add</option>
                                         {% for product in products %}
                                         <option value="{{ product.id }}" data-name="{{ product.name }}" data-barcode="{{ product.barcode or '' }}" data-cost="{{ product.cost_price or 0 }}" data-supplier-id="{{ product.supplier_id or '' }}">{{ product.name }}</option>
                                         {% endfor %}
                                     </select>
+                                    <div id="product_results" class="list-group position-absolute" style="z-index:2000; width:100%; display:none;"></div>
                                 </div>
                             </div>
                             <div class="table-responsive">
@@ -348,7 +350,9 @@ function viewPurchase(purchaseId) {
 
 document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('newPurchaseModal');
-    const productSearch = document.getElementById('product_search');
+    const productSearchInput = document.getElementById('product_search_input');
+    const productSearchOptions = document.getElementById('product_search_options');
+    const productResults = document.getElementById('product_results');
     const supplierSelect = document.getElementById('supplier_id');
     const itemsTableBody = document.querySelector('#itemsTable tbody');
     const totalAmountInput = document.getElementById('total_amount');
@@ -361,49 +365,93 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const seenProductKeys = new Set();
-    Array.from(productSearch.options).forEach(option => {
-        if (!option.value) return;
-        const productKey = `${(option.getAttribute('data-name') || option.textContent || '').trim().toLocaleLowerCase()}::${(option.getAttribute('data-barcode') || '').trim().toLocaleLowerCase()}`;
-        if (seenProductKeys.has(productKey)) {
-            option.remove();
-        } else {
-            seenProductKeys.add(productKey);
+    const productOptions = Array.from(productSearchOptions.options).filter(o => o.value).map(o => ({
+        id: o.value,
+        name: o.getAttribute('data-name') || o.textContent,
+        barcode: o.getAttribute('data-barcode') || '',
+        cost: parseFloat(o.getAttribute('data-cost') || 0) || 0,
+        supplier_id: o.getAttribute('data-supplier-id') || ''
+    }));
+
+    // dedupe by name+barcode
+    const dedupedProducts = [];
+    productOptions.forEach(p => {
+        const key = `${(p.name || '').trim().toLowerCase()}::${(p.barcode || '').trim().toLowerCase()}`;
+        if (!seenProductKeys.has(key)) {
+            seenProductKeys.add(key);
+            dedupedProducts.push(p);
         }
     });
 
     function filterProductsForSupplier() {
         const supplierId = supplierSelect ? supplierSelect.value : '';
-        Array.from(productSearch.options).forEach(option => {
-            if (!option.value) return;
-            const optionSupplierId = option.getAttribute('data-supplier-id') || '';
-            option.hidden = Boolean(supplierId && optionSupplierId && optionSupplierId !== supplierId);
-        });
+        // nothing to hide in hidden select; we'll filter when showing results
+        return supplierId;
     }
 
     if (supplierSelect) {
-        supplierSelect.addEventListener('change', filterProductsForSupplier);
-        filterProductsForSupplier();
+        supplierSelect.addEventListener('change', () => { productResults.style.display = 'none'; });
     }
 
-    productSearch.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        if (!selectedOption || !selectedOption.value) {
-            console.warn('No option selected or empty value');
+    function showProductResults(list) {
+        if (!list.length) {
+            productResults.style.display = 'none';
+            productResults.innerHTML = '';
             return;
         }
+        productResults.innerHTML = '';
+        list.slice(0, 30).forEach(p => {
+            const el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'list-group-item list-group-item-action';
+            el.textContent = p.name;
+            el.dataset.id = p.id;
+            el.dataset.name = p.name;
+            el.dataset.cost = p.cost;
+            el.dataset.supplierId = p.supplier_id;
+            productResults.appendChild(el);
+        });
+        productResults.style.display = 'block';
+    }
 
-        const productId = selectedOption.value;
-        const productName = selectedOption.getAttribute('data-name') || selectedOption.textContent;
-        const costPrice = parseFloat(selectedOption.getAttribute('data-cost') || 0);
-        if (items.some(item => item.product_id === productId)) {
+    productSearchInput.addEventListener('input', function() {
+        const q = (this.value || '').trim().toLowerCase();
+        const supplierId = filterProductsForSupplier();
+        if (!q) {
+            showProductResults([]);
+            return;
+        }
+        const filtered = dedupedProducts.filter(p => {
+            if (supplierId && p.supplier_id && p.supplier_id !== supplierId) return false;
+            return (p.name || '').toLowerCase().includes(q) || (p.barcode || '').toLowerCase().includes(q);
+        });
+        showProductResults(filtered);
+    });
+
+    productResults.addEventListener('click', function(e) {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const productId = btn.dataset.id;
+        const productName = btn.dataset.name;
+        const costPrice = parseFloat(btn.dataset.cost) || 0;
+        if (items.some(item => String(item.product_id) === String(productId))) {
             alert('Product already added.');
+            productSearchInput.value = '';
+            productResults.style.display = 'none';
             return;
         }
-
         const item = { product_id: productId, name: productName, quantity: 1, cost_price: costPrice };
         items.push(item);
         renderTable();
-        this.value = '';
+        productSearchInput.value = '';
+        productResults.style.display = 'none';
+    });
+
+    // hide results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#product_results') && !e.target.closest('#product_search_input')) {
+            productResults.style.display = 'none';
+        }
     });
 
     function escapeHtml(text) {
@@ -428,7 +476,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const total = item.quantity * item.cost_price;
                 totalAmount += total;
 
-                const row = '<tr><td>' + escapeHtml(item.name) + '</td><td><input type="number" class="form-control quantity" value="' + Number(item.quantity || 0) + '" data-index="' + index + '" min="0.001" step="0.001"></td><td><input type="number" step="0.01" min="0" class="form-control cost_price" value="' + Number(item.cost_price || 0).toFixed(2) + '" data-index="' + index + '"></td><td class="text-end">' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td><td><button type="button" class="btn btn-sm btn-danger remove-item" data-index="' + index + '">&times;</button></td></tr>';
+                const row = '<tr data-index="' + index + '"><td>' + escapeHtml(item.name) + '</td><td><input type="number" class="form-control quantity" value="' + Number(item.quantity || 0) + '" data-index="' + index + '" min="0.001" step="0.001"></td><td><input type="number" step="0.01" min="0" class="form-control cost_price" value="' + Number(item.cost_price || 0).toFixed(2) + '" data-index="' + index + '"></td><td class="text-end row-total">' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</td><td><button type="button" class="btn btn-sm btn-danger remove-item" data-index="' + index + '">&times;</button></td></tr>';
                 itemsTableBody.insertAdjacentHTML('beforeend', row);
             });
         }
@@ -446,34 +494,41 @@ document.addEventListener('DOMContentLoaded', function() {
         })));
     }
 
+    function updateSummaryAndHidden() {
+        const total = items.reduce((s, it) => s + (Number(it.quantity || 0) * Number(it.cost_price || 0)), 0);
+        totalAmountInput.value = total.toFixed(2);
+        const totalDisplay = document.getElementById('total_amount_display');
+        if (totalDisplay) totalDisplay.value = total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        itemsJsonInput.value = JSON.stringify(items.map(item => ({
+            product_id: item.product_id,
+            name: item.name,
+            quantity: Number(item.quantity || 0),
+            cost_price: Number(item.cost_price || 0),
+            batch_code: item.batch_code || null,
+            expiry_date: item.expiry_date || null
+        })));
+    }
+
     itemsTableBody.addEventListener('input', function(e) {
         if (e.target.classList.contains('quantity') || e.target.classList.contains('cost_price')) {
             const index = parseInt(e.target.dataset.index);
             if (index >= 0 && index < items.length) {
                 const row = e.target.closest('tr');
-                const qty = parseFloat(row.querySelector('.quantity').value.replace(/,/g, '')) || 0;
-                const cost = parseFloat(row.querySelector('.cost_price').value.replace(/,/g, '')) || 0;
+                const qtyEl = row.querySelector('.quantity');
+                const costEl = row.querySelector('.cost_price');
+                const qty = parseFloat(qtyEl.value.replace(/,/g, '')) || 0;
+                const cost = parseFloat(costEl.value.replace(/,/g, '')) || 0;
+                // update model
                 items[index].quantity = qty;
                 items[index].cost_price = cost;
-
-                // Update only the row total cell to avoid re-rendering (keeps focus)
-                const total = qty * cost;
-                const totalCell = row.querySelector('td.text-end') || row.cells[3];
-                if (totalCell) totalCell.textContent = total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-
-                // Update overall totals and items_json
-                const totalAmount = items.reduce((sum, it) => sum + ((Number(it.quantity) || 0) * (Number(it.cost_price) || 0)), 0);
-                totalAmountInput.value = totalAmount.toFixed(2);
-                const totalDisplay = document.getElementById('total_amount_display');
-                if (totalDisplay) totalDisplay.value = totalAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                itemsJsonInput.value = JSON.stringify(items.map(item => ({
-                    product_id: item.product_id,
-                    name: item.name,
-                    quantity: Number(item.quantity || 0),
-                    cost_price: Number(item.cost_price || 0),
-                    batch_code: item.batch_code || null,
-                    expiry_date: item.expiry_date || null
-                })));
+                // update only the total cell for this row
+                const totalCell = row.querySelector('.row-total');
+                if (totalCell) {
+                    const rowTotal = (qty * cost) || 0;
+                    totalCell.textContent = rowTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+                // update summary/hidden JSON
+                updateSummaryAndHidden();
             }
         }
     });
