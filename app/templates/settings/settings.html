@@ -1674,16 +1674,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Receipt settings
                 if (data.receipt) {
                     if (data.receipt.business_name) document.getElementById('receiptBusinessName').value = data.receipt.business_name;
-                    // Check for logo in receipt settings or general settings
+                    // Check for logo in receipt settings (prefer data URI) or general settings
                     var logoPath = '';
-                    if (data.receipt && data.receipt.logo_path) {
+                    if (data.receipt && data.receipt.receipt_logo && String(data.receipt.receipt_logo).startsWith('data:image/')) {
+                        logoPath = data.receipt.receipt_logo; // embedded data URI
+                    } else if (data.receipt && data.receipt.logo_path) {
                         logoPath = data.receipt.logo_path;
                     } else if (data.general && data.general.logo_path) {
                         logoPath = data.general.logo_path;
                     }
-                    
+
                     console.log('Logo path:', logoPath);
-                    
+
                     if (logoPath) {
                         document.getElementById('receiptLogoPreview').src = logoPath;
                         document.getElementById('receiptLogoPreview').style.display = 'block';

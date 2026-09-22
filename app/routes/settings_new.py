@@ -498,29 +498,55 @@ def upload_logo():
         filepath = os.path.join(upload_dir, filename)
         file.save(filepath)
 
-        setting = get_company_filtered_settings(
-            category='general',
-            key='logo_path'
-        ).first()
+        logo_path = f'/static/uploads/{filename}'
+        # Also prepare a base64 data URI to store under receipt.receipt_logo
+        try:
+            import base64
+            ext = os.path.splitext(filename)[1].lower()
+            mime = 'image/png'
+            if ext in ('.jpg', '.jpeg'):
+                mime = 'image/jpeg'
+            elif ext == '.gif':
+                mime = 'image/gif'
+            elif ext == '.bmp':
+                mime = 'image/bmp'
+            with open(filepath, 'rb') as f:
+                data = f.read()
+            data_uri = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
+        except Exception:
+            data_uri = ''
+        company_id = get_company_id()
 
-        if setting:
-            setting.setting_value = f'/static/uploads/{filename}'
-            setting.updated_at = datetime.utcnow()
-        else:
-            company_id = get_company_id()
-            setting = Setting(
-                setting_category='general',
-                setting_key='logo_path',
-                setting_value=f'/static/uploads/{filename}',
-                company_id=company_id
-            )
-            db.session.add(setting)
+        for category, key in [
+            ('general', 'logo_path'),
+            ('receipt', 'logo_path'),
+            ('receipt', 'receipt_logo')
+        ]:
+            setting = get_company_filtered_settings(
+                category=category,
+                key=key
+            ).first()
+
+            if setting:
+                if category == 'receipt' and key == 'receipt_logo' and data_uri:
+                    setting.setting_value = data_uri
+                else:
+                    setting.setting_value = logo_path
+                setting.updated_at = datetime.utcnow()
+            else:
+                value = data_uri if (category == 'receipt' and key == 'receipt_logo' and data_uri) else logo_path
+                db.session.add(Setting(
+                    setting_category=category,
+                    setting_key=key,
+                    setting_value=value,
+                    company_id=company_id
+                ))
 
         db.session.commit()
 
         return jsonify({
             'success': True,
-            'logo_path': f'/static/uploads/{filename}',
+            'logo_path': logo_path,
             'message': 'Logo uploaded successfully'
         })
 
@@ -1438,7 +1464,7 @@ def create_user():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-@settings_bp.route('/api/settings/users/<int:user_id>', methods=['PUT'])
+@settings_bp.route('/api/settings/users', methods=['PUT'])
 @csrf.exempt
 @login_required
 @require_permission('can_access_settings')
