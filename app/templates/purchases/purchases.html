@@ -3,233 +3,159 @@
 {% block title %}Purchases - {{ super() }}{% endblock %}
 
 {% block content %}
-
 <div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Manage Purchases</h1>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newPurchaseModal">
+            <i class="fas fa-plus me-2"></i>New Purchase
+        </button>
+    </div>
 
-<!-- existing template content... -->
+    <!-- Filter Form -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Filter Purchases</h6>
+        </div>
+        <div class="card-body">
+            <form method="get" action="{{ url_for('purchases.purchases') }}">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="start_date" class="form-label">Start Date</label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" value="{{ start_date or '' }}">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" value="{{ end_date or '' }}">
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="supplier" class="form-label">Supplier</label>
+                        <select class="form-select" id="supplier" name="supplier">
+                            <option value="">All Suppliers</option>
+                            {% for s in suppliers %}
+                            <option value="{{ s.id }}" {% if s.id|string == supplier_filter %}selected{% endif %}>{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select" id="status" name="status">
+                            <option value="">All Statuses</option>
+                            <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>Paid</option>
+                            <option value="partial" {% if status_filter == 'partial' %}selected{% endif %}>Partial</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">Filter</button>
+                        <a href="{{ url_for('purchases.purchases') }}" class="btn btn-secondary">Reset</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('newPurchaseModal');
-    const productSearch = document.getElementById('product_search');
-    const productResults = document.getElementById('product_results');
-    const productOptions = Array.from(document.querySelectorAll('#product_search_options option'));
-    const supplierSelect = document.getElementById('supplier_id');
-    const itemsTableBody = document.querySelector('#itemsTable tbody');
-    const totalAmountInput = document.getElementById('total_amount');
-    const totalAmountDisplay = document.getElementById('total_amount_display');
-    const itemsJsonInput = document.getElementById('items_json');
-    let items = [];
+    <!-- Purchase List -->
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Purchase List</h6>
+            <div class="d-flex gap-3">
+                <span class="fw-bold">Total: <span class="text-primary">{{ total_amount|format_number }}</span></span>
+                <span class="fw-bold">Paid: <span class="text-success">{{ total_paid|format_number }}</span></span>
+                <span class="fw-bold">Balance: <span class="text-danger">{{ total_balance|format_number }}</span></span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="purchasesTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Date</th>
+                            <th>Invoice #</th>
+                            <th>Supplier</th>
+                            <th>Status</th>
+                            <th class="text-end">Total Amount</th>
+                            <th class="text-end">Amount Paid</th>
+                            <th class="text-end">Balance</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for purchase in purchases %}
+                        <tr>
+                            <td>{{ purchase.id }}</td>
+                            <td>{{ purchase.date.strftime('%Y-%m-%d') if purchase.date else 'N/A' }}</td>
+                            <td>{{ purchase.invoice_number or 'N/A' }}</td>
+                            <td>{{ purchase.supplier.name if purchase.supplier else 'N/A' }}</td>
+                            <td>
+                                {% if purchase.status == 'paid' %}
+                                <span class="badge bg-success text-capitalize">{{ purchase.status }}</span>
+                                {% elif purchase.status == 'partial' %}
+                                <span class="badge bg-warning text-capitalize">{{ purchase.status }}</span>
+                                {% else %}
+                                <span class="badge bg-danger text-capitalize">{{ purchase.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">{{ (purchase.total_amount or 0)|format_number }}</td>
+                            <td class="text-end">{{ (purchase.amount_paid or 0)|format_number }}</td>
+                            <td class="text-end">{{ ((purchase.total_amount or 0) - (purchase.amount_paid or 0))|format_number }}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info" title="View Details" onclick="viewPurchase({{ purchase.id }})"><i class="fas fa-eye"></i></button>
+                                <button class="btn btn-sm btn-warning" title="Edit Status" onclick="editPurchase({{ purchase.id }})"><i class="fas fa-edit"></i></button>
+                                <button class="btn btn-sm btn-danger" title="Delete Purchase" onclick="deletePurchase({{ purchase.id }}, '{{ purchase.invoice_number or 'N/A' }}')"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center">No purchases found for the selected filters.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
 
-    if (!productSearch || !productResults || !itemsTableBody || !totalAmountInput || !itemsJsonInput) {
-        console.error('Required elements not found in the DOM');
-        return;
-    }
-
-    function escapeHtml(text) {
-        const map = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;'
-        };
-        return String(text ?? '').replace(/[&<>"']/g, m => map[m]);
-    }
-
-    function addItemToPurchase(productId, productName, costPrice) {
-        if (items.some(item => Number(item.product_id) === Number(productId))) {
-            alert('Product already added.');
-            return;
-        }
-
-        items.push({
-            product_id: Number(productId),
-            name: String(productName || ''),
-            quantity: 1,
-            cost_price: Number(costPrice || 0)
-        });
-        renderTable();
-        productSearch.value = '';
-        productResults.style.display = 'none';
-        productResults.innerHTML = '';
-    }
-
-    function renderProductSuggestions() {
-        const term = (productSearch.value || '').trim().toLowerCase();
-        const filtered = productOptions.filter(option => {
-            const name = (option.dataset.name || option.textContent || '').toLowerCase();
-            const value = option.value || '';
-            return !term || name.includes(term) || value.includes(term) || (option.dataset.barcode || '').toLowerCase().includes(term);
-        }).slice(0, 12);
-
-        productResults.innerHTML = '';
-
-        if (!filtered.length) {
-            const emptyRow = document.createElement('div');
-            emptyRow.className = 'list-group-item text-muted';
-            emptyRow.textContent = 'No products found';
-            productResults.appendChild(emptyRow);
-            productResults.style.display = 'block';
-            return;
-        }
-
-        filtered.forEach(option => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'list-group-item list-group-item-action';
-            button.setAttribute('data-product-id', option.value);
-            button.setAttribute('data-product-name', option.dataset.name || option.textContent || '');
-            button.setAttribute('data-product-cost', option.dataset.cost || '0');
-
-            const name = document.createElement('div');
-            name.className = 'fw-semibold';
-            name.textContent = option.dataset.name || option.textContent || '';
-
-            const meta = document.createElement('small');
-            meta.className = 'text-muted';
-            meta.textContent = 'Cost: ' + Number(option.dataset.cost || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-            button.appendChild(name);
-            button.appendChild(meta);
-            button.addEventListener('click', function() {
-                addItemToPurchase(option.value, option.dataset.name || option.textContent || '', option.dataset.cost || 0);
-            });
-            productResults.appendChild(button);
-        });
-
-        productResults.style.display = 'block';
-    }
-
-    productSearch.addEventListener('input', renderProductSuggestions);
-    productSearch.addEventListener('focus', renderProductSuggestions);
-
-    function updateSummary() {
-        let totalAmount = 0;
-        items.forEach(item => {
-            totalAmount += Number(item.quantity || 0) * Number(item.cost_price || 0);
-        });
-
-        totalAmountInput.value = totalAmount.toFixed(2);
-        if (totalAmountDisplay) totalAmountDisplay.value = totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        itemsJsonInput.value = JSON.stringify(items.map(item => ({
-            product_id: Number(item.product_id),
-            name: item.name,
-            quantity: Number(item.quantity || 0),
-            cost_price: Number(item.cost_price || 0),
-            batch_code: item.batch_code || null,
-            expiry_date: item.expiry_date || null
-        })));
-    }
-
-    function renderTable() {
-        itemsTableBody.innerHTML = '';
-
-        if (items.length === 0) {
-            itemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center">No items added yet</td></tr>';
-            updateSummary();
-            return;
-        }
-
-        items.forEach((item, index) => {
-            const total = Number(item.quantity || 0) * Number(item.cost_price || 0);
-            const row = `
-                <tr>
-                    <td>${escapeHtml(item.name)}</td>
-                    <td>
-                        <input type="number" class="form-control quantity" value="${Number(item.quantity || 0)}" data-index="${index}" min="1" step="0.001">
-                    </td>
-                    <td>
-                        <input type="number" class="form-control cost_price" value="${Number(item.cost_price || 0).toFixed(2)}" data-index="${index}" min="0" step="0.01">
-                    </td>
-                    <td class="text-end" data-role="line-total">${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td><button type="button" class="btn btn-sm btn-danger remove-item" data-index="${index}">&times;</button></td>
-                </tr>
-            `;
-            itemsTableBody.insertAdjacentHTML('beforeend', row);
-        });
-
-        updateSummary();
-    }
-
-    itemsTableBody.addEventListener('input', function(e) {
-        const target = e.target;
-        if (!target.classList.contains('quantity') && !target.classList.contains('cost_price')) {
-            return;
-        }
-
-        const index = Number(target.dataset.index);
-        if (Number.isNaN(index) || index < 0 || index >= items.length) {
-            return;
-        }
-
-        const row = target.closest('tr');
-        if (!row) {
-            return;
-        }
-
-        const quantityInput = row.querySelector('.quantity');
-        const costInput = row.querySelector('.cost_price');
-        const quantity = parseFloat(quantityInput.value) || 0;
-        const costPrice = parseFloat(costInput.value) || 0;
-
-        items[index].quantity = quantity;
-        items[index].cost_price = costPrice;
-
-        const total = quantity * costPrice;
-        const totalCell = row.querySelector('[data-role="line-total"]');
-        if (totalCell) {
-            totalCell.textContent = total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-
-        updateSummary();
-    });
-
-    itemsTableBody.addEventListener('click', function(e) {
-        const removeBtn = e.target.closest('.remove-item');
-        if (!removeBtn) {
-            return;
-        }
-
-        const index = Number(removeBtn.dataset.index);
-        if (Number.isNaN(index) || index < 0 || index >= items.length) {
-            return;
-        }
-
-        items.splice(index, 1);
-        renderTable();
-    });
-
-    modal.addEventListener('hidden.bs.modal', function () {
-        document.getElementById('purchaseForm').reset();
-        items = [];
-        renderTable();
-    });
-
-    document.getElementById('purchaseForm').addEventListener('submit', function(e) {
-        updateSummary();
-        if (!items.length || items.some(item => Number(item.quantity || 0) <= 0 || Number(item.cost_price || 0) < 0)) {
-            e.preventDefault();
-            alert('Add at least one product with a valid quantity and cost price.');
-        }
-    });
-
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('open_modal') === 'new_purchase') {
-        const supplierId = urlParams.get('supplier_id');
-        if (supplierId) {
-            const supplierSelect = document.getElementById('supplier_id');
-            supplierSelect.value = supplierId;
-            supplierSelect.dispatchEvent(new Event('change'));
-            const selectedSupplier = supplierSelect.options[supplierSelect.selectedIndex];
-            if (selectedSupplier) {
-                const supplierName = selectedSupplier.textContent.trim();
-                document.getElementById('product_search').setAttribute('data-supplier-name', supplierName);
-            }
-        }
-        new bootstrap.Modal(modal).show();
-    }
-});
+<!-- New Purchase Modal -->
+<div class="modal fade" id="newPurchaseModal" tabindex="-1" aria-labelledby="newPurchaseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newPurchaseModalLabel">Create New Purchase</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="post" id="purchaseForm" action="{{ url_for('purchases.new_purchase') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="items_json" id="items_json">
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Purchase Details</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label for="date" class="form-label">Date</label>
+                                    <input type="date" class="form-control" id="date" name="date" value="{{ now.strftime('%Y-%m-%d') }}" required>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="supplier_id" class="form-label">Supplier</label>
+                                    <select class="form-select" id="supplier_id" name="supplier_id" required>
+                                        <option value="" disabled selected>Select a supplier</option>
+                                        {% for supplier in suppliers %}
+                                        <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="invoice_number" class="form-label">Invoice Number</label>
+                                    <input type="text" class="form-control" id="invoice_number" name="invoice_number">
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="card shadow mb-4">
@@ -240,11 +166,10 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label for="product_search" class="form-label">Add Product</label>
-                                    <input type="text" class="form-control" id="product_search" placeholder="Search product by name or barcode" autocomplete="off">
-                                    <div id="product_results" class="list-group mt-2" style="display:none; max-height:220px; overflow-y:auto;"></div>
-                                    <select id="product_search_options" class="d-none" aria-hidden="true">
+                                    <select class="form-select" id="product_search">
+                                        <option value="" disabled selected>Search for a product to add</option>
                                         {% for product in products %}
-                                        <option value="{{ product.id }}" data-name="{{ product.name | e }}" data-cost="{{ product.cost_price or 0 }}" data-barcode="{{ product.barcode or '' }}" data-supplier-id="{{ product.supplier_id or '' }}">{{ product.name }}</option>
+                                        <option value="{{ product.id }}" data-name="{{ product.name }}" data-barcode="{{ product.barcode or '' }}" data-cost="{{ product.cost_price or 0 }}" data-supplier-id="{{ product.supplier_id or '' }}">{{ product.name }}</option>
                                         {% endfor %}
                                     </select>
                                 </div>
@@ -402,7 +327,7 @@ function viewPurchase(purchaseId) {
             document.getElementById('viewTotalAmount').textContent = parseFloat(data.total_amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('viewAmountPaid').textContent = parseFloat(data.amount_paid || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('viewStatus').textContent = data.status || 'N/A';
-            
+
             const itemsBody = document.getElementById('viewItemsBody');
             itemsBody.innerHTML = '';
             if (data.items && data.items.length > 0) {
@@ -413,7 +338,7 @@ function viewPurchase(purchaseId) {
             } else {
                 itemsBody.innerHTML = '<tr><td colspan="4" class="text-center">No items found</td></tr>';
             }
-            
+
             new bootstrap.Modal(document.getElementById('viewPurchaseModal')).show();
         })
         .catch(error => {
@@ -462,7 +387,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     productSearch.addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
-        
         if (!selectedOption || !selectedOption.value) {
             console.warn('No option selected or empty value');
             return;
@@ -471,9 +395,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const productId = selectedOption.value;
         const productName = selectedOption.getAttribute('data-name') || selectedOption.textContent;
         const costPrice = parseFloat(selectedOption.getAttribute('data-cost') || 0);
-
-        console.log('Selected product:', { productId, productName, costPrice });
-
         if (items.some(item => item.product_id === productId)) {
             alert('Product already added.');
             return;
@@ -481,7 +402,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const item = { product_id: productId, name: productName, quantity: 1, cost_price: costPrice };
         items.push(item);
-        console.log('Item added, total items:', items.length);
         renderTable();
         this.value = '';
     });
@@ -494,7 +414,7 @@ document.addEventListener('DOMContentLoaded', function() {
             '"': '&quot;',
             "'": '&#039;'
         };
-        return text.replace(/[&<>"']/g, m => map[m]);
+        return (text || '').replace(/[&<>"']/g, m => map[m]);
     }
 
     function renderTable() {
@@ -587,12 +507,12 @@ function editPurchase(purchaseId) {
             document.getElementById('editTotalAmount').value = parseFloat(data.total_amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('editAmountPaid').value = parseFloat(data.amount_paid || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('editStatus').value = data.status || 'pending';
-            
+
             const totalAmount = parseFloat(data.total_amount || 0);
             const amountPaid = parseFloat(data.amount_paid || 0);
             const balance = totalAmount - amountPaid;
             document.getElementById('editBalance').textContent = balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            
+
             new bootstrap.Modal(document.getElementById('editPurchaseModal')).show();
         })
         .catch(error => {
@@ -658,16 +578,13 @@ function showDeleteConfirmPasswordModal(type) {
                     <div class="form-group">
                         <label for="deletePassword" class="form-label">Admin Password:</label>
                         <div class="input-group">
-                            <input type="password" id="deletePassword" class="form-control form-control-lg" 
-                                   placeholder="Enter your password" autocomplete="off" 
-                                   style="font-size: 1.1rem; letter-spacing: 0.2em;" />
-                            <button class="btn btn-outline-secondary" type="button" id="toggleDeletePassword" tabindex="-1"
-                                    title="Show/Hide password">
+                            <input type="password" id="deletePassword" class="form-control form-control-lg" placeholder="Enter your password" autocomplete="off" style="font-size: 1.1rem; letter-spacing: 0.2em;" />
+                            <button class="btn btn-outline-secondary" type="button" id="toggleDeletePassword" tabindex="-1" title="Show/Hide password">
                                 <i class="fas fa-eye"></i>
                             </button>
                         </div>
                     </div>
-                    <div id="deletePasswordError" class="alert alert-danger mt-2" style="display: none;\"></div>
+                    <div id="deletePasswordError" class="alert alert-danger mt-2" style="display: none;"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -718,11 +635,8 @@ function showDeleteConfirmPasswordModal(type) {
                 
                 confirmBtn.disabled = true;
                 confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
-                
                 // Verify password at backend
-                const csrfToken = document.querySelector('input[name=\"csrf_token\"]')?.value || 
-                                 document.querySelector('meta[name=\"csrf-token\"]')?.content || '';
-                
+                const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || document.querySelector('meta[name="csrf-token"]')?.content || '';
                 fetch('/auth/verify-admin-password', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
