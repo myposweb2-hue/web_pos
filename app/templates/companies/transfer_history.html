@@ -38,7 +38,7 @@
       document.getElementById('transferHistoryAlert').innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
     }
     function loadHistory(){
-      fetch(`/api/companies/${companyId}/transfer-history`)
+      fetch(`/companies/api/companies/${companyId}/transfer-history`)
         .then(r => { if(!r.ok) throw new Error('Failed to load'); return r.json(); })
         .then(data => {
           const tbody = document.querySelector('#transferHistoryTable tbody');
