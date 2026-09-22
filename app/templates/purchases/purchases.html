@@ -595,46 +595,62 @@ function editPurchase(purchaseId) {
         });
 }
 
-document.getElementById('editAmountPaid').addEventListener('input', function() {
-    const totalAmount = parseFloat(document.getElementById('editTotalAmount').value) || 0;
-    const amountPaid = parseFloat(this.value) || 0;
-    const balance = totalAmount - amountPaid;
-    document.getElementById('editBalance').textContent = balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-});
+// Guarded listener for edit amount input (may not exist in some variants)
+(function() {
+    const editAmountPaidEl = document.getElementById('editAmountPaid');
+    if (editAmountPaidEl) {
+        editAmountPaidEl.addEventListener('input', function() {
+            const totalAmount = parseFloat(document.getElementById('editTotalAmount')?.value || 0) || 0;
+            const amountPaid = parseFloat(this.value) || 0;
+            const balance = totalAmount - amountPaid;
+            const editBalanceEl = document.getElementById('editBalance');
+            if (editBalanceEl) {
+                editBalanceEl.textContent = balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            }
+        });
+    }
 
-document.getElementById('editPurchaseForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const purchaseId = document.getElementById('editPurchaseId').value;
-    const amountPaid = document.getElementById('editAmountPaid').value;
-    const status = document.getElementById('editStatus').value;
-    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-    
-    fetch('/api/purchases/' + purchaseId, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-        },
-        body: JSON.stringify({
-            amount_paid: amountPaid,
-            status: status
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Purchase updated successfully!');
-            bootstrap.Modal.getInstance(document.getElementById('editPurchaseModal')).hide();
-            location.reload();
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        alert('Error updating purchase: ' + error);
-    });
-});
+    const editPurchaseForm = document.getElementById('editPurchaseForm');
+    if (editPurchaseForm) {
+        editPurchaseForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const purchaseId = document.getElementById('editPurchaseId')?.value;
+            const amountPaid = document.getElementById('editAmountPaid')?.value;
+            const status = document.getElementById('editStatus')?.value;
+            const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
+            
+            fetch('/api/purchases/' + purchaseId, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    amount_paid: amountPaid,
+                    status: status
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Purchase updated successfully!');
+                    const modalEl = document.getElementById('editPurchaseModal');
+                    if (modalEl) {
+                        const instance = bootstrap.Modal.getInstance(modalEl);
+                        if (instance) instance.hide();
+                    }
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error updating purchase: ' + error);
+            });
+        });
+    }
+})();
 
 function showDeleteConfirmPasswordModal(type) {
     const html = `
