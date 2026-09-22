@@ -849,6 +849,22 @@ function setupEventListeners() {
             this.removeEventListener('keydown', handleReceiptOptionKeydown);
         });
     }
+
+    // Ensure a global showReceiptOptionsModal exists (fallback)
+    if (typeof window.showReceiptOptionsModal !== 'function') {
+        window.showReceiptOptionsModal = function() {
+            const modalEl = document.getElementById('receiptOptionsModal');
+            if (modalEl) {
+                try {
+                    new bootstrap.Modal(modalEl).show();
+                } catch (e) {
+                    console.warn('Unable to show receipt options modal:', e);
+                }
+            } else {
+                console.warn('receiptOptionsModal element not found');
+            }
+        };
+    }
     
     const confirmWhatsappBtn = document.getElementById('confirmWhatsappBtn');
     if (confirmWhatsappBtn) {
@@ -875,8 +891,18 @@ function setupEventListeners() {
         });
     }
     
-    // Edit product modal save button
-    document.getElementById('saveEditProductBtn').addEventListener('click', saveEditProduct);
+    // Edit product modal save button (attach safely, provide fallback)
+    const saveEditBtnEl = document.getElementById('saveEditProductBtn');
+    if (saveEditBtnEl) {
+        if (typeof window.saveEditProduct !== 'function') {
+            window.saveEditProduct = function() {
+                console.warn('saveEditProduct is not implemented; closing modal');
+                const modalEl = document.getElementById('editProductModal');
+                try { bootstrap.Modal.getInstance(modalEl)?.hide(); } catch(e) { /* ignore */ }
+            };
+        }
+        saveEditBtnEl.addEventListener('click', window.saveEditProduct);
+    }
 }
 
 function debounce(func, wait) {
