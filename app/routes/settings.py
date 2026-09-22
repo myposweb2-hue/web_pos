@@ -1,6 +1,8 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, send_file
 from flask_login import login_required, current_user
 from app.models import db, Setting, User
+from sqlalchemy import or_
+from app.utils.security import get_company_id
 from app.utils.permissions import require_permission, require_any_settings_permission
 from app.utils.audit import log_create, log_update, log_delete, get_entity_changes
 from datetime import datetime
@@ -93,10 +95,15 @@ def getSettings():
     
     company_id = get_company_id()
     
-    # Filter settings by company
+    # Filter settings by company, but include global (company_id IS NULL)
+    # so shared settings (like a global logo) are not lost when a company
+    # context is active. This mirrors other endpoints that include legacy
+    # rows with NULL company_id.
     query = Setting.query
     if company_id:
-        query = query.filter(Setting.company_id == company_id)
+        query = query.filter(
+            or_(Setting.company_id == company_id, Setting.company_id.is_(None))
+        )
     
     settings = query.all()
     settings_by_category = {}
@@ -226,7 +233,17 @@ def get_category_settings(category):
     This is used by receipt-related UI features in the sales flow; the actual
     write/update endpoints remain protected by the settings permission checks.
     """
-    settings = Setting.query.filter_by(setting_category=category).all()
+    # When a company context exists, include both company-specific and
+    # global settings so the UI can fall back to shared values.
+    from app.utils.security import get_company_id
+    company_id = get_company_id()
+    if company_id:
+        settings = Setting.query.filter(
+            Setting.setting_category == category,
+            or_(Setting.company_id == company_id, Setting.company_id.is_(None))
+        ).all()
+    else:
+        settings = Setting.query.filter_by(setting_category=category).all()
     result = {}
     for setting in settings:
         result[setting.setting_key] = setting.setting_value
@@ -252,9 +269,14 @@ def upload_logo():
         filepath = os.path.join(upload_dir, filename)
         file.save(filepath)
 
+        # Save logo path scoped to the current company when available so
+        # the logo persists correctly after login/logout when company
+        # context changes.
+        company_id = get_company_id()
         setting = Setting.query.filter_by(
             setting_category='general',
-            setting_key='logo_path'
+            setting_key='logo_path',
+            company_id=company_id
         ).first()
 
         if setting:
@@ -264,7 +286,8 @@ def upload_logo():
             setting = Setting(
                 setting_category='general',
                 setting_key='logo_path',
-                setting_value=f'/static/uploads/{filename}'
+                setting_value=f'/static/uploads/{filename}',
+                company_id=company_id
             )
             db.session.add(setting)
 
