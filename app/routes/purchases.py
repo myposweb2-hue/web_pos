@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app.utils.permissions import require_permission
 from app.utils.security import get_company_id, require_company_context
-from app.models import db, Purchase, Supplier, PurchaseReturn, Product, PurchaseItem, InventoryTransaction, PurchaseReturnItem, Cheque
+from app.models import db, Purchase, Supplier, PurchaseReturn, Product, PurchaseItem, InventoryTransaction, PurchaseReturnItem
 from app.utils.inventory_batches import create_purchase_batch
 from sqlalchemy import desc, or_
 from datetime import datetime
@@ -157,20 +157,13 @@ def new_purchase():
                 normalized_items.append(item)
             items = normalized_items
 
-            # Read payment fields
-            payment_method = data.get('payment_method')
-            amount_paid = float(str(data.get('amount_paid', 0.0)).replace(',', ''))
-            cheque_number = data.get('cheque_number')
-            cheque_bank = data.get('cheque_bank')
-            cheque_date = data.get('cheque_date')
-
             # Create Purchase
             purchase = Purchase(
                 supplier_id=data.get('supplier_id'),
                 invoice_number=data.get('invoice_number'),
                 date=datetime.strptime(data.get('date'), '%Y-%m-%d'),
                 total_amount=round(computed_total, 2),
-                amount_paid=amount_paid,
+                amount_paid=float(str(data.get('amount_paid', 0.0)).replace(',', '')),
                 status=data.get('status'),
                 company_id=get_company_id()  # Set company_id
             )
@@ -226,24 +219,6 @@ def new_purchase():
                 )
                 db.session.add(inv_trans)
 
-            # If payment method is cheque and there's an amount, create a Cheque record
-            try:
-                if payment_method == 'cheque' and amount_paid and float(amount_paid) > 0:
-                    cheque_obj = Cheque(
-                        cheque_number=cheque_number or '',
-                        bank_name=cheque_bank or '',
-                        cheque_date=datetime.strptime(cheque_date, '%Y-%m-%d').date() if cheque_date else None,
-                        amount=float(amount_paid),
-                        supplier_id=purchase.supplier_id,
-                        purchase_id=purchase.id,
-                        created_by=current_user.id,
-                        company_id=get_company_id()
-                    )
-                    db.session.add(cheque_obj)
-            except Exception:
-                # Don't fail the whole purchase if cheque creation has minor issues
-                pass
-
             db.session.commit()
             flash(f'Purchase #{purchase.id} created successfully!', 'success')
             return redirect(url_for('purchases.purchases'))
@@ -264,8 +239,7 @@ def new_purchase():
     if company_id and hasattr(Product, 'company_id'):
         products_query = products_query.filter(Product.company_id == company_id)
     products = products_query.order_by(Product.name).all()
-    # Redirect to main purchases page which contains the "New Purchase" modal
-    return redirect(url_for('purchases.purchases', open_modal='new_purchase'))
+    return render_template('purchases/new_purchase.html', suppliers=suppliers, products=products, now=datetime.now())
 
 
 @purchases_bp.route('/purchases/returns/new', methods=['GET', 'POST'])

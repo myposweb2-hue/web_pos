@@ -223,19 +223,7 @@
                                         <option value="pending">Pending</option>
                                         <option value="partial">Partial</option>
                                         <option value="paid">Paid</option>
-                                        <option value="credit">Credit</option>
                                     </select>
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <div id="credit_details" style="display:none;">
-                                        <label class="form-label">Credit Details</label>
-                                        <div class="mb-2">
-                                            <input type="date" class="form-control" id="credit_due_date" name="credit_due_date" placeholder="Due date">
-                                        </div>
-                                        <div>
-                                            <input type="number" class="form-control" id="credit_days" name="credit_days" placeholder="Credit days (optional)">
-                                        </div>
-                                    </div>
                                 </div>
                                 <div class="col-md-3 mb-3">
                                     <div id="cheque_details" style="display:none;">
@@ -465,44 +453,6 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 chequeDetails.style.display = 'none';
             }
-        });
-    }
-
-    // Status toggle for credit purchases
-    const statusSelect = document.getElementById('status');
-    const creditDetails = document.getElementById('credit_details');
-    const amountPaidInput = document.getElementById('amount_paid');
-    if (statusSelect) {
-        function updateForStatus(val) {
-            if (val === 'credit') {
-                if (amountPaidInput) {
-                    amountPaidInput.value = '0.00';
-                    amountPaidInput.setAttribute('readonly', 'readonly');
-                    amountPaidInput.classList.add('bg-light');
-                }
-                if (paymentMethodSelect) {
-                    paymentMethodSelect.value = 'cash';
-                    paymentMethodSelect.setAttribute('disabled', 'disabled');
-                }
-                if (chequeDetails) chequeDetails.style.display = 'none';
-                if (creditDetails) creditDetails.style.display = 'block';
-            } else {
-                if (amountPaidInput) {
-                    amountPaidInput.removeAttribute('readonly');
-                    amountPaidInput.classList.remove('bg-light');
-                }
-                if (paymentMethodSelect) {
-                    paymentMethodSelect.removeAttribute('disabled');
-                }
-                if (creditDetails) creditDetails.style.display = 'none';
-            }
-        }
-
-        // initialize state
-        updateForStatus(statusSelect.value || 'pending');
-
-        statusSelect.addEventListener('change', function() {
-            updateForStatus(this.value);
         });
     }
 
