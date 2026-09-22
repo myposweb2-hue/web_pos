@@ -47,10 +47,11 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label for="product_search" class="form-label">Add Product</label>
-                        <select class="form-select" id="product_search">
-                            <option value="" disabled selected>Search for a product to add</option>
+                        <input type="text" class="form-control" id="product_search" placeholder="Search product by name or barcode" autocomplete="off">
+                        <div id="product_results" class="list-group mt-2" style="display:none; max-height:220px; overflow-y:auto;"></div>
+                        <select id="product_search_options" class="d-none" aria-hidden="true">
                             {% for product in products %}
-                            <option value="{{ product.id }}" data-name="{{ product.name }}" data-cost="{{ product.cost_price or 0 }}">{{ product.name }}</option>
+                            <option value="{{ product.id }}" data-name="{{ product.name | e }}" data-cost="{{ product.cost_price or 0 }}">{{ product.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -110,71 +111,18 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const productSearch = document.getElementById('product_search');
+    const productResults = document.getElementById('product_results');
+    const productOptions = Array.from(document.querySelectorAll('#product_search_options option'));
     const itemsTableBody = document.querySelector('#itemsTable tbody');
     const totalAmountInput = document.getElementById('total_amount');
     const itemsJsonInput = document.getElementById('items_json');
     let items = [];
 
-    if (!productSearch || !itemsTableBody || !totalAmountInput || !itemsJsonInput) {
+    if (!productSearch || !productResults || !itemsTableBody || !totalAmountInput || !itemsJsonInput) {
         console.error('Required elements not found in the DOM');
         return;
     }
 
-    productSearch.addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        
-        if (!selectedOption || !selectedOption.value) {
-            console.warn('No option selected or empty value');
-            return;
-        }
-
-        const productId = selectedOption.value;
-        const productName = selectedOption.getAttribute('data-name') || selectedOption.textContent;
-        const costPrice = parseFloat(selectedOption.getAttribute('data-cost') || 0);
-
-        console.log('Selected product:', { productId, productName, costPrice });
-
-        if (items.some(item => item.product_id === productId)) {
-            alert('Product already added.');
-            return;
-        }
-
-        const item = { product_id: productId, name: productName, quantity: 1, cost_price: costPrice };
-        items.push(item);
-        console.log('Item added, total items:', items.length);
-        renderTable();
-        this.value = '';
-    });
-
-    function renderTable() {
-        itemsTableBody.innerHTML = '';
-        let totalAmount = 0;
-
-        if (items.length === 0) {
-            itemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center">No items added yet</td></tr>';
-        } else {
-            items.forEach((item, index) => {
-                const total = item.quantity * item.cost_price;
-                totalAmount += total;
-
-                const row = `
-                    <tr>
-                        <td>${escapeHtml(item.name)}</td>
-                        <td><input type="number" class="form-control quantity" value="${item.quantity}" data-index="${index}" min="1"></td>
-                        <td><input type="number" step="0.01" class="form-control cost_price" value="${item.cost_price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" data-index="${index}"></td>
-                        <td class="text-end">${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                        <td><button type="button" class="btn btn-sm btn-danger remove-item" data-index="${index}">&times;</button></td>
-                    </tr>
-                `;
-                itemsTableBody.insertAdjacentHTML('beforeend', row);
-            });
-        }
-
-        totalAmountInput.value = totalAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        itemsJsonInput.value = JSON.stringify(items);
-    }
-
-    // Helper function to escape HTML
     function escapeHtml(text) {
         const map = {
             '&': '&amp;',
@@ -183,31 +131,177 @@ document.addEventListener('DOMContentLoaded', function() {
             '"': '&quot;',
             "'": '&#039;'
         };
-        return text.replace(/[&<>"']/g, m => map[m]);
+        return String(text ?? '').replace(/[&<>"']/g, m => map[m]);
+    }
+
+    function addItemToPurchase(productId, productName, costPrice) {
+        if (items.some(item => Number(item.product_id) === Number(productId))) {
+            alert('Product already added.');
+            return;
+        }
+
+        items.push({
+            product_id: Number(productId),
+            name: String(productName || ''),
+            quantity: 1,
+            cost_price: Number(costPrice || 0)
+        });
+        renderTable();
+        productSearch.value = '';
+        productResults.style.display = 'none';
+        productResults.innerHTML = '';
+    }
+
+    function renderProductSuggestions() {
+        const term = (productSearch.value || '').trim().toLowerCase();
+        const filtered = productOptions.filter(option => {
+            const name = (option.dataset.name || option.textContent || '').toLowerCase();
+            const value = option.value || '';
+            return !term || name.includes(term) || value.includes(term);
+        }).slice(0, 12);
+
+        productResults.innerHTML = '';
+
+        if (!filtered.length) {
+            const emptyRow = document.createElement('div');
+            emptyRow.className = 'list-group-item text-muted';
+            emptyRow.textContent = 'No products found';
+            productResults.appendChild(emptyRow);
+            productResults.style.display = 'block';
+            return;
+        }
+
+        filtered.forEach(option => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'list-group-item list-group-item-action';
+            button.setAttribute('data-product-id', option.value);
+            button.setAttribute('data-product-name', option.dataset.name || option.textContent || '');
+            button.setAttribute('data-product-cost', option.dataset.cost || '0');
+
+            const name = document.createElement('div');
+            name.className = 'fw-semibold';
+            name.textContent = option.dataset.name || option.textContent || '';
+
+            const meta = document.createElement('small');
+            meta.className = 'text-muted';
+            meta.textContent = 'Cost: ' + Number(option.dataset.cost || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+            button.appendChild(name);
+            button.appendChild(meta);
+            button.addEventListener('click', function() {
+                addItemToPurchase(option.value, option.dataset.name || option.textContent || '', option.dataset.cost || 0);
+            });
+            productResults.appendChild(button);
+        });
+
+        productResults.style.display = 'block';
+    }
+
+    productSearch.addEventListener('input', renderProductSuggestions);
+    productSearch.addEventListener('focus', renderProductSuggestions);
+
+    function updateSummary() {
+        let totalAmount = 0;
+        items.forEach(item => {
+            totalAmount += Number(item.quantity || 0) * Number(item.cost_price || 0);
+        });
+
+        totalAmountInput.value = totalAmount.toFixed(2);
+        itemsJsonInput.value = JSON.stringify(items.map(item => ({
+            product_id: Number(item.product_id),
+            name: item.name,
+            quantity: Number(item.quantity || 0),
+            cost_price: Number(item.cost_price || 0)
+        })));
+    }
+
+    function renderTable() {
+        itemsTableBody.innerHTML = '';
+
+        if (items.length === 0) {
+            itemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center">No items added yet</td></tr>';
+            updateSummary();
+            return;
+        }
+
+        items.forEach((item, index) => {
+            const total = Number(item.quantity || 0) * Number(item.cost_price || 0);
+            const row = `
+                <tr>
+                    <td>${escapeHtml(item.name)}</td>
+                    <td>
+                        <input type="number" class="form-control quantity" value="${Number(item.quantity || 0)}" data-index="${index}" min="1" step="0.001">
+                    </td>
+                    <td>
+                        <input type="number" class="form-control cost_price" value="${Number(item.cost_price || 0).toFixed(2)}" data-index="${index}" min="0" step="0.01">
+                    </td>
+                    <td class="text-end" data-role="line-total">${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td><button type="button" class="btn btn-sm btn-danger remove-item" data-index="${index}">&times;</button></td>
+                </tr>
+            `;
+            itemsTableBody.insertAdjacentHTML('beforeend', row);
+        });
+
+        updateSummary();
     }
 
     itemsTableBody.addEventListener('input', function(e) {
-        if (e.target.classList.contains('quantity') || e.target.classList.contains('cost_price')) {
-            const index = parseInt(e.target.dataset.index);
-            if (index >= 0 && index < items.length) {
-                items[index].quantity = parseFloat(e.target.closest('tr').querySelector('.quantity').value) || 0;
-                items[index].cost_price = parseFloat(e.target.closest('tr').querySelector('.cost_price').value) || 0;
-                renderTable();
-            }
+        const target = e.target;
+        if (!target.classList.contains('quantity') && !target.classList.contains('cost_price')) {
+            return;
         }
+
+        const index = Number(target.dataset.index);
+        if (Number.isNaN(index) || index < 0 || index >= items.length) {
+            return;
+        }
+
+        const row = target.closest('tr');
+        if (!row) {
+            return;
+        }
+
+        const quantityInput = row.querySelector('.quantity');
+        const costInput = row.querySelector('.cost_price');
+        const quantity = parseFloat(quantityInput.value) || 0;
+        const costPrice = parseFloat(costInput.value) || 0;
+
+        items[index].quantity = quantity;
+        items[index].cost_price = costPrice;
+
+        const total = quantity * costPrice;
+        const totalCell = row.querySelector('[data-role="line-total"]');
+        if (totalCell) {
+            totalCell.textContent = total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        updateSummary();
     });
 
     itemsTableBody.addEventListener('click', function(e) {
-        if (e.target.classList.contains('remove-item')) {
-            const index = parseInt(e.target.dataset.index);
-            if (index >= 0 && index < items.length) {
-                items.splice(index, 1);
-                renderTable();
-            }
+        const removeBtn = e.target.closest('.remove-item');
+        if (!removeBtn) {
+            return;
+        }
+
+        const index = Number(removeBtn.dataset.index);
+        if (Number.isNaN(index) || index < 0 || index >= items.length) {
+            return;
+        }
+
+        items.splice(index, 1);
+        renderTable();
+    });
+
+    document.getElementById('purchaseForm').addEventListener('submit', function(e) {
+        updateSummary();
+        if (!items.length || items.some(item => Number(item.quantity || 0) <= 0 || Number(item.cost_price || 0) < 0)) {
+            e.preventDefault();
+            alert('Add at least one product with a valid quantity and cost price.');
         }
     });
 
-    // Initial render to show empty state
     renderTable();
 });
 </script>
