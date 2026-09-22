@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4>Transfer History - {{ company.name }}</h4>
+    <div>
+      <a href="/" class="btn btn-sm btn-secondary">Home</a>
+      <a href="/companies" class="btn btn-sm btn-primary">Back to Companies</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div id="transferHistoryAlert"></div>
+      <table class="table table-sm table-striped" id="transferHistoryTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Date</th>
+            <th>Product</th>
+            <th>Type</th>
+            <th>Quantity</th>
+            <th>Previous</th>
+            <th>New</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const companyId = {{ company.id }};
+    function showAlert(msg, type='danger'){
+      document.getElementById('transferHistoryAlert').innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+    }
+    function loadHistory(){
+      fetch(`/api/companies/${companyId}/transfer-history`)
+        .then(r => { if(!r.ok) throw new Error('Failed to load'); return r.json(); })
+        .then(data => {
+          const tbody = document.querySelector('#transferHistoryTable tbody');
+          tbody.innerHTML = '';
+          if(!data || data.length === 0){
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No transfer history found</td></tr>';
+            return;
+          }
+          data.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+              <td>${row.id}</td>
+              <td>${row.date ? new Date(row.date).toLocaleString() : ''}</td>
+              <td>${row.product_name || ''} (${row.product_id || ''})</td>
+              <td>${row.transaction_type}</td>
+              <td>${row.quantity}</td>
+              <td>${row.previous_stock}</td>
+              <td>${row.new_stock}</td>
+              <td>${row.notes || ''}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        })
+        .catch(err => showAlert('Unable to load transfer history.'));
+    }
+    document.addEventListener('DOMContentLoaded', loadHistory);
+  })();
+</script>
+
+{% endblock %}

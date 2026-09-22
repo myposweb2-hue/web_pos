@@ -255,6 +255,17 @@ def company_transfer_history(company_id):
 
     return jsonify(result)
 
+
+@companies_bp.route('/<int:company_id>/transfer-history-page')
+@login_required
+def transfer_history_page(company_id):
+    """Render a simple page showing recent transfer history for a company (Super Admin only)."""
+    if not (current_user.role and current_user.role.lower() == 'super admin'):
+        return jsonify({'error': 'Only Super Admin can view transfer history'}), 403
+
+    company = Company.query.get_or_404(company_id)
+    return render_template('companies/transfer_history.html', company=company)
+
 @companies_bp.route('/api/companies/<int:company_id>/products')
 @csrf.exempt
 @login_required
