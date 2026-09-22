@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-pos_db}
       POSTGRES_USER: ${DB_USER:-pos_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secure_password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-codilight1998}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -33,7 +33,7 @@ services:
     build: .
     container_name: pos_app
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-pos_user}:${DB_PASSWORD:-secure_password}@db:5432/${DB_NAME:-pos_db}
+      DATABASE_URL: postgresql://${DB_USER:-pos_user}:${DB_PASSWORD:-codilight1998}@db:5432/${DB_NAME:-pos_db}
       FLASK_ENV: ${FLASK_ENV:-production}
       SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-this}
       # Development default uses MailHog SMTP on localhost:1025 when FLASK_ENV=development
