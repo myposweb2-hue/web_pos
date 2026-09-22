@@ -406,6 +406,33 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // keyboard navigation state for productResults
+    let productResultsActive = -1;
+
+    function setActiveResult(index) {
+        const children = Array.from(productResults.querySelectorAll('button'));
+        children.forEach((ch, i) => {
+            if (i === index) {
+                ch.classList.add('active');
+                ch.setAttribute('aria-selected', 'true');
+                ch.scrollIntoView({ block: 'nearest' });
+            } else {
+                ch.classList.remove('active');
+                ch.setAttribute('aria-selected', 'false');
+            }
+        });
+        productResultsActive = index;
+    }
+
+    function clearActiveResult() {
+        const children = Array.from(productResults.querySelectorAll('button'));
+        children.forEach(ch => {
+            ch.classList.remove('active');
+            ch.setAttribute('aria-selected', 'false');
+        });
+        productResultsActive = -1;
+    }
+
     function filterProductsForSupplier() {
         const supplierId = supplierSelect ? supplierSelect.value : '';
         // nothing to hide in hidden select; we'll filter when showing results
@@ -441,6 +468,8 @@ document.addEventListener('DOMContentLoaded', function() {
             el.type = 'button';
             el.className = 'list-group-item list-group-item-action';
             el.textContent = p.name;
+            el.setAttribute('role', 'option');
+            el.setAttribute('tabindex', '-1');
             el.dataset.id = p.id;
             el.dataset.name = p.name;
             el.dataset.cost = p.cost;
@@ -448,6 +477,8 @@ document.addEventListener('DOMContentLoaded', function() {
             productResults.appendChild(el);
         });
         productResults.style.display = 'block';
+        // reset keyboard nav state
+        clearActiveResult();
     }
 
     productSearchInput.addEventListener('input', function() {
@@ -462,6 +493,30 @@ document.addEventListener('DOMContentLoaded', function() {
             return (p.name || '').toLowerCase().includes(q) || (p.barcode || '').toLowerCase().includes(q);
         });
         showProductResults(filtered);
+    });
+
+    // keyboard navigation: ArrowDown / ArrowUp / Enter / Escape
+    productSearchInput.addEventListener('keydown', function(e) {
+        const buttons = Array.from(productResults.querySelectorAll('button'));
+        if (!buttons.length || productResults.style.display === 'none') return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const next = Math.min(productResultsActive + 1, buttons.length - 1);
+            setActiveResult(next);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const prev = Math.max(productResultsActive - 1, 0);
+            setActiveResult(prev);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const idx = productResultsActive >= 0 ? productResultsActive : 0;
+            const btn = buttons[idx];
+            if (btn) btn.click();
+        } else if (e.key === 'Escape') {
+            productResults.style.display = 'none';
+            clearActiveResult();
+        }
     });
 
     productResults.addEventListener('click', function(e) {
