@@ -94,8 +94,6 @@
                                 <span class="badge bg-success text-capitalize">{{ purchase.status }}</span>
                                 {% elif purchase.status == 'partial' %}
                                 <span class="badge bg-warning text-capitalize">{{ purchase.status }}</span>
-                                {% elif purchase.status == 'credit' %}
-                                <span class="badge bg-info text-capitalize">{{ purchase.status }}</span>
                                 {% else %}
                                 <span class="badge bg-danger text-capitalize">{{ purchase.status }}</span>
                                 {% endif %}
@@ -217,7 +215,6 @@
                                         <option value="cheque">Cheque</option>
                                         <option value="card">Card</option>
                                         <option value="bank_transfer">Bank Transfer</option>
-                                        <option value="credit">Credit</option>
                                     </select>
                                 </div>
                                 <div class="col-md-3 mb-3">
@@ -471,55 +468,41 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Status/payment toggle for credit purchases
+    // Status toggle for credit purchases
     const statusSelect = document.getElementById('status');
     const creditDetails = document.getElementById('credit_details');
     const amountPaidInput = document.getElementById('amount_paid');
-    function updateForCreditState(val) {
-        if (val === 'credit') {
-            if (amountPaidInput) {
-                amountPaidInput.value = '0.00';
-                amountPaidInput.setAttribute('readonly', 'readonly');
-                amountPaidInput.classList.add('bg-light');
-            }
-            if (paymentMethodSelect) {
-                // keep payment method in sync
-                paymentMethodSelect.value = 'credit';
-                paymentMethodSelect.setAttribute('disabled', 'disabled');
-            }
-            if (chequeDetails) chequeDetails.style.display = 'none';
-            if (creditDetails) creditDetails.style.display = 'block';
-            if (statusSelect) statusSelect.value = 'credit';
-        } else {
-            if (amountPaidInput) {
-                amountPaidInput.removeAttribute('readonly');
-                amountPaidInput.classList.remove('bg-light');
-            }
-            if (paymentMethodSelect) {
-                paymentMethodSelect.removeAttribute('disabled');
-            }
-            if (creditDetails) creditDetails.style.display = 'none';
-        }
-    }
-
-    // initialize state from either control
-    if (statusSelect) updateForCreditState(statusSelect.value || 'pending');
-    if (paymentMethodSelect && paymentMethodSelect.value === 'credit') updateForCreditState('credit');
-
     if (statusSelect) {
-        statusSelect.addEventListener('change', function() {
-            updateForCreditState(this.value);
-        });
-    }
-
-    if (paymentMethodSelect) {
-        paymentMethodSelect.addEventListener('change', function() {
-            if (this.value === 'credit') {
-                updateForCreditState('credit');
+        function updateForStatus(val) {
+            if (val === 'credit') {
+                if (amountPaidInput) {
+                    amountPaidInput.value = '0.00';
+                    amountPaidInput.setAttribute('readonly', 'readonly');
+                    amountPaidInput.classList.add('bg-light');
+                }
+                if (paymentMethodSelect) {
+                    paymentMethodSelect.value = 'cash';
+                    paymentMethodSelect.setAttribute('disabled', 'disabled');
+                }
+                if (chequeDetails) chequeDetails.style.display = 'none';
+                if (creditDetails) creditDetails.style.display = 'block';
             } else {
-                // if user picks another payment method, clear credit state
-                updateForCreditState('');
+                if (amountPaidInput) {
+                    amountPaidInput.removeAttribute('readonly');
+                    amountPaidInput.classList.remove('bg-light');
+                }
+                if (paymentMethodSelect) {
+                    paymentMethodSelect.removeAttribute('disabled');
+                }
+                if (creditDetails) creditDetails.style.display = 'none';
             }
+        }
+
+        // initialize state
+        updateForStatus(statusSelect.value || 'pending');
+
+        statusSelect.addEventListener('change', function() {
+            updateForStatus(this.value);
         });
     }
 

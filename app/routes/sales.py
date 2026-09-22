@@ -1477,6 +1477,713 @@ def receipt_html_public(sale_id):
         
         # Currency
         'currency': currency_symbol_value,
+        'currency_symbol': currency_symbol_value,
+        # Whether to show QR code on receipt
+        'show_qr_code': _bool_setting(receipt_settings.get('show_qr_code', 'true'))
+    }
+    
+    # Select template based on format
+    if receipt_format == 'a4':
+        template = 'invoices/invoice_a4.html'
+    elif receipt_format == 'a5':
+        template = 'invoices/invoice_a5.html'
+    else:  # thermal
+        template = 'invoices/thermal_receipt_80mm_professional.html'
+    
+    return render_template(template, **context)
+
+@sales_bp.route('/api/sales/<int:sale_id>/receipt/pdf')
+@login_required
+def download_receipt_pdf(sale_id):
+    """Download receipt as PDF in specified format."""
+    from xhtml2pdf import pisa
+    from io import BytesIO
+    from app.routes.invoices import get_receipt_settings
+    
+    sale = get_sale_secure(sale_id)
+    if not sale:
+        return jsonify({'error': 'Sale not found'}), 404
+    
+    try:
+        # Get format from query parameter, default to 'a4'
+        format_type = request.args.get('format', 'a4').lower()
+        
+        # Validate format
+        if format_type not in ['thermal', 'a4', 'a5']:
+            format_type = 'a4'
+        
+        # Get receipt settings
+        company_id = get_company_id()
+        receipt_settings = get_receipt_settings(company_id)
+        
+        # Prepare template data matching the invoice template variables
+        business_name = receipt_settings.get('business_name', 'YOUR STORE')
+        
+        # Build items list
+        items = []
+        for sale_item in sale.items:
+            # Get product name from relationship
+            product_name = sale_item.product.name if hasattr(sale_item, 'product') and sale_item.product else 'Unknown Product'
+            
+            # Use product ID as item code (fallback to sale_item.product_id or 'N/A')
+            if hasattr(sale_item, 'product') and sale_item.product and getattr(sale_item.product, 'id', None):
+                product_code = str(sale_item.product.id)
+            else:
+                product_code = str(getattr(sale_item, 'product_id', 'N/A') or 'N/A')
+            
+            # Get price from SaleItem (correct attribute name)
+            unit_price = float(sale_item.price) if hasattr(sale_item, 'price') else 0.0
+            qty = float(sale_item.quantity)
+            discount = float(sale_item.discount) if sale_item.discount else 0.0
+            tax = float(sale_item.tax) if sale_item.tax else 0.0
+            line_total = (unit_price * qty) - discount + tax
+            
+            items.append({
+                'code': product_code,
+                'description': product_name,
+                'qty': qty,
+                'unit_price': unit_price,
+                'discount': discount,
+                'tax': tax,
+                'total': line_total
+            })
+        
+        # Calculate totals from actual sale item values
+        subtotal = sum(item['unit_price'] * item['qty'] for item in items)
+        discount_total = sum(item['discount'] for item in items)
+        tax_total = sum(item['tax'] for item in items)
+        total = _sale_total_for_display(sale)
+        
+        # Calculate paid amount correctly
+        # For Cash/Cheque: always fully paid
+        # For Credit: paid_amount = total - balance
+        paid_amount, balance_due, calculated_change, calculated_payment_status, linked_payment_total, effective_payment_method, display_cash_received = _receipt_settlement(sale)
+        
+        # Build template data
+        discount_base = subtotal + discount_total
+        discount_percentage = round((discount_total / discount_base) * 100, 2) if discount_base > 0 else 0.0
+        receipt_customer = _receipt_customer_details(sale, company_id)
+        template_data = {
+            'company': {
+                'name': business_name,
+                'address': receipt_settings.get('business_address', ''),
+                'city': receipt_settings.get('business_city', ''),
+                'phone': receipt_settings.get('business_phone', ''),
+                'email': receipt_settings.get('business_email', ''),
+                'website': receipt_settings.get('business_website', ''),
+                'tax_id': receipt_settings.get('business_gst', ''),
+            },
+            'customer': {
+                'name': receipt_customer['name'],
+                'company': '',
+                'address': receipt_customer['address'],
+                'city': '',
+                'phone': receipt_customer['phone'],
+                'email': receipt_customer['email'],
+            },
+            'invoice_number': f"RECEIPT-{sale.id}",
+            'invoice_date': sale.date.strftime('%m/%d/%Y') if sale.date else datetime.now().strftime('%m/%d/%Y'),
+            'due_date': '',
+            'status': calculated_payment_status,
+            'items': items,
+            'subtotal': subtotal,
+            'discount': discount_total,
+            'discount_total': discount_total,
+            'discount_percentage': discount_percentage,
+            'tax': f"Rs. {tax_total:.2f}",
+            'total': f"Rs. {total:.2f}",
+            'paid_amount': f"Rs. {paid_amount:.2f}",
+            'balance_due': f"Rs. {balance_due:.2f}",
+            'show_qr_code': _bool_setting(receipt_settings.get('show_qr_code', 'true'))
+        }
+        
+        # Select template based on format
+        if format_type == 'a4':
+            template_name = 'invoices/invoice_a4_professional.html'
+        elif format_type == 'a5':
+            template_name = 'invoices/invoice_a5_professional.html'
+        else:  # thermal
+            template_name = 'invoices/thermal_receipt_80mm.html'
+        
+        # Render HTML template
+        html_content = render_template(template_name, **template_data)
+        
+        # Convert HTML to PDF using xhtml2pdf
+        pdf_buffer = BytesIO()
+        pisa.CreatePDF(
+            BytesIO(html_content.encode('utf-8')),
+            pdf_buffer,
+            encoding='UTF-8'
+        )
+        pdf_buffer.seek(0)
+        
+        # Return PDF with cache-busting headers
+        filename = f'receipt_{sale_id}_{format_type}.pdf'
+        response = send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/pdf'
+        )
+        
+        # Prevent browser caching
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
+        return response
+        
+    except Exception as e:
+        current_app.logger.error(f"PDF generation failed: {str(e)}", exc_info=True)
+        return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
+
+
+@sales_bp.route('/api/sales/<int:sale_id>/receipt/html-public')
+def receipt_html_public(sale_id):
+    """Serve HTML receipt template without authentication (public link for WhatsApp/Email)."""
+    from app.routes.invoices import get_receipt_settings
+    from datetime import datetime, timedelta
+    
+    # Get sale without company restriction for public access
+    sale = Sale.query.get(sale_id)
+    if not sale:
+        return jsonify({'error': 'Sale not found'}), 404
+    
+    # Get format from query parameter, default to thermal
+    receipt_format = request.args.get('format', 'thermal').lower()
+    if receipt_format not in ['thermal', 'a4', 'a5']:
+        receipt_format = 'thermal'
+    
+    # Get sale items
+    items = SaleItem.query.filter_by(sale_id=sale.id).all()
+    
+    # Prepare item data for template (same as receipt_html)
+    items_data = []
+    subtotal = 0
+    for item in items:
+        product_name = item.product.name if hasattr(item, 'product') and item.product else 'Unknown Product'
+        product_code = 'N/A'
+        if hasattr(item, 'product') and item.product:
+            if hasattr(item.product, 'product_code') and item.product.product_code:
+                product_code = item.product.product_code
+            elif hasattr(item.product, 'barcode') and item.product.barcode:
+                product_code = item.product.barcode
+        
+        item_discount = item.discount if hasattr(item, 'discount') and item.discount else 0
+        item_tax = item.tax if hasattr(item, 'tax') and item.tax else 0
+        item_price_before_discount = item.price * item.quantity
+        item_total = item_price_before_discount - item_discount + item_tax
+        
+        item_data = {
+            'code': product_code,
+            'name': product_name,
+            'quantity': item.quantity,
+            'unit_price': item.price,
+            'discount': item_discount,
+            'tax_amount': item_tax,
+            'total': item_total
+        }
+        items_data.append(item_data)
+        subtotal += item_total
+    
+    discount_total = sum(item['discount'] for item in items_data)
+    discount_base = subtotal + discount_total
+    discount_percentage = round((discount_total / discount_base) * 100, 2) if discount_base > 0 else 0.0
+    tax_total = sum(item['tax_amount'] for item in items_data)
+    
+    tax_rate = 0
+    if tax_total > 0 and subtotal > 0:
+        tax_rate = round((tax_total / subtotal) * 100, 1)
+    
+    paid_amount, balance_due, calculated_change, calculated_payment_status, linked_payment_total, effective_payment_method, display_cash_received = _receipt_settlement(sale)
+    
+    # Get receipt settings using the integrated function
+    company_id = get_company_id()
+    # Fallback to sale's company_id if get_company_id() returns None
+    if not company_id and hasattr(sale, 'company_id'):
+        company_id = sale.company_id
+    current_app.logger.info(f"[RECEIPT DEBUG] company_id: {company_id}, sale.company_id: {sale.company_id}")
+    receipt_settings = get_receipt_settings(company_id)
+    current_app.logger.info(f"[RECEIPT DEBUG] Retrieved settings - business_name: {receipt_settings.get('business_name')}, thank_you: {receipt_settings.get('thank_you_message')}")
+    
+    # Get currency symbol from settings
+    from app.models import Setting
+    currency_symbol = Setting.query.filter_by(
+        setting_category='currency',
+        setting_key='symbol',
+        company_id=company_id
+    ).first()
+    
+    if not currency_symbol:
+        # Fallback to general category
+        currency_symbol = Setting.query.filter_by(
+            setting_category='general',
+            setting_key='currency_symbol',
+            company_id=company_id
+        ).first()
+    
+    currency_symbol_value = currency_symbol.setting_value if currency_symbol else 'Rs. '
+    
+    # Resolve the uploaded business logo, including legacy unscoped settings.
+    logo_setting = Setting.query.filter_by(
+        setting_category='general', setting_key='logo_path', company_id=company_id
+    ).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter_by(
+            setting_category='receipt', setting_key='logo_path', company_id=company_id
+        ).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter_by(
+            setting_category='receipt', setting_key='receipt_logo', company_id=company_id
+        ).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'general', Setting.setting_key == 'logo_path',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'receipt', Setting.setting_key == 'logo_path',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'receipt', Setting.setting_key == 'receipt_logo',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    logo_url = _receipt_logo_data_uri(logo_setting)
+
+    # Cashier name from user
+    cashier_name = getattr(getattr(sale, 'user', None), 'username', 'Cashier')
+    
+    # Payment status determination
+    payment_status = calculated_payment_status
+    
+    # Convert UTC time to local time (add 6 hours for Asia/Kolkata timezone)
+    local_sale_date = sale.date + timedelta(hours=6)
+    
+    # Due date calculation (30 days from invoice date)
+    due_date = (local_sale_date + timedelta(days=30)).strftime('%Y-%m-%d')
+    
+    receipt_customer = _receipt_customer_details(sale, company_id)
+
+    context = {
+        # Basic sale info
+        'sale': sale,
+        'invoice_number': f"INV-{sale.id}",
+        'invoice_date': local_sale_date.strftime('%Y-%m-%d'),
+        'due_date': due_date,
+        'payment_status': payment_status,
+        'status': payment_status,  # Alias for template compatibility
+        'sale_date': local_sale_date.strftime('%Y-%m-%d'),
+        'sale_time': local_sale_date.strftime('%H:%M'),
+        
+        # Customer info
+        'customer_name': receipt_customer['name'],
+        'customer_address': receipt_customer['address'],
+        'customer_phone': receipt_customer['phone'],
+        'customer_email': receipt_customer['email'],
+        
+        # Shipping info (if applicable)
+        'shipping_name': getattr(sale, 'shipping_name', ''),
+        'shipping_address': getattr(sale, 'shipping_address', ''),
+        'shipping_phone': getattr(sale, 'shipping_phone', ''),
+        
+        # Payment info
+        'payment_method': effective_payment_method,
+        'cashier_name': cashier_name,
+        
+        # Items
+        'items': items_data,
+
+        # Totals
+        'subtotal': subtotal_before,
+        'subtotal_after_discount': subtotal_after,
+        'discount': discount_total,
+        'discount_total': discount_total,
+        'discount_percentage': discount_percentage,
+        'tax_amount': tax_total,
+        'tax_total': tax_total,
+        'tax_rate': tax_rate,
+        'total': _sale_total_for_display(sale),
+        'paid_amount': paid_amount,
+        'linked_payment_total': linked_payment_total,
+        'balance_due': balance_due,
+        'cash_given': display_cash_received,
+        'change': calculated_change,
+        'balance': getattr(sale, 'balance', 0),
+        
+        # Business info - Use business_name key which is now available from get_receipt_settings
+        'business_name': receipt_settings.get('business_name', 'POS SYSTEM'),
+        'business_address': receipt_settings.get('business_address'),
+        'business_phone': receipt_settings.get('business_phone'),
+        'business_email': receipt_settings.get('business_email'),
+        'business_gst': receipt_settings.get('business_gst'),
+        'website': receipt_settings.get('website', ''),
+        'logo_url': logo_url,
+        
+        # Template content
+        'thank_you_message': receipt_settings.get('thank_you_message', 'Thank You for Your Business!'),
+        'warranty_info': receipt_settings.get('warranty_info'),
+        'footer_text': receipt_settings.get('footer_text', 'Generated by Web POS System'),
+        'notes': receipt_settings.get('invoice_notes'),
+        'terms': receipt_settings.get('invoice_terms'),
+        
+        # Currency
+        'currency': currency_symbol_value,
+        'currency_symbol': currency_symbol_value,
+        # Whether to show QR code on receipt
+        'show_qr_code': _bool_setting(receipt_settings.get('show_qr_code', 'true'))
+    }
+    
+    # Select template based on format
+    if receipt_format == 'a4':
+        template = 'invoices/invoice_a4.html'
+    elif receipt_format == 'a5':
+        template = 'invoices/invoice_a5.html'
+    else:  # thermal
+        template = 'invoices/thermal_receipt_80mm_professional.html'
+    
+    return render_template(template, **context)
+@sales_bp.route('/api/sales/<int:sale_id>/receipt/pdf')
+@login_required
+def download_receipt_pdf(sale_id):
+    """Download receipt as PDF in specified format."""
+    from xhtml2pdf import pisa
+    from io import BytesIO
+    from app.routes.invoices import get_receipt_settings
+    
+    sale = get_sale_secure(sale_id)
+    if not sale:
+        return jsonify({'error': 'Sale not found'}), 404
+    
+    try:
+        # Get format from query parameter, default to 'a4'
+        format_type = request.args.get('format', 'a4').lower()
+        
+        # Validate format
+        if format_type not in ['thermal', 'a4', 'a5']:
+            format_type = 'a4'
+        
+        # Get receipt settings
+        company_id = get_company_id()
+        receipt_settings = get_receipt_settings(company_id)
+        
+        # Prepare template data matching the invoice template variables
+        business_name = receipt_settings.get('business_name', 'YOUR STORE')
+        
+        # Build items list
+        items = []
+        for sale_item in sale.items:
+            # Get product name from relationship
+            product_name = sale_item.product.name if hasattr(sale_item, 'product') and sale_item.product else 'Unknown Product'
+            
+            # Use product ID as item code (fallback to sale_item.product_id or 'N/A')
+            if hasattr(sale_item, 'product') and sale_item.product and getattr(sale_item.product, 'id', None):
+                product_code = str(sale_item.product.id)
+            else:
+                product_code = str(getattr(sale_item, 'product_id', 'N/A') or 'N/A')
+            
+            # Get price from SaleItem (correct attribute name)
+            unit_price = float(sale_item.price) if hasattr(sale_item, 'price') else 0.0
+            qty = float(sale_item.quantity)
+            discount = float(sale_item.discount) if sale_item.discount else 0.0
+            tax = float(sale_item.tax) if sale_item.tax else 0.0
+            line_total = (unit_price * qty) - discount + tax
+            
+            items.append({
+                'code': product_code,
+                'description': product_name,
+                'qty': qty,
+                'unit_price': unit_price,
+                'discount': discount,
+                'tax': tax,
+                'total': line_total
+            })
+        
+        # Calculate totals from actual sale item values
+        subtotal = sum(item['unit_price'] * item['qty'] for item in items)
+        discount_total = sum(item['discount'] for item in items)
+        tax_total = sum(item['tax'] for item in items)
+        total = _sale_total_for_display(sale)
+        
+        # Calculate paid amount correctly
+        # For Cash/Cheque: always fully paid
+        # For Credit: paid_amount = total - balance
+        paid_amount, balance_due, calculated_change, calculated_payment_status, linked_payment_total, effective_payment_method, display_cash_received = _receipt_settlement(sale)
+        
+        # Build template data
+        discount_base = subtotal + discount_total
+        discount_percentage = round((discount_total / discount_base) * 100, 2) if discount_base > 0 else 0.0
+        receipt_customer = _receipt_customer_details(sale, company_id)
+        template_data = {
+            'company': {
+                'name': business_name,
+                'address': receipt_settings.get('business_address', ''),
+                'city': receipt_settings.get('business_city', ''),
+                'phone': receipt_settings.get('business_phone', ''),
+                'email': receipt_settings.get('business_email', ''),
+                'website': receipt_settings.get('business_website', ''),
+                'tax_id': receipt_settings.get('business_gst', ''),
+            },
+            'customer': {
+                'name': receipt_customer['name'],
+                'company': '',
+                'address': receipt_customer['address'],
+                'city': '',
+                'phone': receipt_customer['phone'],
+                'email': receipt_customer['email'],
+            },
+            'invoice_number': f"RECEIPT-{sale.id}",
+            'invoice_date': sale.date.strftime('%m/%d/%Y') if sale.date else datetime.now().strftime('%m/%d/%Y'),
+            'due_date': '',
+            'status': calculated_payment_status,
+            'items': items,
+            'subtotal': subtotal,
+            'discount': discount_total,
+            'discount_total': discount_total,
+            'discount_percentage': discount_percentage,
+            'tax': f"Rs. {tax_total:.2f}",
+            'total': f"Rs. {total:.2f}",
+            'paid_amount': f"Rs. {paid_amount:.2f}",
+            'balance_due': f"Rs. {balance_due:.2f}",
+            'show_qr_code': _bool_setting(receipt_settings.get('show_qr_code', 'true'))
+        }
+        
+        # Select template based on format
+        if format_type == 'a4':
+            template_name = 'invoices/invoice_a4_professional.html'
+        elif format_type == 'a5':
+            template_name = 'invoices/invoice_a5_professional.html'
+        else:  # thermal
+            template_name = 'invoices/thermal_receipt_80mm.html'
+        
+        # Render HTML template
+        html_content = render_template(template_name, **template_data)
+        
+        # Convert HTML to PDF using xhtml2pdf
+        pdf_buffer = BytesIO()
+        pisa.CreatePDF(
+            BytesIO(html_content.encode('utf-8')),
+            pdf_buffer,
+            encoding='UTF-8'
+        )
+        pdf_buffer.seek(0)
+        
+        # Return PDF with cache-busting headers
+        filename = f'receipt_{sale_id}_{format_type}.pdf'
+        response = send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/pdf'
+        )
+        
+        # Prevent browser caching
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+        
+        return response
+        
+    except Exception as e:
+        current_app.logger.error(f"PDF generation failed: {str(e)}", exc_info=True)
+        return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
+
+
+@sales_bp.route('/api/sales/<int:sale_id>/receipt/html-public')
+def receipt_html_public(sale_id):
+    """Serve HTML receipt template without authentication (public link for WhatsApp/Email)."""
+    from app.routes.invoices import get_receipt_settings
+    from datetime import datetime, timedelta
+    
+    # Get sale without company restriction for public access
+    sale = Sale.query.get(sale_id)
+    if not sale:
+        return jsonify({'error': 'Sale not found'}), 404
+    
+    # Get format from query parameter, default to thermal
+    receipt_format = request.args.get('format', 'thermal').lower()
+    if receipt_format not in ['thermal', 'a4', 'a5']:
+        receipt_format = 'thermal'
+    
+    # Get sale items
+    items = SaleItem.query.filter_by(sale_id=sale.id).all()
+    
+    # Prepare item data for template (same as receipt_html)
+    items_data = []
+    subtotal = 0
+    for item in items:
+        product_name = item.product.name if hasattr(item, 'product') and item.product else 'Unknown Product'
+        product_code = 'N/A'
+        if hasattr(item, 'product') and item.product:
+            if hasattr(item.product, 'product_code') and item.product.product_code:
+                product_code = item.product.product_code
+            elif hasattr(item.product, 'barcode') and item.product.barcode:
+                product_code = item.product.barcode
+        
+        item_discount = item.discount if hasattr(item, 'discount') and item.discount else 0
+        item_tax = item.tax if hasattr(item, 'tax') and item.tax else 0
+        item_price_before_discount = item.price * item.quantity
+        item_total = item_price_before_discount - item_discount + item_tax
+        
+        item_data = {
+            'code': product_code,
+            'name': product_name,
+            'quantity': item.quantity,
+            'unit_price': item.price,
+            'discount': item_discount,
+            'tax_amount': item_tax,
+            'total': item_total
+        }
+        items_data.append(item_data)
+        subtotal += item_total
+    
+    discount_total = sum(item['discount'] for item in items_data)
+    discount_base = subtotal + discount_total
+    discount_percentage = round((discount_total / discount_base) * 100, 2) if discount_base > 0 else 0.0
+    tax_total = sum(item['tax_amount'] for item in items_data)
+    
+    tax_rate = 0
+    if tax_total > 0 and subtotal > 0:
+        tax_rate = round((tax_total / subtotal) * 100, 1)
+    
+    paid_amount, balance_due, calculated_change, calculated_payment_status, linked_payment_total, effective_payment_method, display_cash_received = _receipt_settlement(sale)
+    
+    # Get receipt settings using the integrated function
+    company_id = get_company_id()
+    # Fallback to sale's company_id if get_company_id() returns None
+    if not company_id and hasattr(sale, 'company_id'):
+        company_id = sale.company_id
+    current_app.logger.info(f"[RECEIPT DEBUG] company_id: {company_id}, sale.company_id: {sale.company_id}")
+    receipt_settings = get_receipt_settings(company_id)
+    current_app.logger.info(f"[RECEIPT DEBUG] Retrieved settings - business_name: {receipt_settings.get('business_name')}, thank_you: {receipt_settings.get('thank_you_message')}")
+    
+    # Get currency symbol from settings
+    from app.models import Setting
+    currency_symbol = Setting.query.filter_by(
+        setting_category='currency',
+        setting_key='symbol',
+        company_id=company_id
+    ).first()
+    
+    if not currency_symbol:
+        # Fallback to general category
+        currency_symbol = Setting.query.filter_by(
+            setting_category='general',
+            setting_key='currency_symbol',
+            company_id=company_id
+        ).first()
+    
+    currency_symbol_value = currency_symbol.setting_value if currency_symbol else 'Rs. '
+    
+    # Resolve the uploaded business logo, including legacy unscoped settings.
+    logo_setting = Setting.query.filter_by(
+        setting_category='general', setting_key='logo_path', company_id=company_id
+    ).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter_by(
+            setting_category='receipt', setting_key='logo_path', company_id=company_id
+        ).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter_by(
+            setting_category='receipt', setting_key='receipt_logo', company_id=company_id
+        ).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'general', Setting.setting_key == 'logo_path',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'receipt', Setting.setting_key == 'logo_path',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    if not logo_setting:
+        logo_setting = Setting.query.filter(
+            Setting.setting_category == 'receipt', Setting.setting_key == 'receipt_logo',
+            Setting.company_id.is_(None)
+        ).order_by(Setting.id.desc()).first()
+    logo_url = _receipt_logo_data_uri(logo_setting)
+
+    # Cashier name from user
+    cashier_name = getattr(getattr(sale, 'user', None), 'username', 'Cashier')
+    
+    # Payment status determination
+    payment_status = calculated_payment_status
+    
+    # Convert UTC time to local time (add 6 hours for Asia/Kolkata timezone)
+    local_sale_date = sale.date + timedelta(hours=6)
+    
+    # Due date calculation (30 days from invoice date)
+    due_date = (local_sale_date + timedelta(days=30)).strftime('%Y-%m-%d')
+    
+    receipt_customer = _receipt_customer_details(sale, company_id)
+
+    context = {
+        # Basic sale info
+        'sale': sale,
+        'invoice_number': f"INV-{sale.id}",
+        'invoice_date': local_sale_date.strftime('%Y-%m-%d'),
+        'due_date': due_date,
+        'payment_status': payment_status,
+        'status': payment_status,  # Alias for template compatibility
+        'sale_date': local_sale_date.strftime('%Y-%m-%d'),
+        'sale_time': local_sale_date.strftime('%H:%M'),
+        
+        # Customer info
+        'customer_name': receipt_customer['name'],
+        'customer_address': receipt_customer['address'],
+        'customer_phone': receipt_customer['phone'],
+        'customer_email': receipt_customer['email'],
+        
+        # Shipping info (if applicable)
+        'shipping_name': getattr(sale, 'shipping_name', ''),
+        'shipping_address': getattr(sale, 'shipping_address', ''),
+        'shipping_phone': getattr(sale, 'shipping_phone', ''),
+        
+        # Payment info
+        'payment_method': effective_payment_method,
+        'cashier_name': cashier_name,
+        
+        # Items
+        'items': items_data,
+
+        # Totals
+        'subtotal': subtotal_before,
+        'subtotal_after_discount': subtotal_after,
+        'discount': discount_total,
+        'discount_total': discount_total,
+        'discount_percentage': discount_percentage,
+        'tax_amount': tax_total,
+        'tax_total': tax_total,
+        'tax_rate': tax_rate,
+        'total': _sale_total_for_display(sale),
+        'paid_amount': paid_amount,
+        'linked_payment_total': linked_payment_total,
+        'balance_due': balance_due,
+        'cash_given': display_cash_received,
+        'change': calculated_change,
+        'balance': getattr(sale, 'balance', 0),
+        
+        # Business info - Use business_name key which is now available from get_receipt_settings
+        'business_name': receipt_settings.get('business_name', 'POS SYSTEM'),
+        'business_address': receipt_settings.get('business_address'),
+        'business_phone': receipt_settings.get('business_phone'),
+        'business_email': receipt_settings.get('business_email'),
+        'business_gst': receipt_settings.get('business_gst'),
+        'website': receipt_settings.get('website', ''),
+        'logo_url': logo_url,
+        
+        # Template content
+        'thank_you_message': receipt_settings.get('thank_you_message', 'Thank You for Your Business!'),
+        'warranty_info': receipt_settings.get('warranty_info'),
+        'footer_text': receipt_settings.get('footer_text', 'Generated by Web POS System'),
+        'notes': receipt_settings.get('invoice_notes'),
+        'terms': receipt_settings.get('invoice_terms'),
+        
+        # Currency
+        'currency': currency_symbol_value,
         'currency_symbol': currency_symbol_value
     }
     
