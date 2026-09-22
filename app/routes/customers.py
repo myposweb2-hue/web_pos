@@ -537,9 +537,18 @@ def create_order():
 
         requested_date = (data.get('date') or '').strip()
         try:
-            sale_date = datetime.strptime(requested_date, '%Y-%m-%d') if requested_date else datetime.now()
+            if requested_date:
+                # If a date is supplied (YYYY-MM-DD) we keep the current time
+                # (UTC) so that newly created orders sort correctly by recency.
+                parsed = datetime.strptime(requested_date, '%Y-%m-%d')
+                now_utc = datetime.utcnow()
+                sale_date = datetime(parsed.year, parsed.month, parsed.day,
+                                     now_utc.hour, now_utc.minute, now_utc.second,
+                                     now_utc.microsecond)
+            else:
+                sale_date = datetime.utcnow()
         except ValueError:
-            sale_date = datetime.now()
+            sale_date = datetime.utcnow()
 
         sale = Sale(
             customer=customer.name,
