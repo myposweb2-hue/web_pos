@@ -2192,8 +2192,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Delete picture function
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', deleteProfilePicture);
+    const deleteBtnEl = document.getElementById('deleteBtn');
+    if (deleteBtnEl) {
+        deleteBtnEl.addEventListener('click', deleteProfilePicture);
     }
 
     function deleteProfilePicture() {
