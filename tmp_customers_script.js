@@ -10,6 +10,17 @@ $.ajaxSetup({
     }
 });
 
+// Utility: escape HTML to safely insert untrusted strings into innerHTML/attributes
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 
 $(document).ready(function() {
     
@@ -1092,10 +1103,10 @@ function loadTakeOrderProducts() {
                 item.className = 'd-flex justify-content-between align-items-center border rounded p-2 mb-2 bg-white';
                 item.innerHTML = `
                     <div>
-                        <strong>${product.name}</strong><br>
+                        <strong>${escapeHtml(product.name)}</strong><br>
                         <small class="text-muted">Stock: ${product.stock} | Price: ₨ ${parseFloat(product.price || 0).toFixed(2)}</small>
                     </div>
-                    <button class="btn btn-sm btn-success" type="button" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${product.price || 0}">Add</button>
+                    <button class="btn btn-sm btn-success" type="button" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${product.price || 0}">Add</button>
                 `;
                 results.append(item);
             });

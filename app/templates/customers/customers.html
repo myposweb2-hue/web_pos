@@ -3063,15 +3063,15 @@ function loadEditOrderProductResults(search = '') {
                 return;
             }
 
-            products.slice(0, 10).forEach(product => {
+                products.slice(0, 10).forEach(product => {
                 const row = document.createElement('div');
                 row.className = 'd-flex justify-content-between align-items-center border rounded p-2 mb-2 bg-light';
                 row.innerHTML = `
                     <div>
-                        <strong>${product.name}</strong><br>
+                        <strong>${escapeHtml(product.name)}</strong><br>
                         <small class="text-muted">₨ ${Number(product.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</small>
                     </div>
-                    <button class="btn btn-sm btn-success" type="button" data-role="add-product" data-product-id="${product.id}" data-product-name="${product.name}" data-product-price="${Number(product.price || 0)}">Add</button>
+                    <button class="btn btn-sm btn-success" type="button" data-role="add-product" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${Number(product.price || 0)}">Add</button>
                 `;
                 results.appendChild(row);
             });
@@ -3079,6 +3079,17 @@ function loadEditOrderProductResults(search = '') {
         .catch(() => {
             results.innerHTML = '<div class="text-danger">Unable to load products</div>';
         });
+}
+
+// Utility to escape HTML when inserting product names into innerHTML/attributes
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function addEditOrderItem(productId, productName, productPrice) {
@@ -3540,17 +3551,17 @@ function loadTakeOrderProducts() {
                 results.html('<div class="text-muted">No products found</div>');
                 return;
             }
-            filteredProducts.forEach(product => {
+                filteredProducts.forEach(product => {
                 const isTestProduct = Boolean(product.is_test || product.is_test_product || (Array.isArray(product.tags) && product.tags.some(tag => String(tag).toLowerCase() === 'test')) || /\btest\b/i.test(product.name || ''));
                 const testBadge = isTestProduct ? '<span class="badge bg-warning text-dark ms-2" title="Test product">TEST</span>' : '';
                 const item = document.createElement('div');
                 item.className = 'd-flex justify-content-between align-items-center border rounded p-2 mb-2 bg-white';
                 item.innerHTML = `
                     <div>
-                        <strong>${product.name}${testBadge}</strong><br>
+                        <strong>${escapeHtml(product.name)}${testBadge}</strong><br>
                         <small class="text-muted">Stock: ${product.stock} | Price: ₨ ${parseFloat(product.price || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</small>
                     </div>
-                    <button class="btn btn-sm btn-success" type="button" data-role="add-product" data-product-id="${product.id}" data-product-name="${(product.name || '').replace(/'/g, "\\'")}" data-product-price="${Number(product.price || 0)}">Add</button>
+                    <button class="btn btn-sm btn-success" type="button" data-role="add-product" data-product-id="${product.id}" data-product-name="${escapeHtml(product.name)}" data-product-price="${Number(product.price || 0)}">Add</button>
                 `;
                 results.append(item);
             });
