@@ -1140,7 +1140,7 @@ def receipt_html(sale_id):
 
 @sales_bp.route('/api/sales/<int:sale_id>/receipt/pdf')
 @login_required
-def download_receipt_pdf(sale_id):
+def download_receipt_pdf_v2(sale_id):
     """Download receipt as PDF in specified format."""
     from xhtml2pdf import pisa
     from io import BytesIO
@@ -1278,14 +1278,14 @@ def download_receipt_pdf(sale_id):
         response.headers['Expires'] = '0'
         
         return response
-        
-    except Exception as e:
-        current_app.logger.error(f"PDF generation failed: {str(e)}", exc_info=True)
-        return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
+
+        except Exception as e:
+            current_app.logger.error(f"PDF generation failed: {str(e)}", exc_info=True)
+            return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
 
 
-@sales_bp.route('/api/sales/<int:sale_id>/receipt/html-public')
-def receipt_html_public(sale_id):
+    @sales_bp.route('/api/sales/<int:sale_id>/receipt/html-public')
+    def receipt_html_public(sale_id):
     """Serve HTML receipt template without authentication (public link for WhatsApp/Email)."""
     from app.routes.invoices import get_receipt_settings
     from datetime import datetime, timedelta
@@ -1494,7 +1494,7 @@ def receipt_html_public(sale_id):
 
 @sales_bp.route('/api/sales/<int:sale_id>/receipt/pdf')
 @login_required
-def download_receipt_pdf(sale_id):
+def download_receipt_pdf_v3(sale_id):
     """Download receipt as PDF in specified format."""
     from xhtml2pdf import pisa
     from io import BytesIO
