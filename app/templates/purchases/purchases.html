@@ -204,17 +204,40 @@
                                     <input type="text" class="form-control fw-bold text-primary" id="total_amount_display" value="0.00" readonly>
                                     <input type="hidden" id="total_amount" name="total_amount" value="0.00" required>
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
                                     <label for="amount_paid" class="form-label">Amount Paid</label>
                                     <input type="number" step="0.01" class="form-control" id="amount_paid" name="amount_paid" value="0.00" required>
                                 </div>
-                                <div class="col-md-4 mb-3">
+                                <div class="col-md-3 mb-3">
+                                    <label for="payment_method" class="form-label">Payment Method</label>
+                                    <select class="form-select" id="payment_method" name="payment_method">
+                                        <option value="cash">Cash</option>
+                                        <option value="cheque">Cheque</option>
+                                        <option value="card">Card</option>
+                                        <option value="bank_transfer">Bank Transfer</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-3">
                                     <label for="status" class="form-label">Status</label>
                                     <select class="form-select" id="status" name="status" required>
                                         <option value="pending">Pending</option>
                                         <option value="partial">Partial</option>
                                         <option value="paid">Paid</option>
                                     </select>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <div id="cheque_details" style="display:none;">
+                                        <label class="form-label">Cheque Details</label>
+                                        <div class="mb-2">
+                                            <input type="text" class="form-control" id="cheque_number" name="cheque_number" placeholder="Cheque number">
+                                        </div>
+                                        <div class="mb-2">
+                                            <input type="text" class="form-control" id="cheque_bank" name="cheque_bank" placeholder="Bank name">
+                                        </div>
+                                        <div>
+                                            <input type="date" class="form-control" id="cheque_date" name="cheque_date" placeholder="Cheque date">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <button type="submit" class="btn btn-primary">Create Purchase</button>
@@ -393,6 +416,19 @@ document.addEventListener('DOMContentLoaded', function() {
         supplierSelect.addEventListener('change', () => { productResults.style.display = 'none'; });
     }
 
+    // Payment method toggle for cheque details
+    const paymentMethodSelect = document.getElementById('payment_method');
+    const chequeDetails = document.getElementById('cheque_details');
+    if (paymentMethodSelect && chequeDetails) {
+        paymentMethodSelect.addEventListener('change', function() {
+            if (this.value === 'cheque') {
+                chequeDetails.style.display = 'block';
+            } else {
+                chequeDetails.style.display = 'none';
+            }
+        });
+    }
+
     function showProductResults(list) {
         if (!list.length) {
             productResults.style.display = 'none';
@@ -547,6 +583,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('purchaseForm').reset();
         items = [];
         renderTable();
+        // hide cheque details after reset
+        const cd = document.getElementById('cheque_details');
+        if (cd) cd.style.display = 'none';
     });
 
     document.getElementById('purchaseForm').addEventListener('submit', function(e) {
