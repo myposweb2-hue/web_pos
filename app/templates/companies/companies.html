@@ -312,21 +312,35 @@ document.addEventListener('DOMContentLoaded', function() {
     const historyBtn = document.getElementById('viewTransferHistoryBtn');
     if (historyBtn) {
         historyBtn.addEventListener('click', function() {
-            const rows = document.querySelectorAll('#companiesTableBody tr');
-            let firstCompanyId = null;
-            rows.forEach(row => {
-                if (!firstCompanyId) {
-                    const btn = row.querySelector('a[href*="/transfer-history-page"]');
-                    if (btn) {
-                        firstCompanyId = btn.getAttribute('href').match(/\/companies\/(\d+)\/transfer-history-page/)[1];
+            fetch('/companies/api/company/current')
+                .then(response => response.json())
+                .then(data => {
+                    const targetCompanyId = data && data.company && data.company.id ? data.company.id : null;
+                    if (targetCompanyId) {
+                        window.location.href = `/companies/${targetCompanyId}/transfer-history-page`;
+                        return;
                     }
-                }
-            });
-            if (firstCompanyId) {
-                window.location.href = `/companies/${firstCompanyId}/transfer-history-page`;
-            } else {
-                alert('No company available to view history.');
-            }
+
+                    const rows = document.querySelectorAll('#companiesTableBody tr');
+                    let firstCompanyId = null;
+                    rows.forEach(row => {
+                        if (!firstCompanyId) {
+                            const btn = row.querySelector('a[href*="/transfer-history-page"]');
+                            if (btn) {
+                                const match = btn.getAttribute('href').match(/\/companies\/(\d+)\/transfer-history-page/);
+                                if (match) firstCompanyId = match[1];
+                            }
+                        }
+                    });
+                    if (firstCompanyId) {
+                        window.location.href = `/companies/${firstCompanyId}/transfer-history-page`;
+                    } else {
+                        alert('No company available to view history.');
+                    }
+                })
+                .catch(() => {
+                    alert('Unable to load the current company.');
+                });
         });
     }
 });
