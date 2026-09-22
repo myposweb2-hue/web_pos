@@ -1,6 +1,6 @@
 """Add credit metadata fields to purchases
 
-Revision ID: 009_add_credit_fields_to_purchase
+Revision ID: 009_credit_purchase_meta
 Revises: 008_add_sale_status
 Create Date: 2026-09-22 00:00:00.000000
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '009_add_credit_fields_to_purchase'
+revision = '009_credit_purchase_meta'
 down_revision = '008_add_sale_status'
 branch_labels = None
 depends_on = None
