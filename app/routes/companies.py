@@ -263,6 +263,10 @@ def transfer_history_page(company_id):
     if not (current_user.role and current_user.role.lower() == 'super admin'):
         return jsonify({'error': 'Only Super Admin can view transfer history'}), 403
 
+    current_selected_company = get_current_company()
+    if current_selected_company and current_selected_company.id != company_id:
+        return redirect(url_for('companies.transfer_history_page', company_id=current_selected_company.id))
+
     company = Company.query.get_or_404(company_id)
     return render_template('companies/transfer_history.html', company=company)
 
