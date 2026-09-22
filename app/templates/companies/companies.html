@@ -321,25 +321,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
 
-                    const rows = document.querySelectorAll('#companiesTableBody tr');
-                    let firstCompanyId = null;
-                    rows.forEach(row => {
-                        if (!firstCompanyId) {
-                            const btn = row.querySelector('a[href*="/transfer-history-page"]');
-                            if (btn) {
-                                const match = btn.getAttribute('href').match(/\/companies\/(\d+)\/transfer-history-page/);
-                                if (match) firstCompanyId = match[1];
-                            }
-                        }
-                    });
-                    if (firstCompanyId) {
-                        window.location.href = `/companies/${firstCompanyId}/transfer-history-page`;
-                    } else {
-                        alert('No company available to view history.');
-                    }
+                    alert('Please select a company first before opening Transfer History.');
+                    window.location.href = '/companies';
                 })
                 .catch(() => {
-                    alert('Unable to load the current company.');
+                    alert('Please select a company first before opening Transfer History.');
+                    window.location.href = '/companies';
                 });
         });
     }
