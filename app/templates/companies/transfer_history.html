@@ -31,9 +31,11 @@
   </div>
 </div>
 
+<div id="transferHistoryPage" data-company-id="{{ company.id }}"></div>
+
 <script>
   (function(){
-    const companyId = {{ company.id }};
+    const companyId = Number(document.getElementById('transferHistoryPage').dataset.companyId);
     function showAlert(msg, type='danger'){
       document.getElementById('transferHistoryAlert').innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
     }

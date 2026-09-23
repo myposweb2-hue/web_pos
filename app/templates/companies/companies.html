@@ -45,10 +45,10 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <button class="btn btn-sm btn-outline-primary" onclick="editCompany({{ company.id }})">
+                                <button class="btn btn-sm btn-outline-primary edit-company-btn" data-company-id="{{ company.id }}">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button class="btn btn-sm btn-outline-info" onclick="manageCompanyUsers({{ company.id }})">
+                                <button class="btn btn-sm btn-outline-info manage-company-users-btn" data-company-id="{{ company.id }}">
                                     <i class="fas fa-users"></i>
                                 </button>
                                 <a href="/companies/{{ company.id }}/transfer-history-page" class="btn btn-sm btn-outline-success" title="Transfer History">
@@ -308,13 +308,26 @@
 <script>
 var csrfToken = '{{ csrf_token() }}';
 
+document.addEventListener('click', function(event) {
+    const editBtn = event.target.closest('.edit-company-btn');
+    if (editBtn) {
+        editCompany(Number(editBtn.dataset.companyId));
+        return;
+    }
+
+    const usersBtn = event.target.closest('.manage-company-users-btn');
+    if (usersBtn) {
+        manageCompanyUsers(Number(usersBtn.dataset.companyId));
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     const historyBtn = document.getElementById('viewTransferHistoryBtn');
     if (historyBtn) {
         historyBtn.addEventListener('click', function() {
             fetch('/companies/api/company/current')
                 .then(response => response.json())
-                .then(data => {
+                .then((data) => {
                     const targetCompanyId = data && data.company && data.company.id ? data.company.id : null;
                     if (targetCompanyId) {
                         window.location.href = `/companies/${targetCompanyId}/transfer-history-page`;
