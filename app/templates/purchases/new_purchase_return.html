@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}New Purchase Return - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h2><i class="fas fa-undo-alt me-2"></i>New Purchase Return</h2>
+            <a href="{{ url_for('purchases.purchase_returns') }}" class="btn btn-secondary">Back to Returns</a>
+        </div>
+    </div>
+
+    <form id="returnForm" method="POST" action="{{ url_for('purchases.new_purchase_return') }}">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="original_purchase_id" class="form-label">Original Purchase</label>
+                    <select id="original_purchase_id" name="original_purchase_id" class="form-select" required>
+                        <option value="">Select purchase...</option>
+                        {% for p in purchases %}
+                            <option value="{{ p.id }}">#{{ p.id }} — {{ p.date.strftime('%d %b %Y') }} — {{ p.supplier.name if p.supplier else '' }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="date" class="form-label">Return Date</label>
+                    <input type="date" id="date" name="date" class="form-control" value="{{ now.strftime('%Y-%m-%d') }}" required />
+                </div>
+                <div class="mb-3">
+                    <label for="return_reason" class="form-label">Reason</label>
+                    <input type="text" id="return_reason" name="return_reason" class="form-control" placeholder="Reason for return" />
+                </div>
+                <div class="mb-3">
+                    <label for="notes" class="form-label">Notes</label>
+                    <textarea id="notes" name="notes" class="form-control" rows="3"></textarea>
+                </div>
+                <input type="hidden" id="total_refund_amount" name="total_refund_amount" value="0">
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-danger" id="submitReturnBtn">Create Return</button>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Items</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm" id="itemsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th class="text-end">Purchased Qty</th>
+                                        <th class="text-end">Return Qty</th>
+                                        <th class="text-end">Unit Cost</th>
+                                        <th class="text-end">Line Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="5" class="text-center text-muted">Select a purchase to load items</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Total Refund:</strong>
+                            <span id="totalRefundDisplay">Rs. 0.00</span>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-outline-secondary" id="clearItemsBtn">Clear</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+(function(){
+    const purchaseSelect = document.getElementById('original_purchase_id');
+    const itemsTableBody = document.querySelector('#itemsTable tbody');
+    const totalRefundDisplay = document.getElementById('totalRefundDisplay');
+    const totalRefundInput = document.getElementById('total_refund_amount');
+    const submitBtn = document.getElementById('submitReturnBtn');
+    const clearBtn = document.getElementById('clearItemsBtn');
+
+    function formatMoney(v){ return 'Rs. ' + Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+    purchaseSelect.addEventListener('change', function(){
+        const pid = this.value;
+        itemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading items…</td></tr>';
+        totalRefundDisplay.textContent = formatMoney(0);
+        totalRefundInput.value = 0;
+        if(!pid) return;
+        fetch(`/api/purchases/${pid}/items`)
+            .then(r => r.json())
+            .then(data => {
+                const items = data.items || [];
+                if(!items.length){
+                    itemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No items on this purchase</td></tr>';
+                    return;
+                }
+                itemsTableBody.innerHTML = '';
+                items.forEach(it => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${it.product_name}</td>
+                        <td class="text-end">${Number(it.quantity_purchased).toLocaleString()}</td>
+                        <td class="text-end"><input type="number" min="0" step="0.01" max="${it.quantity_purchased}" value="0" class="form-control form-control-sm return-qty-input" style="width:110px; margin-left:auto" data-unit-cost="${it.cost_price}" data-product-id="${it.product_id}"></td>
+                        <td class="text-end">${formatMoney(it.cost_price)}</td>
+                        <td class="text-end line-total">${formatMoney(0)}</td>
+                    `;
+                    itemsTableBody.appendChild(tr);
+                });
+                attachQtyListeners();
+            }).catch(err=>{
+                console.error('Failed to load purchase items', err);
+                itemsTableBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Unable to load items</td></tr>';
+            });
+    });
+
+    function attachQtyListeners(){
+        const inputs = document.querySelectorAll('.return-qty-input');
+        inputs.forEach(inp=>{
+            inp.addEventListener('input', updateTotals);
+        });
+    }
+
+    function updateTotals(){
+        let total = 0;
+        document.querySelectorAll('#itemsTable tbody tr').forEach(row=>{
+            const input = row.querySelector('.return-qty-input');
+            if(!input) return;
+            const qty = parseFloat(input.value) || 0;
+            const unit = parseFloat(input.getAttribute('data-unit-cost')) || 0;
+            const line = qty * unit;
+            row.querySelector('.line-total').textContent = formatMoney(line);
+            total += line;
+        });
+        totalRefundDisplay.textContent = formatMoney(total);
+        totalRefundInput.value = total.toFixed(2);
+    }
+
+    clearBtn.addEventListener('click', function(){
+        document.querySelectorAll('.return-qty-input').forEach(i=> i.value = 0);
+        updateTotals();
+    });
+
+    // On submit, collect items and post
+    document.getElementById('returnForm').addEventListener('submit', function(e){
+        const pid = purchaseSelect.value;
+        if(!pid){ e.preventDefault(); alert('Please select an original purchase.'); return; }
+        const items = [];
+        document.querySelectorAll('.return-qty-input').forEach(inp => {
+            const qty = parseFloat(inp.value) || 0;
+            if(qty > 0){
+                items.push({ product_id: parseInt(inp.getAttribute('data-product-id')), quantity: qty, unit_cost: parseFloat(inp.getAttribute('data-unit-cost')) });
+            }
+        });
+        if(items.length === 0){ e.preventDefault(); alert('Select at least one item to return.'); return; }
+
+        // Put items_json into a hidden input so server receives it via form
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'items_json';
+        hidden.value = JSON.stringify(items);
+        this.appendChild(hidden);
+        // allow normal submit to proceed
+    });
+})();
+</script>
+
+{% endblock %}
