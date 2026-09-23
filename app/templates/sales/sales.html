@@ -498,6 +498,8 @@ let offlineQueue = [];
 let activeCheckoutRequestId = null;
 let offlineSyncInProgress = false;
 let currentPayableTotal = 0;
+let productSearchAbortController = null;
+let productSearchRequestId = 0;
 const OFFLINE_QUEUE_KEY = 'infix_pos_offline_checkout_queue_v1';
 const CART_STATE_KEY = 'infix_pos_active_cart_v1';
 
@@ -653,6 +655,131 @@ if (typeof showNotification === 'undefined') {
             }
         }, 5000);
     }
+}
+
+// Receipt action functions
+function downloadReceipt() {
+    if (!lastSaleId && !pendingSaleId) {
+        showNotification('No sale available for receipt download', 'warning');
+        return;
+    }
+    const saleId = pendingSaleId || lastSaleId;
+    window.location.href = `/sales/api/sales/${saleId}/download-receipt`;
+}
+
+function printReceipt() {
+    if (!lastSaleId && !pendingSaleId) {
+        showNotification('No sale available for printing', 'warning');
+        return;
+    }
+    const saleId = pendingSaleId || lastSaleId;
+    window.open(`/sales/api/sales/${saleId}/receipt-html?print=true`, '_blank');
+}
+
+function sendReceiptViaWhatsapp() {
+    if (!lastSaleId && !pendingSaleId) {
+        showNotification('No sale available for WhatsApp', 'warning');
+        return;
+    }
+    const saleId = pendingSaleId || lastSaleId;
+    // Open modal for phone number input
+    showWhatsappNumberModal();
+}
+
+function sendReceiptViaWhatsappAPI(phoneNumber) {
+    if (!lastSaleId && !pendingSaleId) {
+        showNotification('No sale available for WhatsApp', 'warning');
+        return;
+    }
+    const saleId = pendingSaleId || lastSaleId;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    
+    fetch(`/sales/api/sales/${saleId}/send-whatsapp`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrf
+        },
+        body: JSON.stringify({ phone_number: phoneNumber })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Receipt sent via WhatsApp', 'success');
+        } else {
+            showNotification(data.error || 'Failed to send WhatsApp', 'danger');
+        }
+    })
+    .catch(err => {
+        console.error('Error sending WhatsApp:', err);
+        showNotification('Network error while sending WhatsApp', 'danger');
+    });
+}
+
+function showWhatsappNumberModal() {
+    const html = `
+    <div class="modal fade" id="whatsappNumberModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="fab fa-whatsapp me-2"></i>Send Receipt via WhatsApp</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="whatsappNumber" class="form-label">Phone Number:</label>
+                        <input type="tel" id="whatsappNumber" class="form-control" placeholder="Enter phone number" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" id="confirmWhatsappBtn">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+    
+    const existing = document.getElementById('whatsappNumberModal');
+    if (existing) existing.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+    
+    const modal = new bootstrap.Modal(document.getElementById('whatsappNumberModal'));
+    modal.show();
+}
+
+function showReceiptOptionsModal() {
+    const html = `
+    <div class="modal fade" id="receiptOptionsModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Receipt Options</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>What would you like to do with the receipt?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="receiptOptionPrintBtn">Print</button>
+                    <button type="button" class="btn btn-success" id="receiptOptionWhatsappBtn">WhatsApp</button>
+                    <button type="button" class="btn btn-secondary" id="receiptOptionSkipBtn" data-bs-dismiss="modal">Skip</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+    
+    const existing = document.getElementById('receiptOptionsModal');
+    if (existing) existing.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+    
+    const modal = new bootstrap.Modal(document.getElementById('receiptOptionsModal'));
+    modal.show();
+}
+
+function showReceiptActions() {
+    showReceiptOptionsModal();
 }
 
 // Initialize the page
@@ -1677,6 +1804,18 @@ function parseDisplayedNumber(value) {
 
 function formatMoney(value) {
     return Number(value || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+let productSearchTimeoutId = null;
+function scheduleProductSearch() {
+    if (productSearchTimeoutId) {
+        clearTimeout(productSearchTimeoutId);
+    }
+    const searchInput = document.getElementById('productSearch');
+    const categoryInput = document.getElementById('categoryFilter');
+    productSearchTimeoutId = setTimeout(() => {
+        loadProducts(searchInput.value, categoryInput.value);
+    }, 300);
 }
 
 function loadProducts(search = '', category = '') {
