@@ -12,6 +12,7 @@
     </div>
 
     <form id="returnForm" method="POST" action="{{ url_for('purchases.new_purchase_return') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="row">
             <div class="col-md-4">
                 <div class="mb-3">
@@ -107,10 +108,13 @@
                 itemsTableBody.innerHTML = '';
                 items.forEach(it => {
                     const tr = document.createElement('tr');
+                    // choose step based on unit type (allow decimals for weight/unit types like 'kg')
+                    const step = (it.unit_type === 'kg' || it.unit_type === 'kgm' || it.unit_type === 'kg.' ) ? '0.01' : '1';
+                    const maxQty = Number(it.quantity_available || it.quantity_purchased || 0);
                     tr.innerHTML = `
                         <td>${it.product_name}</td>
-                        <td class="text-end">${Number(it.quantity_purchased).toLocaleString()}</td>
-                        <td class="text-end"><input type="number" min="0" step="0.01" max="${it.quantity_purchased}" value="0" class="form-control form-control-sm return-qty-input" style="width:110px; margin-left:auto" data-unit-cost="${it.cost_price}" data-product-id="${it.product_id}"></td>
+                        <td class="text-end">${Number(it.quantity_purchased).toLocaleString()} <small class="text-muted d-block">available: ${Number(maxQty).toLocaleString()}</small></td>
+                        <td class="text-end"><input type="number" min="0" step="${step}" max="${maxQty}" value="0" class="form-control form-control-sm return-qty-input" style="width:110px; margin-left:auto" data-unit-cost="${it.cost_price}" data-product-id="${it.product_id}" data-unit-type="${it.unit_type}"></td>
                         <td class="text-end">${formatMoney(it.cost_price)}</td>
                         <td class="text-end line-total">${formatMoney(0)}</td>
                     `;
@@ -155,12 +159,20 @@
         const pid = purchaseSelect.value;
         if(!pid){ e.preventDefault(); alert('Please select an original purchase.'); return; }
         const items = [];
+        let invalid = null;
         document.querySelectorAll('.return-qty-input').forEach(inp => {
             const qty = parseFloat(inp.value) || 0;
+            const max = parseFloat(inp.getAttribute('max')) || 0;
+            const productId = parseInt(inp.getAttribute('data-product-id'));
             if(qty > 0){
-                items.push({ product_id: parseInt(inp.getAttribute('data-product-id')), quantity: qty, unit_cost: parseFloat(inp.getAttribute('data-unit-cost')) });
+                if(qty > max + 1e-9){
+                    invalid = `Return qty for product ID ${productId} exceeds available quantity (${max}).`;
+                    return;
+                }
+                items.push({ product_id: productId, quantity: qty, unit_cost: parseFloat(inp.getAttribute('data-unit-cost')) });
             }
         });
+        if(invalid){ e.preventDefault(); alert(invalid); return; }
         if(items.length === 0){ e.preventDefault(); alert('Select at least one item to return.'); return; }
 
         // Put items_json into a hidden input so server receives it via form
@@ -173,5 +185,57 @@
     });
 })();
 </script>
+
+{% if editing_return %}
+<script>
+// Prefill form when editing
+const EDITING_RETURN = {{ editing_return|tojson|safe }};
+const EDITING_ITEMS = {{ editing_items|tojson|safe }};
+(function(){
+    const purchaseSelect = document.getElementById('original_purchase_id');
+    const dateInput = document.getElementById('date');
+    const reasonInput = document.getElementById('return_reason');
+    const notesInput = document.getElementById('notes');
+    const totalInput = document.getElementById('total_refund_amount');
+    const submitBtn = document.getElementById('submitReturnBtn');
+    if(!EDITING_RETURN) return;
+    // set header fields
+    purchaseSelect.value = EDITING_RETURN.original_purchase_id;
+    if(dateInput && EDITING_RETURN.date) dateInput.value = EDITING_RETURN.date;
+    if(reasonInput) reasonInput.value = EDITING_RETURN.return_reason || '';
+    if(notesInput) notesInput.value = EDITING_RETURN.notes || '';
+    if(totalInput) totalInput.value = Number(EDITING_RETURN.refund_amount || 0).toFixed(2);
+    if(submitBtn) submitBtn.textContent = 'Update Return';
+
+    // trigger change to load items, then populate quantities
+    purchaseSelect.dispatchEvent(new Event('change'));
+
+    let tries = 0;
+    const maxTries = 40;
+    const t = setInterval(function(){
+        tries++;
+        const inputs = document.querySelectorAll('.return-qty-input');
+        if(inputs.length > 0 || tries >= maxTries){
+            clearInterval(t);
+            // map editing items by product_id
+            const map = {};
+            if(Array.isArray(EDITING_ITEMS)){
+                EDITING_ITEMS.forEach(it => { map[Number(it.product_id)] = Number(it.quantity); });
+            }
+            inputs.forEach(inp => {
+                const pid = Number(inp.getAttribute('data-product-id'));
+                if(map[pid] !== undefined){
+                    inp.value = map[pid];
+                }
+            });
+            // update totals after populating
+            if(typeof updateTotals === 'function'){
+                updateTotals();
+            }
+        }
+    }, 150);
+})();
+</script>
+{% endif %}
 
 {% endblock %}

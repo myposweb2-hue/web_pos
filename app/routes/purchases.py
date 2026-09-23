@@ -4,7 +4,7 @@ from app.utils.permissions import require_permission
 from app.utils.security import get_company_id, require_company_context
 from app.models import db, Purchase, Supplier, PurchaseReturn, Product, PurchaseItem, InventoryTransaction, PurchaseReturnItem
 from app.utils.inventory_batches import create_purchase_batch
-from sqlalchemy import desc, or_
+from sqlalchemy import desc, or_, func
 from datetime import datetime
 import json
 
@@ -293,23 +293,39 @@ def new_purchase_return():
                 if not product:
                     raise Exception(f"Product with ID {item['product_id']} not found.")
 
+                # Validate against purchased qty and previous returns
+                purchase_item = PurchaseItem.query.filter_by(purchase_id=original_purchase.id, product_id=item['product_id']).first()
+                purchased_qty = float(purchase_item.quantity) if purchase_item and purchase_item.quantity else 0.0
+                returned_total = db.session.query(func.sum(PurchaseReturnItem.quantity)).join(PurchaseReturn, PurchaseReturnItem.purchase_return_id == PurchaseReturn.id).filter(
+                    PurchaseReturn.original_purchase_id == original_purchase.id,
+                    PurchaseReturnItem.product_id == item['product_id']
+                ).scalar()
+                returned_qty = float(returned_total or 0.0)
+                available_qty = max(purchased_qty - returned_qty, 0.0)
+
+                req_qty = float(item.get('quantity', 0))
+                if req_qty <= 0:
+                    raise Exception('Return quantity must be greater than zero for each returned item.')
+                if req_qty > available_qty + 1e-9:
+                    raise Exception(f'Return quantity for product {product.name} exceeds available quantity ({available_qty}).')
+
                 return_item = PurchaseReturnItem(
                     purchase_return_id=purchase_return.id,
                     product_id=item['product_id'],
-                    quantity=float(item['quantity']),
+                    quantity=req_qty,
                     unit_cost=float(item['unit_cost']),
-                    total_cost=float(item['quantity']) * float(item['unit_cost']),
+                    total_cost=req_qty * float(item['unit_cost']),
                     company_id=get_company_id()  # Set company_id
                 )
                 db.session.add(return_item)
 
                 # Update product stock
                 previous_stock = product.stock
-                product.stock -= float(item['quantity'])
+                product.stock -= req_qty
                 
                 inv_trans = InventoryTransaction(
                     product_id=product.id, transaction_type='purchase_return',
-                    quantity=float(item['quantity']), previous_stock=previous_stock,
+                    quantity=req_qty, previous_stock=previous_stock,
                     new_stock=product.stock, reference_id=purchase_return.id,
                     company_id=get_company_id()  # Set company_id
                 )
@@ -337,6 +353,135 @@ def new_purchase_return():
     purchases = purchases_query.order_by(desc(Purchase.date)).limit(100).all()
     return render_template('purchases/new_purchase_return.html', suppliers=suppliers, purchases=purchases, now=datetime.now())
 
+
+@purchases_bp.route('/purchases/returns/<int:return_id>/edit', methods=['GET', 'POST'])
+@login_required
+@require_permission('can_manage_purchase_returns')
+def edit_purchase_return(return_id):
+    """Edit an existing purchase return. GET renders prefilled form, POST applies edits."""
+    company_id = get_company_id()
+    pr_query = PurchaseReturn.query.filter_by(id=return_id)
+    if company_id and hasattr(PurchaseReturn, 'company_id'):
+        pr_query = pr_query.filter(PurchaseReturn.company_id == company_id)
+    pr = pr_query.first()
+    if not pr:
+        flash('Purchase return not found.', 'danger')
+        return redirect(url_for('purchases.purchase_returns'))
+
+    if request.method == 'POST':
+        data = request.form
+        items_json = data.get('items_json')
+        if not items_json:
+            flash('No items selected for return.', 'danger')
+            return redirect(url_for('purchases.purchase_returns'))
+        try:
+            items = json.loads(items_json)
+            # Reverse previous return stock effects
+            for old in list(pr.items):
+                prod = Product.query.filter_by(id=old.product_id).first()
+                if prod:
+                    prev = prod.stock
+                    prod.stock += float(old.quantity)
+                    inv_trans = InventoryTransaction(
+                        product_id=prod.id, transaction_type='return_edited_reverse',
+                        quantity=float(old.quantity), previous_stock=prev, new_stock=prod.stock,
+                        reference_id=pr.id, company_id=get_company_id(),
+                        )
+                    db.session.add(inv_trans)
+                db.session.delete(old)
+
+            # Update return header
+            pr.date = datetime.strptime(data.get('date'), '%Y-%m-%d')
+            pr.return_reason = data.get('return_reason')
+            pr.notes = data.get('notes')
+            pr.refund_amount = float(data.get('total_refund_amount') or 0)
+
+            # Recreate return items and apply stock changes
+            for item in items:
+                product_query = Product.query.filter_by(id=item['product_id'])
+                if company_id and hasattr(Product, 'company_id'):
+                    product_query = product_query.filter(Product.company_id == company_id)
+                product = product_query.first()
+                if not product:
+                    raise Exception(f"Product with ID {item['product_id']} not found.")
+
+                # Validate against purchased qty and previous returns (excluding this PR which we've removed)
+                purchase_item = PurchaseItem.query.filter_by(purchase_id=pr.original_purchase_id, product_id=item['product_id']).first()
+                purchased_qty = float(purchase_item.quantity) if purchase_item and purchase_item.quantity else 0.0
+                returned_total = db.session.query(func.sum(PurchaseReturnItem.quantity)).join(PurchaseReturn, PurchaseReturnItem.purchase_return_id == PurchaseReturn.id).filter(
+                    PurchaseReturn.original_purchase_id == pr.original_purchase_id,
+                    PurchaseReturnItem.product_id == item['product_id']
+                ).scalar()
+                returned_qty = float(returned_total or 0.0)
+                available_qty = max(purchased_qty - returned_qty, 0.0)
+
+                req_qty = float(item.get('quantity', 0))
+                if req_qty <= 0:
+                    raise Exception('Return quantity must be greater than zero for each returned item.')
+                if req_qty > available_qty + 1e-9:
+                    raise Exception(f'Return quantity for product {product.name} exceeds available quantity ({available_qty}).')
+
+                return_item = PurchaseReturnItem(
+                    purchase_return_id=pr.id,
+                    product_id=item['product_id'],
+                    quantity=req_qty,
+                    unit_cost=float(item['unit_cost']),
+                    total_cost=req_qty * float(item['unit_cost']),
+                    company_id=get_company_id()
+                )
+                db.session.add(return_item)
+
+                previous_stock = product.stock
+                product.stock -= req_qty
+                inv_trans = InventoryTransaction(
+                    product_id=product.id, transaction_type='purchase_return',
+                    quantity=req_qty, previous_stock=previous_stock,
+                    new_stock=product.stock, reference_id=pr.id,
+                    company_id=get_company_id()
+                )
+                db.session.add(inv_trans)
+
+            db.session.commit()
+            flash(f'Purchase Return #{pr.id} updated successfully!', 'success')
+            return redirect(url_for('purchases.purchase_returns'))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating purchase return: {str(e)}', 'danger')
+            return redirect(url_for('purchases.purchase_returns'))
+
+    # GET: render the same template but include the purchase return data so form can prefill
+    # Build a simple dict of items
+    pr_items = []
+    for it in pr.items:
+        pr_items.append({
+            'product_id': it.product_id,
+            'product_name': it.product.name if it.product else 'Unknown',
+            'quantity': float(it.quantity),
+            'unit_cost': float(it.unit_cost)
+        })
+
+    editing_return = {
+        'id': pr.id,
+        'original_purchase_id': pr.original_purchase_id,
+        'date': pr.date.strftime('%Y-%m-%d') if pr.date else None,
+        'return_reason': pr.return_reason or '',
+        'notes': pr.notes or '',
+        'refund_amount': float(pr.refund_amount) if pr.refund_amount else 0.0
+    }
+
+    suppliers_query = Supplier.query
+    if company_id and hasattr(Supplier, 'company_id'):
+        suppliers_query = suppliers_query.filter(Supplier.company_id == company_id)
+    suppliers = suppliers_query.order_by(Supplier.name).all()
+
+    purchases_query = Purchase.query
+    if company_id and hasattr(Purchase, 'company_id'):
+        purchases_query = purchases_query.filter(Purchase.company_id == company_id)
+    purchases = purchases_query.order_by(desc(Purchase.date)).limit(100).all()
+
+    return render_template('purchases/new_purchase_return.html', suppliers=suppliers, purchases=purchases, now=datetime.now(), editing_return=editing_return, editing_items=pr_items)
+
 @purchases_bp.route('/api/purchases/<int:purchase_id>/items')
 @login_required
 @require_permission('can_access_purchases')
@@ -351,11 +496,22 @@ def get_purchase_items(purchase_id):
         return jsonify({'error': 'Purchase not found'}), 404
     items = []
     for item in purchase.items:
+        purchased_qty = float(item.quantity) if item.quantity else 0
+        # Sum previous returns for this purchase and product to compute available quantity
+        returned_total = db.session.query(func.sum(PurchaseReturnItem.quantity)).join(PurchaseReturn, PurchaseReturnItem.purchase_return_id == PurchaseReturn.id).filter(
+            PurchaseReturn.original_purchase_id == purchase_id,
+            PurchaseReturnItem.product_id == item.product_id
+        ).scalar()
+        returned_qty = float(returned_total or 0)
+        available_qty = max(purchased_qty - returned_qty, 0)
         items.append({
             'product_id': item.product_id,
             'product_name': item.product.name,
-            'quantity_purchased': float(item.quantity) if item.quantity else 0,
-            'cost_price': float(item.cost_price) if item.cost_price else 0
+            'quantity_purchased': purchased_qty,
+            'quantity_returned': returned_qty,
+            'quantity_available': available_qty,
+            'cost_price': float(item.cost_price) if item.cost_price else 0,
+            'unit_type': (item.product.unit_type if item.product and hasattr(item.product, 'unit_type') else 'unit')
         })
     return jsonify({'supplier_id': purchase.supplier_id, 'items': items})
 
