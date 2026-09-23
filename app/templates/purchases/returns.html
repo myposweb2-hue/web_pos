@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Purchase Returns - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-undo-alt me-2"></i>Purchase Returns</h2>
+                <div>
+                    <button class="btn btn-primary" id="refreshBtn">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Section -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Total Returns</h6>
+                    <h3 class="mb-0">{{ purchase_returns|length }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title text-muted">Total Refunded</h6>
+                    <h3 class="mb-0">Rs. {{ "%.2f"|format(total_refunds) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Returns Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Return History</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        {% if purchase_returns %}
+                            <table class="table table-hover table-sm">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Return ID</th>
+                                        <th>Purchase ID</th>
+                                        <th>Supplier</th>
+                                        <th>Date</th>
+                                        <th>Items</th>
+                                        <th>Refund Amount</th>
+                                        <th>Reason</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for return in purchase_returns %}
+                                        <tr>
+                                            <td>
+                                                <strong>#{{ return.id }}</strong>
+                                            </td>
+                                            <td>#{{ return.purchase_id }}</td>
+                                            <td>
+                                                {% if return.purchase and return.purchase.supplier %}
+                                                    {{ return.purchase.supplier.name }}
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if return.date %}
+                                                    {{ return.date.strftime('%d %b %Y') }}
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if return.items|length > 0 %}
+                                                    <span class="badge bg-info">{{ return.items|length }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <strong>Rs. {{ "%.2f"|format(return.refund_amount or 0) }}</strong>
+                                            </td>
+                                            <td>{{ return.reason or '-' }}</td>
+                                            <td>
+                                                {% if return.status %}
+                                                    {% if return.status == 'completed' %}
+                                                        <span class="badge bg-success">Completed</span>
+                                                    {% elif return.status == 'pending' %}
+                                                        <span class="badge bg-warning">Pending</span>
+                                                    {% elif return.status == 'rejected' %}
+                                                        <span class="badge bg-danger">Rejected</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">{{ return.status }}</span>
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end">
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <button type="button" class="btn btn-outline-primary" title="View Details">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">No purchase returns found</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('refreshBtn').addEventListener('click', function() {
+    location.reload();
+});
+</script>
+{% endblock %}
