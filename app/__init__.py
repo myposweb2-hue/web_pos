@@ -8,6 +8,9 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config, get_config
 from app.models import db, User, Setting, Company
 
+DEFAULT_ADMIN_USERNAME = 'admin'
+DEFAULT_ADMIN_PASSWORD = 'Amazir@adminimicon1999'
+
 # Initialize extensions
 login_manager = LoginManager()
 migrate = Migrate()
@@ -162,10 +165,10 @@ def create_app(config_class=None):
                 db.session.commit()
 
                 # Create default Super Admin user if not exists (skip in testing)
-                super_admin = User.query.filter_by(username='admin').first()
+                super_admin = User.query.filter_by(username=DEFAULT_ADMIN_USERNAME).first()
                 if not super_admin:
                     super_admin = User(
-                        username='admin',
+                        username=DEFAULT_ADMIN_USERNAME,
                         email='admin@example.com',
                         role='Super Admin',
                         # Super Admin gets ALL permissions
@@ -195,11 +198,12 @@ def create_app(config_class=None):
                         can_view_backup_settings=True,
                         can_view_hardware_settings=True
                     )
-                    super_admin.set_password('admin123')
+                    super_admin.set_password(DEFAULT_ADMIN_PASSWORD)
                     db.session.add(super_admin)
                     db.session.commit()
                 else:
                     # Upgrade existing admin user to Super Admin role if not already
+                    super_admin.set_password(DEFAULT_ADMIN_PASSWORD)
                     if super_admin.role != 'Super Admin':
                         super_admin.role = 'Super Admin'
                         # Grant all permissions
@@ -228,7 +232,7 @@ def create_app(config_class=None):
                         super_admin.can_view_terminal_settings = True
                         super_admin.can_view_backup_settings = True
                         super_admin.can_view_hardware_settings = True
-                        db.session.commit()
+                    db.session.commit()
                 
                 # Create default company if none exists
                 if not Company.query.first():

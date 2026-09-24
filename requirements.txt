@@ -5,7 +5,7 @@ Flask-WTF==1.1.1
 Flask-SocketIO==5.3.4
 Flask-Mail==0.9.1
 Flask-Migrate==4.0.5
-SQLAlchemy==2.0.19
+SQLAlchemy==2.0.54
 WTForms==3.0.1
 email-validator==2.0.0
 psycopg2-binary==2.9.6
