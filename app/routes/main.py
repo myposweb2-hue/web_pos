@@ -68,12 +68,15 @@ def dashboard():
     # Get total orders this month
     month_orders_count = len(month_sales)
 
-    # Calculate profit this month
-    # Get sale items for this month's sales
-    month_sale_ids = [sale.id for sale in month_sales]
-    month_sale_items = SaleItem.query.filter(SaleItem.sale_id.in_(month_sale_ids)).all() if month_sale_ids else []
-    # Profit = sum((selling_price - cost_price) * quantity)
-    month_profit = sum((item.price - (item.product.cost_price if item.product else 0)) * item.quantity for item in month_sale_items)
+    # Calculate profit this month (only if user has permission)
+    month_profit = 0
+    user_can_view_profit = current_user and hasattr(current_user, 'can_view_profit') and current_user.can_view_profit
+    if user_can_view_profit:
+        # Get sale items for this month's sales
+        month_sale_ids = [sale.id for sale in month_sales]
+        month_sale_items = SaleItem.query.filter(SaleItem.sale_id.in_(month_sale_ids)).all() if month_sale_ids else []
+        # Profit = sum((selling_price - cost_price) * quantity)
+        month_profit = sum((item.price - (item.product.cost_price if item.product else 0)) * item.quantity for item in month_sale_items)
 
     # Get low stock products
     low_stock_products = Product.query.filter(
@@ -128,6 +131,7 @@ def dashboard():
                          week_sales_count=len(week_sales),
                          month_orders_count=month_orders_count,
                          month_profit=month_profit,
+                         user_can_view_profit=user_can_view_profit,
                          low_stock_count=len(low_stock_products),
                          products_count=products_count,
                          recent_sales=recent_sales,
@@ -144,6 +148,11 @@ def get_sales_chart_data():
         company_id = get_company_id()
         period = request.args.get('period', 'week')  # day, week, month, year
         metric = request.args.get('metric', 'total')  # total, net, count, profit
+        
+        # Permission check: deny access to profit metric if user lacks permission
+        if metric == 'profit':
+            if not (current_user and hasattr(current_user, 'can_view_profit') and current_user.can_view_profit):
+                return jsonify({'error': 'Permission denied: You do not have access to profit data'}), 403
         
         today = datetime.utcnow().date()
         labels = []

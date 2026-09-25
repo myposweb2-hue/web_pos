@@ -142,6 +142,7 @@
     </div>
 
     <!-- Profit Card -->
+    {% if user_can_view_profit %}
     <div class="col-md-3 mb-4">
         <div class="card dashboard-summary-card dashboard-gradient-amber text-white">
             <div class="card-body">
@@ -158,6 +159,7 @@
             </div>
         </div>
     </div>
+    {% endif %}
 
     <!-- Low Stock Alert -->
     <div class="col-md-3 mb-4">
@@ -199,7 +201,9 @@
                             <option value="total">Gross Sales</option>
                             <option value="net">Net Sales (After Returns)</option>
                             <option value="count">Transaction Count</option>
+                            {% if user_can_view_profit %}
                             <option value="profit">Profit</option>
+                            {% endif %}
                         </select>
                     </div>
                     <div class="col-md-6">
