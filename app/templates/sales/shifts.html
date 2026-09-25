@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Cashier Shift | {{ app_name }}{% endblock %}
 {% block content %}
-<div class="container-fluid py-2 shift-page">
+<div class="container-fluid py-2 shift-page" data-user-role="{{ current_user.role }}">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <div>
             <h1 class="h4 mb-1"><i class="fas fa-cash-register me-2 text-primary"></i>Cashier Shift</h1>
@@ -59,7 +59,7 @@
     </div>
     <div class="card shadow-sm border-0 mt-3">
         <div class="card-header bg-white"><strong>Recent Shift History</strong></div>
-        <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Shift</th><th>Opened</th><th>Closed</th><th>Opening</th><th>Expected</th><th>Actual</th><th>Variance</th><th>Status</th></tr></thead><tbody id="shiftHistoryBody"><tr><td colspan="8" class="text-center text-muted py-3">Loading shift history...</td></tr></tbody></table></div>
+        <div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Shift</th><th>Opened</th><th>Closed</th><th>Opening</th><th>Expected</th><th>Actual</th><th>Variance</th><th>Status</th><th>Actions</th></tr></thead><tbody id="shiftHistoryBody"><tr><td colspan="9" class="text-center text-muted py-3">Loading shift history...</td></tr></tbody></table></div>
     </div>
 </div>
 {% endblock %}
@@ -67,7 +67,14 @@
 <script>
 const shiftCurrency = '₨';
 const money = value => `${shiftCurrency} ${Number(value || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-function shiftMessage(text, type = 'success') { const el = document.getElementById('shiftAlert'); el.className = `alert alert-${type}`; el.textContent = text; }
+let currentUserRole = null;
+
+function shiftMessage(text, type = 'success') { 
+    const el = document.getElementById('shiftAlert'); 
+    el.className = `alert alert-${type}`; 
+    el.textContent = text; 
+}
+
 function renderShift(shift) {
     const open = Boolean(shift && shift.status === 'open');
     document.getElementById('shiftTitle').textContent = open ? `Shift #${shift.id}` : 'No open shift';
@@ -82,12 +89,132 @@ function renderShift(shift) {
     document.getElementById('customerPayments').textContent = money(shift.customer_payments);
     document.getElementById('expectedCash').textContent = money(shift.expected_cash);
 }
-async function loadShift() { const response = await fetch('/api/shifts/current'); const data = await response.json(); renderShift(data.shift); }
-async function loadHistory() { const response = await fetch('/api/shifts/history'); const data = await response.json(); const body = document.getElementById('shiftHistoryBody'); body.innerHTML = data.shifts.length ? data.shifts.map(x => { const statusKey = String(x.status || (x.closed_at ? 'closed' : 'open')).toLowerCase(); const isOpen = statusKey === 'open'; const statusLabel = isOpen ? 'Open' : (statusKey === 'closed' ? 'Closed' : statusKey.charAt(0).toUpperCase() + statusKey.slice(1)); return `<tr><td>#${x.id}</td><td>${new Date(x.opened_at).toLocaleString()}</td><td>${x.closed_at ? new Date(x.closed_at).toLocaleString() : '—'}</td><td>${money(x.opening_cash)}</td><td>${money(x.expected_cash)}</td><td>${x.actual_cash === null ? '—' : money(x.actual_cash)}</td><td class="${Number(x.variance || 0) < 0 ? 'text-danger' : Number(x.variance || 0) > 0 ? 'text-success' : ''}">${x.variance === null ? '—' : money(x.variance)}</td><td><span class="shift-status-badge ${isOpen ? 'shift-status-open' : 'shift-status-closed'}">${statusLabel}</span></td></tr>`; }).join('') : '<tr><td colspan="8" class="text-center text-muted py-3">No shifts recorded yet.</td></tr>'; }
-async function submitShift(url, payload) { const response = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '', 'Accept': 'application/json'}, body: JSON.stringify(payload) }); const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(data.error || `Shift operation failed (${response.status})`); return data; }
-async function openShiftSubmit(event) { event.preventDefault(); const button = document.querySelector('#openShiftForm button'); if (!button) { shiftMessage('Open Shift control is unavailable. Please refresh the page.', 'danger'); return false; } const original = button.innerHTML; button.disabled = true; button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Opening...'; try { const data = await submitShift('/api/shifts/open', {opening_cash: document.getElementById('openingCash').value}); renderShift(data.shift); await loadHistory(); shiftMessage(`Shift #${data.shift.id} opened successfully.`); } catch (error) { shiftMessage(error.message, 'danger'); } finally { button.disabled = false; button.innerHTML = original; } return false; }
-async function closeShiftSubmit(event) { event.preventDefault(); const button = document.querySelector('#closeShiftForm button'); if (!button) { shiftMessage('Close and Reconcile control is unavailable. Please refresh the page.', 'danger'); return false; } const original = button.innerHTML; button.disabled = true; button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Closing...'; try { const data = await submitShift('/api/shifts/close', {actual_cash: document.getElementById('actualCash').value, notes: document.getElementById('shiftNotes').value}); renderShift(null); await loadHistory(); const variance = Number(data.shift.variance || 0); document.getElementById('variancePanel').classList.remove('d-none'); document.getElementById('varianceValue').textContent = money(variance); document.getElementById('varianceHint').textContent = variance === 0 ? 'Till reconciled exactly.' : (variance > 0 ? 'Overage recorded.' : 'Shortage recorded.'); shiftMessage('Shift closed and reconciled.'); } catch (error) { shiftMessage(error.message, 'danger'); } finally { button.disabled = false; button.innerHTML = original; } return false; }
-document.addEventListener('DOMContentLoaded', () => { loadShift().catch(error => shiftMessage(error.message, 'danger')); loadHistory().catch(error => shiftMessage(error.message, 'danger')); });
+
+async function loadShift() { 
+    const response = await fetch('/api/shifts/current'); 
+    const data = await response.json(); 
+    renderShift(data.shift); 
+}
+
+async function loadHistory() { 
+    const response = await fetch('/api/shifts/history'); 
+    const data = await response.json(); 
+    const body = document.getElementById('shiftHistoryBody'); 
+    body.innerHTML = data.shifts.length ? data.shifts.map(x => {
+        const statusKey = String(x.status || (x.closed_at ? 'closed' : 'open')).toLowerCase();
+        const isOpen = statusKey === 'open';
+        const statusLabel = isOpen ? 'Open' : (statusKey === 'closed' ? 'Closed' : statusKey.charAt(0).toUpperCase() + statusKey.slice(1));
+        const deleteBtn = currentUserRole && (currentUserRole.toLowerCase() === 'admin' || currentUserRole.toLowerCase() === 'super admin') 
+            ? `<button class="btn btn-sm btn-danger" onclick="deleteShift(${x.id})" title="Delete shift"><i class="fas fa-trash"></i></button>` 
+            : '';
+        return `<tr>
+            <td>#${x.id}</td>
+            <td>${x.opened_at}</td>
+            <td>${x.closed_at ? x.closed_at : '—'}</td>
+            <td>${money(x.opening_cash)}</td>
+            <td>${money(x.expected_cash)}</td>
+            <td>${x.actual_cash === null ? '—' : money(x.actual_cash)}</td>
+            <td class="${Number(x.variance || 0) < 0 ? 'text-danger' : Number(x.variance || 0) > 0 ? 'text-success' : ''}">${x.variance === null ? '—' : money(x.variance)}</td>
+            <td><span class="shift-status-badge ${isOpen ? 'shift-status-open' : 'shift-status-closed'}">${statusLabel}</span></td>
+            <td>${deleteBtn}</td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="9" class="text-center text-muted py-3">No shifts recorded yet.</td></tr>'; 
+}
+
+async function deleteShift(shiftId) {
+    if (!confirm(`Are you sure you want to delete Shift #${shiftId}? This action cannot be undone.`)) {
+        return;
+    }
+    try {
+        const response = await fetch(`/api/shifts/${shiftId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+            }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `Failed to delete shift (${response.status})`);
+        shiftMessage(`Shift #${shiftId} deleted successfully.`, 'success');
+        await loadHistory();
+    } catch (error) {
+        shiftMessage(error.message, 'danger');
+    }
+}
+
+async function submitShift(url, payload) { 
+    const response = await fetch(url, { 
+        method: 'POST', 
+        headers: {
+            'Content-Type': 'application/json', 
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '', 
+            'Accept': 'application/json'
+        }, 
+        body: JSON.stringify(payload) 
+    }); 
+    const data = await response.json().catch(() => ({})); 
+    if (!response.ok) throw new Error(data.error || `Shift operation failed (${response.status})`); 
+    return data; 
+}
+
+async function openShiftSubmit(event) { 
+    event.preventDefault(); 
+    const button = document.querySelector('#openShiftForm button'); 
+    if (!button) { 
+        shiftMessage('Open Shift control is unavailable. Please refresh the page.', 'danger'); 
+        return false; 
+    } 
+    const original = button.innerHTML; 
+    button.disabled = true; 
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Opening...'; 
+    try { 
+        const data = await submitShift('/api/shifts/open', {opening_cash: document.getElementById('openingCash').value}); 
+        renderShift(data.shift); 
+        await loadHistory(); 
+        shiftMessage(`Shift #${data.shift.id} opened successfully.`); 
+    } catch (error) { 
+        shiftMessage(error.message, 'danger'); 
+    } finally { 
+        button.disabled = false; 
+        button.innerHTML = original; 
+    } 
+    return false; 
+}
+
+async function closeShiftSubmit(event) { 
+    event.preventDefault(); 
+    const button = document.querySelector('#closeShiftForm button'); 
+    if (!button) { 
+        shiftMessage('Close and Reconcile control is unavailable. Please refresh the page.', 'danger'); 
+        return false; 
+    } 
+    const original = button.innerHTML; 
+    button.disabled = true; 
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Closing...'; 
+    try { 
+        const data = await submitShift('/api/shifts/close', {actual_cash: document.getElementById('actualCash').value, notes: document.getElementById('shiftNotes').value}); 
+        renderShift(null); 
+        await loadHistory(); 
+        const variance = Number(data.shift.variance || 0); 
+        document.getElementById('variancePanel').classList.remove('d-none'); 
+        document.getElementById('varianceValue').textContent = money(variance); 
+        document.getElementById('varianceHint').textContent = variance === 0 ? 'Till reconciled exactly.' : (variance > 0 ? 'Overage recorded.' : 'Shortage recorded.'); 
+        shiftMessage('Shift closed and reconciled.'); 
+    } catch (error) { 
+        shiftMessage(error.message, 'danger'); 
+    } finally { 
+        button.disabled = false; 
+        button.innerHTML = original; 
+    } 
+    return false; 
+}
+
+document.addEventListener('DOMContentLoaded', () => { 
+    // Read embedded user role from container to determine admin actions
+    currentUserRole = document.querySelector('.shift-page')?.dataset.userRole || null;
+    loadShift().catch(error => shiftMessage(error.message, 'danger')); 
+    loadHistory().catch(error => shiftMessage(error.message, 'danger')); 
+});
 </script>
 <style>
 .shift-status-badge { display:inline-flex; align-items:center; justify-content:center; min-width:78px; padding:.38rem .7rem; border-radius:999px; font-size:.78rem; font-weight:700; line-height:1.1; border:1px solid transparent; }

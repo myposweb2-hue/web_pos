@@ -46,8 +46,8 @@ def _serialize_shift(shift):
     return {
         'id': shift.id,
         'status': shift.status,
-        'opened_at': shift.opened_at.isoformat() if shift.opened_at else None,
-        'closed_at': shift.closed_at.isoformat() if shift.closed_at else None,
+        'opened_at': shift.opened_at.strftime('%Y-%m-%d %H:%M:%S') if shift.opened_at else None,
+        'closed_at': shift.closed_at.strftime('%Y-%m-%d %H:%M:%S') if shift.closed_at else None,
         'opening_cash': round(float(shift.opening_cash or 0), 2),
         'expected_cash': round(float(shift.expected_cash if shift.expected_cash is not None else summary['expected_cash']), 2),
         'actual_cash': round(float(shift.actual_cash), 2) if shift.actual_cash is not None else None,
@@ -136,3 +136,28 @@ def close_shift():
     shift.notes = (data.get('notes') or '').strip()
     db.session.commit()
     return jsonify({'success': True, 'shift': _serialize_shift(shift)})
+
+
+@shifts_bp.route('/api/shifts/<int:shift_id>', methods=['DELETE'])
+@login_required
+@require_permission('can_access_settings')
+def delete_shift(shift_id):
+    """Delete a shift (admin only)."""
+    # Only admins can delete shifts
+    if not current_user.role or current_user.role.lower() not in ['admin', 'super admin']:
+        return jsonify({'error': 'Only admins can delete shifts'}), 403
+    
+    query = CashierShift.query.filter_by(id=shift_id)
+    query = _company_filter(query, CashierShift)
+    shift = query.first()
+    
+    if not shift:
+        return jsonify({'error': 'Shift not found'}), 404
+    
+    try:
+        db.session.delete(shift)
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Shift #{shift_id} deleted successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to delete shift: {str(e)}'}), 500
