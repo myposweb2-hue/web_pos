@@ -87,7 +87,8 @@ def get_customers():
     page = int(request.args.get('page', 1))
     per_page = int(request.args.get('per_page', 50))
     search = request.args.get('search', '').strip()
-    sort_by = request.args.get('sort_by', 'name').strip()
+    # Default sorting: newest registration first
+    sort_by = request.args.get('sort_by', 'registration_date').strip()
     show_inactive_param = request.args.get('show_inactive', 'false')
     
     # Parse the show_inactive parameter correctly
@@ -122,8 +123,8 @@ def get_customers():
         query = query.order_by(desc(Customer.last_purchase_date))
     elif sort_by == 'loyalty_points':
         query = query.order_by(desc(Customer.loyalty_points))
-    else:  # Default to name
-        query = query.order_by(Customer.name)
+    else:  # Default to newest registration date
+        query = query.order_by(desc(Customer.registration_date))
 
     # Paginate results
     customers = query.paginate(page=page, per_page=per_page)
