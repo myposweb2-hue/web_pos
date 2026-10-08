@@ -8,6 +8,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import ImageReader
 from io import BytesIO
 import os
+import base64
+import tempfile
 from datetime import datetime
 from app.models import Setting
 import qrcode
@@ -17,6 +19,77 @@ class ReceiptGenerator:
     def __init__(self):
         self.styles = getSampleStyleSheet()
         self._setup_styles()
+
+    def _resolve_logo_source(self, business_settings=None):
+        """Return a usable logo source from general/receipt settings."""
+        business_settings = business_settings or self._get_business_settings()
+        candidates = []
+
+        for section in ('general', 'receipt'):
+            section_settings = business_settings.get(section, {}) or {}
+            for key in ('logo_path', 'receipt_logo', 'business_logo'):
+                if section_settings.get(key):
+                    candidates.append(section_settings.get(key))
+
+        for key in ('logo_path', 'receipt_logo', 'business_logo'):
+            if business_settings.get(key):
+                candidates.append(business_settings.get(key))
+
+        for value in candidates:
+            if not value:
+                continue
+            if isinstance(value, str) and value.strip().startswith('data:image/'):
+                return value
+            if isinstance(value, str) and value.strip():
+                return value
+        return ''
+
+    def _logo_file_path_from_source(self, logo_source):
+        """Normalize logo source into a real filesystem path when possible."""
+        if not logo_source:
+            return ''
+
+        source = str(logo_source).strip()
+        if source.startswith('data:image/'):
+            try:
+                header, encoded = source.split(',', 1)
+                mime = header.split(';', 1)[0].split(':', 1)[1]
+                ext = '.png'
+                if 'jpeg' in mime:
+                    ext = '.jpg'
+                elif 'gif' in mime:
+                    ext = '.gif'
+                elif 'bmp' in mime:
+                    ext = '.bmp'
+                image_bytes = base64.b64decode(encoded)
+                temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
+                os.close(temp_fd)
+                with open(temp_path, 'wb') as temp_file:
+                    temp_file.write(image_bytes)
+                return temp_path
+            except Exception:
+                return ''
+
+        if source.startswith('/'):
+            return source
+
+        if source.startswith('static/'):
+            root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            return os.path.join(root_path, source)
+
+        if source.startswith('app/'):
+            root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            return os.path.join(root_path, source.replace('app/', '', 1))
+
+        if os.path.exists(source):
+            return source
+
+        root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        candidate = os.path.join(root_path, 'static', 'uploads', os.path.basename(source))
+        if os.path.exists(candidate):
+            return candidate
+
+        return ''
 
     def _setup_styles(self):
         """Set up custom styles for the receipt."""
@@ -189,21 +262,18 @@ Business: {qr_business_name}
         # Logo - Check if show_logo is enabled in printing settings
         show_logo = business_settings.get('printing', {}).get('show_logo', 'true').lower() == 'true'
         if show_logo:
-            logo_path = business_settings.get('general', {}).get('logo_path', '')
+            logo_source = self._resolve_logo_source(business_settings)
+            logo_path = self._logo_file_path_from_source(logo_source)
             if logo_path:
                 try:
                     from flask import current_app
-                    # logo_path is stored as /static/uploads/filename
-                    # Convert to file system path: app_root/static/uploads/filename
-                    logo_file_path = os.path.join(current_app.root_path, logo_path.lstrip('/'))
-                    
-                    if os.path.exists(logo_file_path):
-                        logo = Image(logo_file_path, width=40*mm, height=20*mm)
+                    if os.path.exists(logo_path):
+                        logo = Image(logo_path, width=40*mm, height=20*mm)
                         logo.hAlign = 'CENTER'
                         story.append(logo)
                         story.append(Spacer(1, 3))
                     else:
-                        print(f"Logo file not found at: {logo_file_path}")
+                        print(f"Logo file not found at: {logo_path}")
                 except Exception as e:
                     print(f"Error loading logo: {e}")
 
