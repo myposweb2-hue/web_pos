@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, render_template, request
 from flask_login import current_user, login_required
 
-from app.models import CashierShift, CustomerPayment, Return, Sale, db
+from app.models import CashierShift, CustomerPayment, Return, Sale, Expense, db
 from app.utils.permissions import require_permission
 from app.utils.security import get_company_id
 
@@ -17,26 +17,39 @@ def _company_filter(query, model):
     return query
 
 
+def _shift_time_window(shift):
+    start = shift.opened_at
+    end = shift.closed_at or datetime.utcnow()
+    return start, end
+
+
 def _is_cash_method(value):
     return str(value or '').strip().lower() == 'cash'
 
 
 def _cash_summary(shift):
-    sales_query = Sale.query.filter(Sale.date >= shift.opened_at)
-    returns_query = Return.query.filter(Return.date >= shift.opened_at, Return.status == 'completed')
-    payments_query = CustomerPayment.query.filter(CustomerPayment.date >= shift.opened_at)
+    start, end = _shift_time_window(shift)
+    sales_query = Sale.query.filter(Sale.date >= start, Sale.date <= end)
+    returns_query = Return.query.filter(Return.date >= start, Return.date <= end, Return.status == 'completed')
+    payments_query = CustomerPayment.query.filter(CustomerPayment.date >= start, CustomerPayment.date <= end)
+    expenses_query = Expense.query.filter(Expense.date >= start, Expense.date <= end)
+    
     sales_query = _company_filter(sales_query, Sale)
     returns_query = _company_filter(returns_query, Return)
     payments_query = _company_filter(payments_query, CustomerPayment)
+    expenses_query = _company_filter(expenses_query, Expense)
 
     cash_sales = sum(float(s.total or 0) for s in sales_query.all() if _is_cash_method(s.payment))
     cash_returns = sum(float(r.refund_amount or 0) for r in returns_query.all() if _is_cash_method(r.refund_method))
     customer_payments = sum(float(p.amount or 0) for p in payments_query.all() if _is_cash_method(p.payment_method))
-    expected = float(shift.opening_cash or 0) + cash_sales + customer_payments - cash_returns
+    drawer_expenses = sum(float(e.amount or 0) for e in expenses_query.all())
+
+    expected = float(shift.opening_cash or 0) + cash_sales + customer_payments - cash_returns - drawer_expenses
     return {
         'cash_sales': round(cash_sales, 2),
         'cash_returns': round(cash_returns, 2),
         'customer_payments': round(customer_payments, 2),
+        'drawer_expenses': round(drawer_expenses, 2),
         'expected_cash': round(expected, 2),
     }
 
